@@ -10,6 +10,7 @@
 #include "types/api.hpp"
 #include "types/builtin.hpp"
 #include "vm/VM.hpp"
+#include "runtime/compat.hpp"
 
 #include <gmpxx.h>
 
@@ -51,11 +52,8 @@ PyResult<PyInteger *> PyInteger::create(int64_t value)
 
 PyResult<PyInteger *> PyInteger::create(BigIntType value)
 {
-	auto &heap = VirtualMachine::the().heap();
-	auto *result = heap.allocate<PyInteger>(value);
-	if (!result) { return Err(memory_error(sizeof(PyInteger))); }
-	return Ok(result);
-}
+        auto *result = PYLANG_ALLOC(PyInteger, value);
+        PYLANG_CHECK_ALLOC(result, PyInteger);
 
 PyResult<PyInteger *> PyInteger::create(PyType *type, BigIntType value)
 {
