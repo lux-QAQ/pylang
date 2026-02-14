@@ -20,10 +20,7 @@ class NotImplementedError : public Exception
 
 	static NotImplementedError *create(PyTuple *args)
 	{
-		auto &heap = VirtualMachine::the().heap();
-		return heap.allocate<NotImplementedError>(args);
-	}
-
+                return PYLANG_ALLOC(NotImplementedError, args);
   public:
 	static PyResult<PyObject *> __new__(const PyType *type, PyTuple *args, PyDict *kwargs);
 

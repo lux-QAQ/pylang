@@ -20,10 +20,7 @@ class TypeError : public Exception
 
 	static TypeError *create(PyTuple *args)
 	{
-		auto &heap = VirtualMachine::the().heap();
-		return heap.allocate<TypeError>(args);
-	}
-
+                return PYLANG_ALLOC(TypeError, args);
   public:
 	static PyResult<PyObject *> __new__(const PyType *type, PyTuple *args, PyDict *kwargs);
 

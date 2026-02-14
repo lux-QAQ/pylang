@@ -20,10 +20,10 @@ class StopIteration : public Exception
   public:
 	static StopIteration *create(PyTuple *args)
 	{
-		auto &heap = VirtualMachine::the().heap();
-		return heap.allocate<StopIteration>(args);
+		auto *result = PYLANG_ALLOC(StopIteration, args);
+		PYLANG_CHECK_ALLOC(result, StopIteration);
+		return result;
 	}
-
 	static PyResult<PyObject *> __new__(const PyType *type, PyTuple *args, PyDict *kwargs);
 
 	static std::function<std::unique_ptr<TypePrototype>()> type_factory();

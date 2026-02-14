@@ -28,10 +28,7 @@ class ImportError : public Exception
 
 	static ImportError *create(PyTuple *args)
 	{
-		auto &heap = VirtualMachine::the().heap();
-		return heap.allocate<ImportError>(args);
-	}
-
+        return PYLANG_ALLOC(ImportError, args);
   public:
 	static PyResult<PyObject *> __new__(const PyType *type, PyTuple *args, PyDict *kwargs);
 	PyResult<int32_t> __init__(PyTuple *args, PyDict *kwargs);

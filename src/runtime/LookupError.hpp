@@ -26,10 +26,7 @@ class LookupError : public Exception
 
 	static LookupError *create(PyTuple *args)
 	{
-		auto &heap = VirtualMachine::the().heap();
-		return heap.allocate<LookupError>(args);
-	}
-
+                return PYLANG_ALLOC(LookupError, args);
   public:
 	static std::function<std::unique_ptr<TypePrototype>()> type_factory();
 

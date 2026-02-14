@@ -19,10 +19,7 @@ class AttributeError : public Exception
 
 	static AttributeError *create(PyTuple *args)
 	{
-		auto &heap = VirtualMachine::the().heap();
-		return heap.allocate<AttributeError>(args);
-	}
-
+                return PYLANG_ALLOC(AttributeError, args);
   public:
 	static PyResult<PyObject *> __new__(const PyType *type, PyTuple *args, PyDict *kwargs);
 

@@ -23,10 +23,7 @@ class Exception : public BaseException
 
 	static Exception *create(PyTuple *args)
 	{
-		auto &heap = VirtualMachine::the().heap();
-		return heap.allocate<Exception>(args);
-	}
-
+                return PYLANG_ALLOC(Exception, args);
   public:
 	static PyResult<PyObject *> __new__(const PyType *type, PyTuple *args, PyDict *kwargs);
 

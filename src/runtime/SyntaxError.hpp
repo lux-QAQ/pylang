@@ -20,10 +20,7 @@ class SyntaxError : public Exception
 
 	static SyntaxError *create(PyTuple *args)
 	{
-		auto &heap = VirtualMachine::the().heap();
-		return heap.allocate<SyntaxError>(args);
-	}
-
+                return PYLANG_ALLOC(SyntaxError, args);
   public:
 	static PyResult<PyObject *> __new__(const PyType *type, PyTuple *args, PyDict *kwargs);
 

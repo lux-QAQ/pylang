@@ -20,10 +20,7 @@ class NameError : public Exception
 
 	static NameError *create(PyTuple *args)
 	{
-		auto &heap = VirtualMachine::the().heap();
-		return heap.allocate<NameError>(args);
-	}
-
+                return PYLANG_ALLOC(NameError, args);
   public:
 	static std::function<std::unique_ptr<TypePrototype>()> type_factory();
 

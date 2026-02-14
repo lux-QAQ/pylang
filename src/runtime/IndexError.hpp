@@ -22,10 +22,7 @@ class IndexError : public LookupError
 
 	static IndexError *create(PyTuple *args)
 	{
-		auto &heap = VirtualMachine::the().heap();
-		return heap.allocate<IndexError>(args);
-	}
-
+                return PYLANG_ALLOC(IndexError, args);
   public:
 	static std::function<std::unique_ptr<TypePrototype>()> type_factory();
 
