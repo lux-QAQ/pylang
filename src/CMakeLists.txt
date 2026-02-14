@@ -242,6 +242,7 @@ set(UNITTEST_SOURCES
     runtime/PyString_tests.cpp
     runtime/PyType_tests.cpp
     runtime/compat_tests.cpp
+    runtime/PyInteger_refactor_tests.cpp
     testing/main.cpp)
 
 set(PYTHON_LIB_PATH ${cpython_SOURCE_DIR}/Lib)
