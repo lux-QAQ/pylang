@@ -261,6 +261,12 @@ add_library(
   ${RUNTIME_SOURCE_FILES}
   ${VM_SOURCE_FILES})
 
+# If the top-level option is set, add compile definition to enable shared_ptr
+# compatibility mode in the runtime.
+if(ENABLE_RUNTIME_SHARED_PTR)
+  target_compile_definitions(python-cpp PUBLIC PYLANG_USE_SHARED_PTR)
+endif()
+
 add_executable(unittests_ ${UNITTEST_SOURCES})
 
 target_link_libraries(python-cpp
