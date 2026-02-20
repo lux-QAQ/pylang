@@ -1,267 +1,94 @@
 #pragma once
 
 // =============================================================================
-// Pylang Heap/SharedPtr 兼容层
+// Pylang 内存分配兼容层 (Arena Migration)
 // =============================================================================
 //
-// 问题:
-//   现有 Runtime 的所有 PyObject 子类都通过 Heap::allocate<T>() 分配，
-//   并依赖 GC 的 mark-sweep 回收。如果一次性删除 Heap/VM，整个 runtime
-//   将无法编译（数百个 create() 函数、friend class ::Heap 声明等）。
+// 迁移策略:
+//   Phase A (当前): PYLANG_USE_ARENA 未定义
+//     → 所有宏展开为旧的 Heap + GC 路径，行为不变
+//   Phase B: 在 CMake 中定义 PYLANG_USE_ARENA
+//     → 所有宏展开为 Arena 路径
+//   Phase C: 全局启用 Arena 后，删除旧路径代码
+//     → compat.hpp 简化为直接调用 Arena API
 //
-// 解决方案:
-//   引入编译期开关 PYLANG_USE_SHARED_PTR。
-//   - 未定义时: 所有分配走旧的 Heap 路径，行为不变。
-//   - 定义后:   所有分配走 std::make_shared，GC 相关代码变为 no-op。
-//
-//   这样可以逐个文件迁移：先在某个 .cpp 中 #define PYLANG_USE_SHARED_PTR，
-//   验证通过后再扩展到更多文件，最终全局启用。
-//
-// 迁移步骤:
-//   Phase A: 引入本文件，不定义宏，所有行为不变。
-//   Phase B: 在 CMake 中为新的 runtime 库 target 定义宏。
-//   Phase C: 逐个修改 create() 函数，使用 PYLANG_ALLOC。
-//   Phase D: 全局启用后，删除 Heap/GC/Cell 相关代码。
+// 已完成的宏替换:
+//   PYLANG_ALLOC           ✅ 全局替换完成
+//   PYLANG_ALLOC_WITH_EXTRA ✅ 全局替换完成
+//   PYLANG_GC_PAUSE_SCOPE  ✅ 全局替换完成
+//   PYLANG_CHECK_ALLOC     ⚠️ 部分替换
+//   PYLANG_ALLOC_WEAKREF   ✅ weakref 模块内使用
+//   PYLANG_WEAKREF_ALIVE   ✅ weakref 模块内使用
+//   PYLANG_WEAKREF_COUNT   ✅ weakref/module.cpp 使用
+//   PYLANG_WEAKREF_LIST    ✅ weakref/module.cpp 使用
 //
 // =============================================================================
 
-#include "memory.hpp"
+#ifdef PYLANG_USE_ARENA
 
-#ifdef PYLANG_USE_SHARED_PTR
-// ---- 新路径: shared_ptr ----
+// ---- 新路径: Arena ----
+#include "memory/Arena.hpp"
+#include "memory/ArenaManager.hpp"
 
-// 分配一个 PyObject 子类，返回裸指针（兼容现有 create() 签名）。
-//
-// 关键设计: 我们用一个全局的 shared_ptr 注册表来持有对象，
-// 防止 shared_ptr 立即析构。这是过渡方案，最终 create() 的返回类型
-// 会改为 PyPtr<T>。
-//
-// 但更实际的做法是: 在迁移期间，create() 内部用 new 分配，
-// 外部逐步改为用 shared_ptr 持有。因为 shared_ptr 要求从一开始
-// 就用 shared_ptr 管理，不能中途从裸指针转换。
-//
-// 因此我们采用更务实的策略:
-//   PYLANG_ALLOC<T>(args...) 返回 T*，内部用 new 分配。
-//   对象的生命周期由调用者负责（目前是 Heap，未来是 shared_ptr）。
-//   当全局切换完成后，再统一改为 make_shared。
+#define PYLANG_ALLOC(Type, ...) \
+	::py::Arena::current().allocate<Type>(__VA_ARGS__)
 
-#include <new>
-
-namespace py::compat {
-
-#include <mutex>
-#include <type_traits>
-#include <unordered_map>
-
-// 兼容注册表：raw-pointer -> shared handle
-// 目的：允许在 "shared_ptr" 模式下向旧 API 返回裸指针的同时保留 shared_ptr 控制权，
-//       并支持从裸指针查找对应的 shared_ptr（迁移期间使用，后续可移除）。
-static inline std::unordered_map<void *, py::PyObjPtr> s_legacy_registry;
-static inline std::mutex s_legacy_registry_mutex;
-
-inline void register_shared_for_legacy(const py::PyObjPtr &sp)
-{
-	if (!sp) return;
-	std::lock_guard<std::mutex> lk(s_legacy_registry_mutex);
-	s_legacy_registry[sp.get()] = sp;
-}
-
-inline py::PyObjPtr try_get_shared_for_legacy(void *raw)
-{
-	std::lock_guard<std::mutex> lk(s_legacy_registry_mutex);
-	auto it = s_legacy_registry.find(raw);
-	if (it == s_legacy_registry.end()) return nullptr;
-	return it->second;
-}
-
-inline void deregister_legacy_ptr(void *raw)
-{
-	std::lock_guard<std::mutex> lk(s_legacy_registry_mutex);
-	s_legacy_registry.erase(raw);
-}
-
-inline size_t legacy_registry_size()
-{
-	std::lock_guard<std::mutex> lk(s_legacy_registry_mutex);
-	return s_legacy_registry.size();
-}
-
-// heap_allocate: shared_ptr 模式下的兼容分配器
-// - 若 T 在此上下文可直接构造 (public ctor)，使用 make_shared 并登记到注册表
-// - 否则回退到 Heap::allocate（常见于类将 Heap 设为 friend）并以 non-owning handle 登记
-template<typename T, typename... Args> T *heap_allocate(Args &&...args)
-{
-	static_assert(std::is_base_of_v<py::PyObject, T>, "T must derive from PyObject");
-
-	if constexpr (std::is_constructible_v<T, Args...>) {
-		auto sp = std::make_shared<T>(std::forward<Args>(args)...);
-		register_shared_for_legacy(sp);
-		return sp.get();
-	} else {
-		// 构造不可访问 -> 使用原有 Heap（保证兼容 private/protected ctor）
-		T *raw = VirtualMachine::the().heap().allocate<T>(std::forward<Args>(args)...);
-		// non-owning wrapper，便于通过裸指针查找 shared handle
-		register_shared_for_legacy(py::py_immortal(raw));
-		return raw;
-	}
-}
-
-// visit_graph 的 no-op 替代
-// 当启用 shared_ptr 后，GC 的 visit_graph 不再需要
-struct NullVisitor
-{
-	template<typename T> void visit(T &) { /* no-op */ }
-};
-
-// 支持带额外字节的分配（向后兼容 Heap::allocate_with_extra_bytes）
-template<typename T, typename... Args>
-T *heap_allocate_with_extra(size_t extra_bytes, Args &&...args)
-{
-	// 目前对变长对象仍然使用 Heap 路径以保证语义与布局一致。
-	return VirtualMachine::the().heap().allocate_with_extra_bytes<T>(
-		extra_bytes, std::forward<Args>(args)...);
-}
-
-}// namespace py::compat
-
-// 替换 Heap::allocate 的宏
-// 用法: auto* obj = PYLANG_ALLOC(PyInteger, args...);
-// 在旧模式下展开为 VirtualMachine::the().heap().allocate<T>(args...)
-// 在新模式下展开为 py::compat::heap_allocate<T>(args...)
-#define PYLANG_ALLOC(Type, ...) ::py::compat::heap_allocate<Type>(__VA_ARGS__)
-
-// 带额外字节的分配（用于变长对象）
 #define PYLANG_ALLOC_WITH_EXTRA(Type, Extra, ...) \
-	::py::compat::heap_allocate_with_extra<Type>(Extra, __VA_ARGS__)
+	::py::Arena::current().allocate_with_extra<Type>(Extra, __VA_ARGS__)
 
-// visit_graph 的条件编译辅助
-// 在新模式下，visit_graph 体变为空
-#define PYLANG_VISIT_GRAPH_BODY(visitor) (void)(visitor);
+// Arena 模式下无 GC，暂停操作为 no-op
+#define PYLANG_GC_PAUSE_SCOPE() ((void)0)
 
-// Cell 基类的替代
-// 在新模式下，PyObject 不再需要继承 Cell
-// 但为了兼容，我们提供一个空的 Cell 替代
-namespace py::compat {
+// WeakRef: Arena 模式下通过 WeakRefRegistry 实现
+#include "weakref/WeakRefRegistry.hpp"
 
-class CellCompat
-{
-  public:
-	CellCompat() = default;
-	virtual ~CellCompat() = default;
+#define PYLANG_ALLOC_WEAKREF(Type, Obj, Callback) \
+	::py::Arena::current().allocate<Type>(Obj, Callback)
 
-	// 保留接口兼容，但都是 no-op
-	virtual std::string to_string() const { return ""; }
+#define PYLANG_WEAKREF_ALIVE(ObjPtr) \
+	::py::weakref::is_alive(ObjPtr)
 
-	struct Visitor
-	{
-		virtual ~Visitor() = default;
-		virtual void visit(CellCompat &) {}
-	};
+#define PYLANG_WEAKREF_COUNT(ObjPtr) \
+	::py::weakref::ref_count(ObjPtr)
 
-	virtual void visit_graph(Visitor &) {}
-	virtual bool is_pyobject() const { return false; }
-};
-
-// GC 暂停的 No-op 替代品 (RAII)
-struct ScopedNoOp
-{
-};
-
-}// namespace py::compat
-
-#define PYLANG_GC_PAUSE_SCOPE() \
-	[[maybe_unused]] ::py::compat::ScopedNoOp _pylang_gc_pause_guard_##__LINE__ {}
+#define PYLANG_WEAKREF_LIST(ObjPtr) \
+	::py::weakref::get_refs(ObjPtr)
 
 #else
-// ---- 旧路径: Heap + GC ----
+// ---- 旧路径: Heap + GC (不变) ----
 
-// 什么都不改，保持原有行为
+#include "vm/VM.hpp"
+
 #define PYLANG_ALLOC(Type, ...) VirtualMachine::the().heap().allocate<Type>(__VA_ARGS__)
 
 #define PYLANG_ALLOC_WITH_EXTRA(Type, Extra, ...) \
-    VirtualMachine::the().heap().allocate_with_extra_bytes<Type>(Extra, __VA_ARGS__)
-
-#define PYLANG_VISIT_GRAPH_BODY(visitor) /* use original implementation */
+	VirtualMachine::the().heap().allocate_with_extra_bytes<Type>(Extra, __VA_ARGS__)
 
 #define PYLANG_GC_PAUSE_SCOPE() \
-    [[maybe_unused]] auto _pylang_gc_pause_##__LINE__ = \
-        VirtualMachine::the().heap().scoped_gc_pause();
+	[[maybe_unused]] auto _pylang_gc_pause_##__LINE__ = \
+		VirtualMachine::the().heap().scoped_gc_pause();
 
-#endif// PYLANG_USE_SHARED_PTR
+#define PYLANG_ALLOC_WEAKREF(Type, Obj, Callback) \
+	VirtualMachine::the().heap().allocate_weakref<Type>(Obj, Callback)
+
+#define PYLANG_WEAKREF_ALIVE(ObjPtr) \
+	VirtualMachine::the().heap().has_weakref_object(std::bit_cast<uint8_t *>(ObjPtr))
+
+#define PYLANG_WEAKREF_COUNT(ObjPtr) \
+	VirtualMachine::the().heap().weakref_count(std::bit_cast<uint8_t *>(ObjPtr))
+
+#define PYLANG_WEAKREF_LIST(ObjPtr) \
+	VirtualMachine::the().heap().get_weakrefs(std::bit_cast<uint8_t *>(ObjPtr))
+
+#endif // PYLANG_USE_ARENA
 
 
 // =============================================================================
 // 通用辅助宏（两种模式下都可用）
 // =============================================================================
 
-
-// #define PYLANG_GC_PAUSE_SCOPE() \
-// 	[[maybe_unused]] auto scope = VirtualMachine::the().heap().scoped_gc_pause();
-
 // 检查分配结果并返回 MemoryError
-// 用法:
-//   auto* obj = PYLANG_ALLOC(PyInteger, args...);
-//   PYLANG_CHECK_ALLOC(obj, PyInteger);
-//   return Ok(obj);
-//
 #define PYLANG_CHECK_ALLOC(ptr, Type)                           \
 	do {                                                        \
 		if (!(ptr)) { return Err(memory_error(sizeof(Type))); } \
 	} while (0)
-
-// 组合: 分配 + 检查，一步到位
-// 用法:
-//   auto* obj = PYLANG_CREATE(PyInteger, args...);
-//   return Ok(obj);
-//
-// 展开后:
-//   auto* obj = PYLANG_ALLOC(PyInteger, args...);
-//   if (!obj) { return Err(memory_error(sizeof(PyInteger))); }
-//
-#define PYLANG_CREATE(Type, ...)                      \
-	([&]() -> Type * {                                \
-		auto *_obj = PYLANG_ALLOC(Type, __VA_ARGS__); \
-		return _obj;                                  \
-	}())
-
-
-
-
-// =============================================================================
-// WeakRef 兼容层
-// =============================================================================
-
-#ifdef PYLANG_USE_SHARED_PTR
-
-// 在 SharedPtr 模式初期，暂不支持完整的 WeakRef 语义自动清理
-// 这里的实现主要是为了让代码能编译通过。
-// TODO: 未来需将 PyWeakRef 内部改造为持有 std::weak_ptr<PyObject>
-
-#define PYLANG_ALLOC_WEAKREF(Type, Obj, Callback) \
-    ::py::compat::heap_allocate<Type>(Obj, Callback)
-
-// 在 shared_ptr 模式下，如果持有的是裸指针，很难判断其是否已析构（除非使用 weak_ptr）
-// 暂时假定总是存活，直到 Type 系统重构完成
-#define PYLANG_WEAKREF_ALIVE(ObjPtr) (true)
-
-#define PYLANG_WEAKREF_COUNT(ObjPtr) (0)
-
-// 返回空列表
-#define PYLANG_WEAKREF_LIST(ObjPtr) (std::vector<py::PyObject *>{})
-
-#else
-// ---- 旧路径: Heap + GC ----
-
-#define PYLANG_ALLOC_WEAKREF(Type, Obj, Callback) \
-    VirtualMachine::the().heap().allocate_weakref<Type>(Obj, Callback)
-
-#define PYLANG_WEAKREF_ALIVE(ObjPtr) \
-    VirtualMachine::the().heap().has_weakref_object(std::bit_cast<uint8_t *>(ObjPtr))
-
-#define PYLANG_WEAKREF_COUNT(ObjPtr) \
-    VirtualMachine::the().heap().weakref_count(std::bit_cast<uint8_t *>(ObjPtr))
-
-#define PYLANG_WEAKREF_LIST(ObjPtr) \
-    VirtualMachine::the().heap().get_weakrefs(std::bit_cast<uint8_t *>(ObjPtr))
-
-#endif// PYLANG_USE_SHARED_PTR
