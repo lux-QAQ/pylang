@@ -7,6 +7,7 @@ namespace py {
 class PyNamespace : public PyBaseObject
 {
 	friend class ::Heap;
+	friend class ::py::Arena;
 
   public:
 	PyDict *m_dict{ nullptr };

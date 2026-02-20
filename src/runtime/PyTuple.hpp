@@ -9,6 +9,7 @@ class PyTuple
 	, PySequence
 {
 	friend class ::Heap;
+	friend class ::py::Arena;
 	friend class PyTupleIterator;
 
 	const std::vector<Value> m_elements;
@@ -70,6 +71,7 @@ template<> const PyTuple *as(const PyObject *obj);
 class PyTupleIterator : public PyBaseObject
 {
 	friend class ::Heap;
+	friend class ::py::Arena;
 	friend PyTuple;
 
 	const PyTuple &m_pytuple;

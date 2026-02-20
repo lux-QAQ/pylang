@@ -11,6 +11,7 @@ namespace collections {
 	class Deque : public PyBaseObject
 	{
 		friend class ::Heap;
+	friend class ::py::Arena;
 
 		std::deque<Value> m_deque;
 		std::optional<size_t> m_maxlength;

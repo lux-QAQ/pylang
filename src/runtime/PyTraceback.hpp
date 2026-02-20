@@ -18,6 +18,7 @@ class PyTraceback : public PyBaseObject
 
   private:
 	friend class ::Heap;
+	friend class ::py::Arena;
 
 	PyTraceback(PyType *);
 

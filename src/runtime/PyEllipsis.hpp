@@ -7,6 +7,7 @@ namespace py {
 class PyEllipsis : public PyBaseObject
 {
 	friend class ::Heap;
+	friend class ::py::Arena;
 	friend PyObject *py_ellipsis();
 
 	static constexpr Ellipsis m_value{};

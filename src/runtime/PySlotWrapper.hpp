@@ -95,6 +95,7 @@ class PySlotWrapper : public PyBaseObject
 	FunctionType m_slot;
 
 	friend class ::Heap;
+	friend class ::py::Arena;
 
 	PySlotWrapper(PyType *type);
 

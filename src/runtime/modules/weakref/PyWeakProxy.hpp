@@ -7,6 +7,7 @@ namespace py {
 class PyWeakProxy : public PyBaseObject
 {
 	friend class ::Heap;
+	friend class ::py::Arena;
 	mutable PyObject *m_object{ nullptr };
 	PyObject *m_callback{ nullptr };
 

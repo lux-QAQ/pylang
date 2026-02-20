@@ -7,6 +7,7 @@ namespace sre {
 	class Match : public PyBaseObject
 	{
 		friend class ::Heap;
+	friend class ::py::Arena;
 
 		Match();
 		Match(PyType *);

@@ -11,6 +11,7 @@ namespace py {
 class ImportError : public Exception
 {
 	friend class ::Heap;
+	friend class ::py::Arena;
 	template<typename... Args>
 	friend BaseException *import_error(const std::string &message, Args &&...args);
 

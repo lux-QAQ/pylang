@@ -7,7 +7,9 @@
 #include "memory/GarbageCollector.hpp"
 #include "runtime/forward.hpp"
 #include "runtime/compat.hpp"
+#ifndef PYLANG_USE_ARENA
 #include "vm/VM.hpp"
+#endif
 
 #include <cstddef>
 #include <functional>
@@ -408,6 +410,7 @@ class PySequenceWrapper
 class PyObject : public Cell
 {
 	friend class ::Heap;
+	friend class ::py::Arena;
 	friend PyMappingWrapper;
 	friend PySequenceWrapper;
 	friend class PyType;

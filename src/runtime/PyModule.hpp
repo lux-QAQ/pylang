@@ -21,6 +21,7 @@ class PyModule : public PyBaseObject
 
   private:
 	friend class ::Heap;
+	friend class ::py::Arena;
 	friend class VM;
 
 	std::shared_ptr<Program> m_program;

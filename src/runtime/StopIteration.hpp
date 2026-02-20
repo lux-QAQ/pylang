@@ -10,6 +10,7 @@ namespace py {
 class StopIteration : public Exception
 {
 	friend class ::Heap;
+	friend class ::py::Arena;
 	template<typename... Args> friend BaseException *stop_iteration(Args &&...args);
 
   private:

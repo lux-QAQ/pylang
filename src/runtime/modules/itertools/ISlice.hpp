@@ -5,6 +5,7 @@ namespace itertools {
 	class ISlice : public PyBaseObject
 	{
 		friend class ::Heap;
+	friend class ::py::Arena;
 
 		PyObject *m_iterator{ nullptr };
 		BigIntType m_start{ 0 };

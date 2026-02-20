@@ -8,6 +8,7 @@ namespace py {
 class PySet : public PyBaseObject
 {
 	friend class ::Heap;
+	friend class ::py::Arena;
 
   public:
 	using SetType = std::unordered_set<Value, ValueHash>;
@@ -66,6 +67,7 @@ class PySet : public PyBaseObject
 class PySetIterator : public PyBaseObject
 {
 	friend class ::Heap;
+	friend class ::py::Arena;
 
 	const std::variant<std::monostate,
 		std::reference_wrapper<const PySet>,

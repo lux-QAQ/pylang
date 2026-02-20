@@ -7,6 +7,7 @@ namespace py {
 class PySlice : public PyBaseObject
 {
 	friend class ::Heap;
+	friend class ::py::Arena;
 
   public:
 	PyObject *m_start{ nullptr };

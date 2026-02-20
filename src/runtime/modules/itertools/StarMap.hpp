@@ -5,6 +5,7 @@ namespace itertools {
 	class StarMap : public PyBaseObject
 	{
 		friend class ::Heap;
+	friend class ::py::Arena;
 
 		PyObject *m_function{ nullptr };
 		PyObject *m_iterator{ nullptr };

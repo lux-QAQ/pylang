@@ -10,6 +10,7 @@ namespace py {
 class RuntimeError : public Exception
 {
 	friend class ::Heap;
+	friend class ::py::Arena;
 	template<typename... Args>
 	friend BaseException *runtime_error(const std::string &message, Args &&...args);
 

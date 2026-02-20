@@ -7,6 +7,7 @@ namespace py {
 class PyMap : public PyBaseObject
 {
 	friend class ::Heap;
+	friend class ::py::Arena;
 
 	PyObject *m_func{ nullptr };
 	PyTuple *m_iters{ nullptr };

@@ -7,6 +7,7 @@ namespace py {
 class PyNone : public PyBaseObject
 {
 	friend class ::Heap;
+	friend class ::py::Arena;
 	friend PyObject *py_none();
 
 	bool m_value;

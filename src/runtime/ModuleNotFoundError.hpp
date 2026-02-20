@@ -13,6 +13,7 @@ namespace py {
 class ModuleNotFoundError : public ImportError
 {
 	friend class ::Heap;
+	friend class ::py::Arena;
 	template<typename... Args>
 	friend BaseException *module_not_found_error(const std::string &message, Args &&...args);
 

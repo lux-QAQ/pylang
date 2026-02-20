@@ -6,6 +6,7 @@ namespace py {
 class PyMappingProxy : public PyBaseObject
 {
 	friend class ::Heap;
+	friend class ::py::Arena;
 
 	PyObject *m_mapping{ nullptr };
 

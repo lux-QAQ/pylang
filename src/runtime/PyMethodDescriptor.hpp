@@ -14,6 +14,7 @@ class PyMethodDescriptor : public PyBaseObject
 	std::vector<PyObject *> m_captures;
 
 	friend class ::Heap;
+	friend class ::py::Arena;
 
 	PyMethodDescriptor(PyType *);
 

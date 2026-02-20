@@ -25,6 +25,7 @@ class PyDict : public PyBaseObject
 
   private:
 	friend class ::Heap;
+	friend class ::py::Arena;
 	friend PyDictItems;
 	friend PyDictItemsIterator;
 
@@ -86,6 +87,7 @@ class PyDict : public PyBaseObject
 class PyDictItems : public PyBaseObject
 {
 	friend class ::Heap;
+	friend class ::py::Arena;
 	friend PyDict;
 	friend PyDictItemsIterator;
 
@@ -114,6 +116,7 @@ class PyDictItems : public PyBaseObject
 class PyDictKeys : public PyBaseObject
 {
 	friend class ::Heap;
+	friend class ::py::Arena;
 	friend PyDict;
 	friend PyDictKeyIterator;
 
@@ -142,6 +145,7 @@ class PyDictKeys : public PyBaseObject
 class PyDictValues : public PyBaseObject
 {
 	friend class ::Heap;
+	friend class ::py::Arena;
 	friend PyDict;
 	friend PyDictValueIterator;
 
@@ -170,6 +174,7 @@ class PyDictValues : public PyBaseObject
 class PyDictItemsIterator : public PyBaseObject
 {
 	friend class ::Heap;
+	friend class ::py::Arena;
 	friend PyDictItems;
 
 	const std::optional<std::reference_wrapper<const PyDictItems>> m_pydictitems;
@@ -209,6 +214,7 @@ class PyDictItemsIterator : public PyBaseObject
 class PyDictKeyIterator : public PyBaseObject
 {
 	friend class ::Heap;
+	friend class ::py::Arena;
 	friend PyDictItems;
 	friend PyDictKeys;
 
@@ -248,6 +254,7 @@ class PyDictKeyIterator : public PyBaseObject
 class PyDictValueIterator : public PyBaseObject
 {
 	friend class ::Heap;
+	friend class ::py::Arena;
 	friend PyDictItems;
 	friend PyDictValues;
 

@@ -8,6 +8,7 @@ class PyType : public PyBaseObject
 {
 	template<typename T> friend struct klass;
 	friend class ::Heap;
+	friend class ::py::Arena;
 	friend class PyObject;
 
   private:

@@ -10,6 +10,7 @@ namespace py {
 class KeyError : public Exception
 {
 	friend class ::Heap;
+	friend class ::py::Arena;
 	template<typename... Args>
 	friend BaseException *key_error(const std::string &message, Args &&...args);
 

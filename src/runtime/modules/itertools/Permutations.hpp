@@ -7,6 +7,7 @@ namespace itertools {
 	class Permutations : public PyBaseObject
 	{
 		friend class ::Heap;
+	friend class ::py::Arena;
 
 		PyList *m_pool{ nullptr };
 		size_t m_length;

@@ -11,6 +11,7 @@ class PyGetSetDescriptor : public PyBaseObject
 	std::optional<std::reference_wrapper<PropertyDefinition>> m_getset;
 
 	friend class ::Heap;
+	friend class ::py::Arena;
 
 	PyGetSetDescriptor(PyType *);
 

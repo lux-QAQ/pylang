@@ -5,6 +5,7 @@ namespace py {
 class PyFloat final : public PyNumber
 {
 	friend class ::Heap;
+	friend class ::py::Arena;
 
 	PyFloat(double);
 

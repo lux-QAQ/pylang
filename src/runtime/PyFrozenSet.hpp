@@ -8,6 +8,7 @@ namespace py {
 class PyFrozenSet : public PyBaseObject
 {
 	friend class ::Heap;
+	friend class ::py::Arena;
 
   public:
 	using SetType = std::unordered_set<Value, ValueHash>;

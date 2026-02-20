@@ -6,6 +6,7 @@ namespace py {
 class PyEnumerate : public PyBaseObject
 {
 	friend class ::Heap;
+	friend class ::py::Arena;
 
 	int64_t m_current_index{ 0 };
 	PyObject *m_iterator{ nullptr };

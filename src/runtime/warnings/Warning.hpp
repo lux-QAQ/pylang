@@ -10,6 +10,7 @@ namespace py {
 class Warning : public Exception
 {
 	friend class ::Heap;
+	friend class ::py::Arena;
 	template<typename... Args>
 	friend BaseException *warning(const std::string &message, Args &&...args);
 

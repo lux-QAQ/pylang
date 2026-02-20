@@ -10,6 +10,7 @@ namespace py {
 class PyMemoryView : public PyBaseObject
 {
 	friend class ::Heap;
+	friend class ::py::Arena;
 
 	struct ManagedBuffer
 	{

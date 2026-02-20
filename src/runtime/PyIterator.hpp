@@ -8,6 +8,7 @@ namespace py {
 class PyIterator : public PyBaseObject
 {
 	friend class ::Heap;
+	friend class ::py::Arena;
 
 	size_t m_index{ 0 };
 	PyObject *m_iterator{ nullptr };

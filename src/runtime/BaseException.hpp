@@ -7,6 +7,7 @@ namespace py {
 class BaseException : public PyBaseObject
 {
 	friend class ::Heap;
+	friend class ::py::Arena;
 	template<typename T> friend struct klass;
 
 	friend BaseException *as<>(PyObject *obj);

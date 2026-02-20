@@ -13,6 +13,7 @@ class PyString
 	, public PySequence
 {
 	friend class ::Heap;
+	friend class ::py::Arena;
 	std::string m_value;
 
 	PyString(PyType *);
@@ -146,6 +147,7 @@ class PyString
 class PyStringIterator : public PyBaseObject
 {
 	friend class ::Heap;
+	friend class ::py::Arena;
 
 	const PyString &m_pystring;
 	size_t m_current_index{ 0 };

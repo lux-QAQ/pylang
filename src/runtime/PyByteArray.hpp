@@ -10,6 +10,7 @@ namespace py {
 class PyByteArray : public PyBaseObject
 {
 	friend class ::Heap;
+	friend class ::py::Arena;
 
 	Bytes m_value;
 
@@ -56,6 +57,7 @@ class PyByteArray : public PyBaseObject
 class PyByteArrayIterator : public PyBaseObject
 {
 	friend class ::Heap;
+	friend class ::py::Arena;
 
 	PyByteArray *m_bytes{ nullptr };
 	size_t m_index{ 0 };

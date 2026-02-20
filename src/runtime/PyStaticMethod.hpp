@@ -10,6 +10,7 @@ class PyStaticMethod : public PyBaseObject
 	PyObject *m_static_method{ nullptr };
 
 	friend class ::Heap;
+	friend class ::py::Arena;
 
 	PyStaticMethod(PyType *);
 

@@ -10,6 +10,7 @@ namespace py {
 class TypeError : public Exception
 {
 	friend class ::Heap;
+	friend class ::py::Arena;
 	template<typename... Args>
 	friend BaseException *type_error(const std::string &message, Args &&...args);
 

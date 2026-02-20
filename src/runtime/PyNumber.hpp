@@ -8,6 +8,7 @@ namespace py {
 class PyNumber : public PyBaseObject
 {
 	friend class ::Heap;
+	friend class ::py::Arena;
 	friend Interface<PyNumber, PyInteger>;
 	friend class PyFloat;
 

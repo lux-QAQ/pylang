@@ -20,6 +20,7 @@ namespace {
 class Lock : public PyBaseObject
 {
 	friend class ::Heap;
+	friend class ::py::Arena;
 
 	std::timed_mutex m_mutex;
 	bool m_locked{ false };

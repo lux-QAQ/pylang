@@ -9,6 +9,7 @@ namespace collections {
 	class DefaultDict : public PyDict
 	{
 		friend class ::Heap;
+	friend class ::py::Arena;
 
 		PyObject *m_default_factory;
 

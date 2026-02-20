@@ -5,6 +5,7 @@ namespace itertools {
 	class Repeat : public PyBaseObject
 	{
 		friend class ::Heap;
+	friend class ::py::Arena;
 
 		PyObject *m_object{ nullptr };
 		std::optional<BigIntType> m_times_remaining;

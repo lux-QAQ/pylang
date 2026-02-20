@@ -12,6 +12,7 @@ namespace py {
 class PyComplex : public PyBaseObject
 {
 	friend class ::Heap;
+	friend class ::py::Arena;
 
 	std::complex<BigIntType> m_complex;
 

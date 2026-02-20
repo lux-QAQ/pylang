@@ -6,6 +6,7 @@ namespace py {
 class PyZip : public PyBaseObject
 {
 	friend class ::Heap;
+	friend class ::py::Arena;
 
 	std::vector<PyObject *> m_iterators;
 

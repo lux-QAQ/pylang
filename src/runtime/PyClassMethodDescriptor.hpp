@@ -10,6 +10,7 @@ namespace py {
 class PyClassMethodDescriptor : public PyBaseObject
 {
 	friend class ::Heap;
+	friend class ::py::Arena;
 
 	PyString *m_name;
 	PyType *m_underlying_type;

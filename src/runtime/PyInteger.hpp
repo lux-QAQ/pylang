@@ -9,6 +9,7 @@ namespace py {
 class PyInteger : public Interface<PyNumber, PyInteger>
 {
 	friend class ::Heap;
+	friend class ::py::Arena;
 
 	PyInteger(BigIntType);
 

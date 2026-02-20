@@ -11,6 +11,7 @@ namespace py {
 class PyFunction : public PyBaseObject
 {
 	friend class ::Heap;
+	friend class ::py::Arena;
 
 	PyString *m_name{ nullptr };
 	PyObject *m_doc{ nullptr };
@@ -59,6 +60,7 @@ class PyFunction : public PyBaseObject
 class PyNativeFunction : public PyBaseObject
 {
 	friend class ::Heap;
+	friend class ::py::Arena;
 	using FreeFunctionSignature = PyResult<PyObject *>(PyTuple *, PyDict *);
 	using MethodSignature = PyResult<PyObject *>(PyObject *, PyTuple *, PyDict *);
 	using FreeFunctionType = std::function<FreeFunctionSignature>;

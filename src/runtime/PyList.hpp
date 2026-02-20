@@ -9,6 +9,7 @@ class PyList
 	, PySequence
 {
 	friend class ::Heap;
+	friend class ::py::Arena;
 
 	std::vector<Value> m_elements;
 
@@ -64,6 +65,7 @@ class PyList
 class PyListIterator : public PyBaseObject
 {
 	friend class ::Heap;
+	friend class ::py::Arena;
 
 	const PyList &m_pylist;
 	size_t m_current_index{ 0 };
@@ -85,6 +87,7 @@ class PyListIterator : public PyBaseObject
 class PyListReverseIterator : public PyBaseObject
 {
 	friend class ::Heap;
+	friend class ::py::Arena;
 
 	std::optional<std::reference_wrapper<PyList>> m_pylist;
 	size_t m_current_index{ 0 };

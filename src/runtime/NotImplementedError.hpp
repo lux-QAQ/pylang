@@ -11,6 +11,7 @@ namespace py {
 class NotImplementedError : public Exception
 {
 	friend class ::Heap;
+	friend class ::py::Arena;
 	template<typename... Args>
 	friend BaseException *not_implemented_error(const std::string &message, Args &&...args);
 

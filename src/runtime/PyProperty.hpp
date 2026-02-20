@@ -15,6 +15,7 @@ class PyProperty : public PyBaseObject
 	PyObject *m_property_name{ nullptr };
 
 	friend class ::Heap;
+	friend class ::py::Arena;
 
 	PyProperty(PyType *);
 

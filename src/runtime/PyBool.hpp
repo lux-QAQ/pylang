@@ -7,6 +7,7 @@ namespace py {
 class PyBool : public PyInteger
 {
 	friend class ::Heap;
+	friend class ::py::Arena;
 	friend PyObject *py_true();
 	friend PyObject *py_false();
 

@@ -11,6 +11,7 @@ namespace py {
 class MemoryError : public Exception
 {
 	friend class ::Heap;
+	friend class ::py::Arena;
 	friend BaseException *memory_error(size_t failed_allocation_size);
 
   private:

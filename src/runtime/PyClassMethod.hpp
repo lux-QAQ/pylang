@@ -7,6 +7,7 @@ namespace py {
 class PyClassMethod : public PyBaseObject
 {
 	friend class ::Heap;
+	friend class ::py::Arena;
 
   public:
 	PyObject *m_callable;

@@ -7,6 +7,7 @@ namespace py {
 class ImportWarning : public Warning
 {
 	friend class ::Heap;
+	friend class ::py::Arena;
 	template<typename... Args>
 	friend BaseException *import_warning(const std::string &message, Args &&...args);
 

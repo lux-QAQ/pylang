@@ -7,6 +7,7 @@ namespace py {
 class PyBuiltInMethod : public PyBaseObject
 {
 	friend class ::Heap;
+	friend class ::py::Arena;
 
 	std::optional<std::reference_wrapper<MethodDefinition>> m_ml;
 	PyObject *m_self;

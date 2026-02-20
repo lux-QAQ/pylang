@@ -13,6 +13,7 @@ class PyMemberDescriptor : public PyBaseObject
 	std::function<PyResult<std::monostate>(PyObject *, PyObject *)> m_member_setter;
 
 	friend class ::Heap;
+	friend class ::py::Arena;
 
 	PyMemberDescriptor(PyType *);
 

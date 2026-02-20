@@ -8,6 +8,7 @@ namespace itertools {
 	class Product : public PyBaseObject
 	{
 		friend class ::Heap;
+	friend class ::py::Arena;
 
 		PyList *m_pools{ nullptr };
 		size_t m_repeat;

@@ -10,6 +10,7 @@ namespace py {
 class PendingDeprecationWarning : public Warning
 {
 	friend class ::Heap;
+	friend class ::py::Arena;
 	template<typename... Args>
 	friend BaseException *pending_deprecation_warning(const std::string &message, Args &&...args);
 

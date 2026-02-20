@@ -14,6 +14,7 @@ namespace py {
 class PyLLVMFunction : public PyBaseObject
 {
 	friend class ::Heap;
+	friend class ::py::Arena;
 	using FunctionType = std::function<PyObject *(PyTuple *, PyDict *)>;
 
 	std::string m_name;

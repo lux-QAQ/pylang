@@ -4,6 +4,17 @@
 
 #include <bitset>
 #include <stack>
+#include <string>
+
+// 前置声明: Arena 类, 供 friend class ::py::Arena 使用
+namespace py { class Arena; }
+
+// =============================================================================
+// Arena 模式下, GarbageCollected / Cell / MarkSweepGC 全部禁用。
+// PyObject 不再继承 Cell, 而是独立的基类。
+// =============================================================================
+
+#ifndef PYLANG_USE_ARENA
 
 class GarbageCollected
 {
@@ -96,3 +107,36 @@ class MarkSweepGC : public GarbageCollector
 	mutable size_t m_iterations_since_last_sweep{ 0 };
 	bool m_pause{ false };
 };
+
+#else // PYLANG_USE_ARENA
+
+// =============================================================================
+// Arena 模式: Cell 替代品
+// =============================================================================
+// PyObject 仍然需要 to_string() 接口, 但不需要 visit_graph / GC 标记。
+// 提供一个最小化的 Cell 替代基类, 保持 NonCopyable/NonMoveable 语义。
+
+class Cell
+	: NonCopyable
+	, NonMoveable
+{
+  public:
+	struct Visitor
+	{
+		virtual ~Visitor() = default;
+		virtual void visit(Cell &) = 0;
+	};
+
+  public:
+	Cell() = default;
+	virtual ~Cell() = default;
+
+	virtual std::string to_string() const = 0;
+
+	// Arena 模式下 visit_graph 为空操作
+	virtual void visit_graph(Visitor &) {}
+
+	virtual bool is_pyobject() const { return false; }
+};
+
+#endif // PYLANG_USE_ARENA

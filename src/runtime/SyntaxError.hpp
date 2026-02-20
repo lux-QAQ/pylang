@@ -10,6 +10,7 @@ namespace py {
 class SyntaxError : public Exception
 {
 	friend class ::Heap;
+	friend class ::py::Arena;
 	template<typename... Args>
 	friend BaseException *syntax_error(const std::string &message, Args &&...args);
 
