@@ -50,10 +50,10 @@ option(ENABLE_SANITIZER_ADDRESS "Enable address sanitizer" OFF)
 option(ENABLE_SANITIZER_UNDEFINED_BEHAVIOR "Enable undefined behavior sanitizer" OFF)
 option(ENABLE_LLVM_BACKEND "Enable LLVM as a Python execution backend" OFF)
 
-# Enable building runtime in shared_ptr (RAII) compatibility mode. When ON
-# the compile definition PYLANG_USE_SHARED_PTR will be set for the runtime
-# target so tests exercising the shared_ptr-path are built.
-option(ENABLE_RUNTIME_SHARED_PTR "Enable runtime shared_ptr compatibility (defines PYLANG_USE_SHARED_PTR)" OFF)
+# Enable Arena/Region-based memory management in the runtime.
+# When ON the compile definition PYLANG_USE_ARENA will be set, replacing
+# the Heap + GC allocation path with Arena bump allocation.
+option(ENABLE_RUNTIME_ARENA "Enable runtime Arena memory management (defines PYLANG_USE_ARENA)" OFF)
 
 if (${ENABLE_CACHE})
 	set(ENABLE_CACHE "ENABLE_CACHE")

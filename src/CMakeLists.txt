@@ -104,7 +104,10 @@ set(INTERPRETER_SOURCE_FILES
     interpreter/Interpreter.cpp interpreter/InterpreterSession.cpp)
 
 set(MEMORY_SOURCE_FILES # cmake-format: sortable
-                        memory/GarbageCollector.cpp memory/Heap.cpp)
+                        memory/Arena.cpp
+                        memory/ArenaManager.cpp
+                        memory/GarbageCollector.cpp
+                        memory/Heap.cpp)
 
 set(PARSER_SOURCE_FILES # cmake-format: sortable
                         parser/Parser.cpp)
@@ -235,6 +238,7 @@ set(UNITTEST_SOURCES
     executable/bytecode/codegen/BytecodeGenerator_tests.cpp
     executable/bytecode/codegen/VariablesResolver_tests.cpp
     lexer/Lexer_tests.cpp
+    memory/Arena_tests.cpp
     memory/GarbageCollector_tests.cpp
     memory/Heap_tests.cpp
     parser/Parser_tests.cpp
@@ -263,10 +267,10 @@ add_library(
   ${RUNTIME_SOURCE_FILES}
   ${VM_SOURCE_FILES})
 
-# If the top-level option is set, add compile definition to enable shared_ptr
-# compatibility mode in the runtime.
-if(ENABLE_RUNTIME_SHARED_PTR)
-  target_compile_definitions(python-cpp PUBLIC PYLANG_USE_SHARED_PTR)
+# If the top-level option is set, add compile definition to enable Arena
+# memory management in the runtime (replaces Heap + GC).
+if(ENABLE_RUNTIME_ARENA)
+  target_compile_definitions(python-cpp PUBLIC PYLANG_USE_ARENA)
 endif()
 
 add_executable(unittests_ ${UNITTEST_SOURCES})
