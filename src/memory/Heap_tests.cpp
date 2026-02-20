@@ -1,4 +1,6 @@
 #include "Heap_test.hpp"
+
+#ifndef PYLANG_USE_ARENA
 namespace {
 static constexpr size_t chunk_size = 64;
 }
@@ -104,3 +106,5 @@ TEST_F(TestHeap, ResetCallsDestructorOfAllHeapAllocatecObjects)
 
 	ASSERT_EQ(counter, n_chunks * chunk_size);
 }
+
+#endif // PYLANG_USE_ARENA

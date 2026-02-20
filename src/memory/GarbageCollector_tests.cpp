@@ -1,6 +1,8 @@
 #include "GarbageCollector.hpp"
 #include "Heap_test.hpp"
 
+#ifndef PYLANG_USE_ARENA
+
 namespace {
 
 static int64_t g_counter = 0;
@@ -78,3 +80,5 @@ TEST_F(TestHeap, GarbageCollectorDeallocatesGCPointersWhenStackFrameIsPopped)
 
 	ASSERT_EQ(g_counter, 5);
 }
+
+#endif // PYLANG_USE_ARENA
