@@ -16,7 +16,7 @@
 //   PYLANG_ALLOC           ✅ 全局替换完成
 //   PYLANG_ALLOC_WITH_EXTRA ✅ 全局替换完成
 //   PYLANG_GC_PAUSE_SCOPE  ✅ 全局替换完成
-//   PYLANG_CHECK_ALLOC     ⚠️ 部分替换
+//   PYLANG_CHECK_ALLOC     ⚠️ 部分替换，但无需全部替换不影响正常使用
 //   PYLANG_ALLOC_WEAKREF   ✅ weakref 模块内使用
 //   PYLANG_WEAKREF_ALIVE   ✅ weakref 模块内使用
 //   PYLANG_WEAKREF_COUNT   ✅ weakref/module.cpp 使用
@@ -30,8 +30,7 @@
 #include "memory/Arena.hpp"
 #include "memory/ArenaManager.hpp"
 
-#define PYLANG_ALLOC(Type, ...) \
-	::py::Arena::current().allocate<Type>(__VA_ARGS__)
+#define PYLANG_ALLOC(Type, ...) ::py::Arena::current().allocate<Type>(__VA_ARGS__)
 
 #define PYLANG_ALLOC_WITH_EXTRA(Type, Extra, ...) \
 	::py::Arena::current().allocate_with_extra<Type>(Extra, __VA_ARGS__)
@@ -45,14 +44,11 @@
 #define PYLANG_ALLOC_WEAKREF(Type, Obj, Callback) \
 	::py::Arena::current().allocate<Type>(Obj, Callback)
 
-#define PYLANG_WEAKREF_ALIVE(ObjPtr) \
-	::py::weakref::is_alive(ObjPtr)
+#define PYLANG_WEAKREF_ALIVE(ObjPtr) ::py::weakref::is_alive(ObjPtr)
 
-#define PYLANG_WEAKREF_COUNT(ObjPtr) \
-	::py::weakref::ref_count(ObjPtr)
+#define PYLANG_WEAKREF_COUNT(ObjPtr) ::py::weakref::ref_count(ObjPtr)
 
-#define PYLANG_WEAKREF_LIST(ObjPtr) \
-	::py::weakref::get_refs(ObjPtr)
+#define PYLANG_WEAKREF_LIST(ObjPtr) ::py::weakref::get_refs(ObjPtr)
 
 #else
 // ---- 旧路径: Heap + GC (不变) ----
@@ -64,7 +60,7 @@
 #define PYLANG_ALLOC_WITH_EXTRA(Type, Extra, ...) \
 	VirtualMachine::the().heap().allocate_with_extra_bytes<Type>(Extra, __VA_ARGS__)
 
-#define PYLANG_GC_PAUSE_SCOPE() \
+#define PYLANG_GC_PAUSE_SCOPE()                         \
 	[[maybe_unused]] auto _pylang_gc_pause_##__LINE__ = \
 		VirtualMachine::the().heap().scoped_gc_pause();
 
@@ -80,7 +76,7 @@
 #define PYLANG_WEAKREF_LIST(ObjPtr) \
 	VirtualMachine::the().heap().get_weakrefs(std::bit_cast<uint8_t *>(ObjPtr))
 
-#endif // PYLANG_USE_ARENA
+#endif// PYLANG_USE_ARENA
 
 
 // =============================================================================

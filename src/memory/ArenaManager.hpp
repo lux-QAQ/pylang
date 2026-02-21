@@ -25,19 +25,24 @@ class ArenaManager
 public:
 	/// 初始化全局 Arena 基础设施
 	/// 必须在程序启动时 (main 入口处) 调用
-	static void initialize()
-	{
-		auto &inst = instance();
-		std::lock_guard lock(inst.m_mutex);
-		if (inst.m_initialized) return;
+    static void initialize()
+    {
+        auto &inst = instance();
+        std::lock_guard lock(inst.m_mutex);
 
-		inst.m_program_arena = std::make_unique<Arena>(Arena::kDefaultBlockSize);
+        // 每次 initialize 都重新创建（支持 shutdown 后再次 initialize）
+        if (inst.m_initialized) {
+            // 已初始化: 确保 current 有效即可
+            if (!Arena::has_current() && inst.m_program_arena) {
+                Arena::set_current(inst.m_program_arena.get());
+            }
+            return;
+        }
 
-		// 将 ProgramArena 设为主线程的默认 Arena
-		Arena::set_current(inst.m_program_arena.get());
-
-		inst.m_initialized = true;
-	}
+        inst.m_program_arena = std::make_unique<Arena>(Arena::kDefaultBlockSize);
+        Arena::set_current(inst.m_program_arena.get());
+        inst.m_initialized = true;
+    }
 
 	/// 关闭全局 Arena, 释放所有内存
 	/// 在程序退出时调用 (或 main 返回前)

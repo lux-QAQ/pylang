@@ -5,6 +5,7 @@ include(CheckCXXSourceCompiles)
 
 project(python++)
 
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_CXX_STANDARD 20)
 
 include(cmake/CPM.cmake)
@@ -53,7 +54,12 @@ option(ENABLE_LLVM_BACKEND "Enable LLVM as a Python execution backend" OFF)
 # Enable Arena/Region-based memory management in the runtime.
 # When ON the compile definition PYLANG_USE_ARENA will be set, replacing
 # the Heap + GC allocation path with Arena bump allocation.
-option(ENABLE_RUNTIME_ARENA "Enable runtime Arena memory management (defines PYLANG_USE_ARENA)" OFF)
+option(ENABLE_RUNTIME_ARENA "Enable runtime Arena memory management (defines PYLANG_USE_ARENA)" ON)
+
+if(ENABLE_RUNTIME_ARENA)
+    add_compile_definitions(PYLANG_USE_ARENA)
+    message(STATUS "Global Macro Defined: PYLANG_USE_ARENA") # 打印确认
+endif()
 
 if (${ENABLE_CACHE})
 	set(ENABLE_CACHE "ENABLE_CACHE")

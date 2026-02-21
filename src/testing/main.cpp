@@ -37,6 +37,8 @@ class PythonVMEnvironment : public ::testing::Environment
 
 int main(int argc, char **argv)
 {
+
+
 	::testing::InitGoogleTest(&argc, argv);
 
 	(void)AddGlobalTestEnvironment(new PythonVMEnvironment(argv));
@@ -61,5 +63,12 @@ int main(int argc, char **argv)
 	if (debug) { spdlog::set_level(spdlog::level::debug); }
 	if (trace) { spdlog::set_level(spdlog::level::trace); }
 
-	return RUN_ALL_TESTS();
+	auto ret =RUN_ALL_TESTS();
+
+
+
+
+	
+
+return ret;
 }

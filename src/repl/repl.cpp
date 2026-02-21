@@ -67,7 +67,7 @@ int run_and_execute_script(size_t argc,
 	bool print_tokens,
 	bool use_llvm,
 	bool print_ast,
-	uint64_t gc_frequency)
+	[[maybe_unused]]uint64_t gc_frequency)
 {
 	size_t arg_idx{ 1 };
 	const char *filename = argv[arg_idx];

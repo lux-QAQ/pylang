@@ -16,6 +16,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <bitset>
 
 #include <spdlog/fmt/fmt.h>
 
