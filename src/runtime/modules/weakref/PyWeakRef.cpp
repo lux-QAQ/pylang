@@ -3,9 +3,9 @@
 #include "runtime/PyModule.hpp"
 #include "runtime/PyNone.hpp"
 #include "runtime/PyType.hpp"
-#include "runtime/types/api.hpp"
 #include "runtime/compat.hpp"
-#include "vm/VM.hpp"
+#include "runtime/types/api.hpp"
+// #include "vm/VM.hpp"
 
 namespace py {
 
@@ -21,9 +21,9 @@ PyWeakRef::PyWeakRef(PyObject *object, PyObject *callback)
 
 PyResult<PyWeakRef *> PyWeakRef::create(PyObject *object, PyObject *callback)
 {
-    auto *result = PYLANG_ALLOC_WEAKREF(PyWeakRef, object, callback);
-    PYLANG_CHECK_ALLOC(result, PyWeakRef);
-    return Ok(result);
+	auto *result = PYLANG_ALLOC_WEAKREF(PyWeakRef, object, callback);
+	PYLANG_CHECK_ALLOC(result, PyWeakRef);
+	return Ok(result);
 }
 
 void PyWeakRef::visit_graph(Visitor &visitor)
@@ -88,11 +88,8 @@ PyType *PyWeakRef::register_type(PyModule *module, std::string_view name)
 
 bool PyWeakRef::is_alive() const
 {
-    if (m_object
-        && !PYLANG_WEAKREF_ALIVE(m_object)) {
-        m_object = py_none();
-    }
-    return m_object != py_none();
+	if (m_object && !PYLANG_WEAKREF_ALIVE(m_object)) { m_object = py_none(); }
+	return m_object != py_none();
 }
 
 }// namespace py

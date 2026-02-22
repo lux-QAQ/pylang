@@ -6,7 +6,7 @@
 #include "interpreter/Interpreter.hpp"
 #include "types/api.hpp"
 #include "types/builtin.hpp"
-#include "vm/VM.hpp"
+// #include "vm/VM.hpp"
 #include "runtime/compat.hpp"
 
 namespace py {
@@ -82,8 +82,7 @@ PyResult<PySlotWrapper *>
 {
 	ASSERT(name);
 	ASSERT(slot_type);
-	auto *obj = PYLANG_ALLOC(PySlotWrapper, 
-		name, slot_type, base, std::move(function));
+	auto *obj = PYLANG_ALLOC(PySlotWrapper, name, slot_type, base, std::move(function));
 	if (!obj) return Err(memory_error(sizeof(PySlotWrapper)));
 	return Ok(obj);
 }

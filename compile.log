@@ -1,0 +1,190 @@
+cpp.o.d -o src/CMakeFiles/python-cpp.dir/runtime/PyGenerator.cpp.o -c /home/lux/code/language/python-cpp/src/runtime/PyGenerator.cpp
+[build] In file included from /home/lux/code/language/python-cpp/src/runtime/PyGenerator.cpp:1:
+[build] In file included from /home/lux/code/language/python-cpp/src/runtime/PyGenerator.hpp:3:
+[build] In file included from /home/lux/code/language/python-cpp/src/runtime/GeneratorInterface.hpp:3:
+[build] In file included from /home/lux/code/language/python-cpp/src/runtime/PyFrame.hpp:4:
+[build] In file included from /home/lux/code/language/python-cpp/src/./runtime/PyObject.hpp:3:
+[build] In file included from /home/lux/code/language/python-cpp/src/./runtime/../utilities.hpp:3:
+[build] In file included from /home/lux/code/language/python-cpp/build/debug/.cache/CPM/spdlog/be97/include/spdlog/spdlog.h:12:
+[build] In file included from /home/lux/code/language/python-cpp/build/debug/.cache/CPM/spdlog/be97/include/spdlog/common.h:10:
+[build] In file included from /usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/chrono:49:
+[build] In file included from /usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/bits/shared_ptr.h:53:
+[build] In file included from /usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/bits/shared_ptr_base.h:59:
+[build] /usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/bits/unique_ptr.h:97:16: error: invalid application of 'sizeof' to an incomplete type 'StackFrame'
+[build]    97 |         static_assert(sizeof(_Tp)>0,
+[build]       |                       ^~~~~~~~~~~
+[build] /usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/bits/unique_ptr.h:404:4: note: in instantiation of member function 'std::default_delete<StackFrame>::operator()' requested here
+[build]   404 |           get_deleter()(std::move(__ptr));
+[build]       |           ^
+[build] /home/lux/code/language/python-cpp/src/runtime/GeneratorInterface.hpp:8:40: note: in instantiation of member function 'std::unique_ptr<StackFrame>::~unique_ptr' requested here
+[build]     8 | template<typename GeneratorType> class GeneratorInterface : public PyBaseObject
+[build]       |                                        ^
+[build] /home/lux/code/language/python-cpp/src/./runtime/../forward.hpp:23:8: note: forward declaration of 'StackFrame'
+[build]    23 | struct StackFrame;
+[build]       |        ^
+[build] 1 error generated.
+[build] [4/25] Building CXX object src/CMakeFiles/unittests_.dir/runtime/PyInteger_refactor_tests.cpp.o
+[build] [5/25] Building CXX object src/CMakeFiles/unittests_.dir/runtime/PyString_tests.cpp.o
+[build] [6/25] Building CXX object src/CMakeFiles/python-cpp.dir/runtime/PyAsyncGenerator.cpp.o
+[build] FAILED: [code=1] src/CMakeFiles/python-cpp.dir/runtime/PyAsyncGenerator.cpp.o 
+[build] /usr/bin/ccache /usr/lib/ccache/c++ -DPYLANG_USE_ARENA -DSPDLOG_COMPILED_LIB -I/home/lux/code/language/python-cpp/src/. -I/home/lux/code/language/python-cpp/build/debug/src -isystem /home/lux/code/language/python-cpp/build/debug/.cache/CPM/spdlog/be97/include -isystem /home/lux/code/language/python-cpp/build/debug/.cache/CPM/ordered-map/397e/include -g -std=c++20 -fcolor-diagnostics -fno-omit-frame-pointer -Wall -Wextra -Wextra-semi -Wshadow -Wnon-virtual-dtor -Wold-style-cast -Wcast-align -Wunused -Woverloaded-virtual -Wpedantic -Wconversion -Wsign-conversion -Wnull-dereference -Wdouble-promotion -Wformat=2 -Wimplicit-fallthrough -Werror -Wno-sign-conversion -Wno-shadow -Wno-implicit-fallthrough -Wno-old-style-cast -Wno-deprecated-copy -Wno-missing-field-initializers -Wno-null-dereference -Wno-unknown-warning-option -MD -MT src/CMakeFiles/python-cpp.dir/runtime/PyAsyncGenerator.cpp.o -MF src/CMakeFiles/python-cpp.dir/runtime/PyAsyncGenerator.cpp.o.d -o src/CMakeFiles/python-cpp.dir/runtime/PyAsyncGenerator.cpp.o -c /home/lux/code/language/python-cpp/src/runtime/PyAsyncGenerator.cpp
+[build] In file included from /home/lux/code/language/python-cpp/src/runtime/PyAsyncGenerator.cpp:1:
+[build] In file included from /home/lux/code/language/python-cpp/src/runtime/PyAsyncGenerator.hpp:3:
+[build] In file included from /home/lux/code/language/python-cpp/src/runtime/GeneratorInterface.hpp:3:
+[build] In file included from /home/lux/code/language/python-cpp/src/runtime/PyFrame.hpp:4:
+[build] In file included from /home/lux/code/language/python-cpp/src/./runtime/PyObject.hpp:3:
+[build] In file included from /home/lux/code/language/python-cpp/src/./runtime/../utilities.hpp:3:
+[build] In file included from /home/lux/code/language/python-cpp/build/debug/.cache/CPM/spdlog/be97/include/spdlog/spdlog.h:12:
+[build] In file included from /home/lux/code/language/python-cpp/build/debug/.cache/CPM/spdlog/be97/include/spdlog/common.h:10:
+[build] In file included from /usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/chrono:49:
+[build] In file included from /usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/bits/shared_ptr.h:53:
+[build] In file included from /usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/bits/shared_ptr_base.h:59:
+[build] /usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/bits/unique_ptr.h:97:16: error: invalid application of 'sizeof' to an incomplete type 'StackFrame'
+[build]    97 |         static_assert(sizeof(_Tp)>0,
+[build]       |                       ^~~~~~~~~~~
+[build] /usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/bits/unique_ptr.h:404:4: note: in instantiation of member function 'std::default_delete<StackFrame>::operator()' requested here
+[build]   404 |           get_deleter()(std::move(__ptr));
+[build]       |           ^
+[build] /home/lux/code/language/python-cpp/src/runtime/GeneratorInterface.hpp:8:40: note: in instantiation of member function 'std::unique_ptr<StackFrame>::~unique_ptr' requested here
+[build]     8 | template<typename GeneratorType> class GeneratorInterface : public PyBaseObject
+[build]       |                                        ^
+[build] /home/lux/code/language/python-cpp/src/./runtime/../forward.hpp:23:8: note: forward declaration of 'StackFrame'
+[build]    23 | struct StackFrame;
+[build]       |        ^
+[build] 1 error generated.
+[build] [7/25] Building CXX object src/CMakeFiles/python-cpp.dir/runtime/PyCoroutine.cpp.o
+[build] FAILED: [code=1] src/CMakeFiles/python-cpp.dir/runtime/PyCoroutine.cpp.o 
+[build] /usr/bin/ccache /usr/lib/ccache/c++ -DPYLANG_USE_ARENA -DSPDLOG_COMPILED_LIB -I/home/lux/code/language/python-cpp/src/. -I/home/lux/code/language/python-cpp/build/debug/src -isystem /home/lux/code/language/python-cpp/build/debug/.cache/CPM/spdlog/be97/include -isystem /home/lux/code/language/python-cpp/build/debug/.cache/CPM/ordered-map/397e/include -g -std=c++20 -fcolor-diagnostics -fno-omit-frame-pointer -Wall -Wextra -Wextra-semi -Wshadow -Wnon-virtual-dtor -Wold-style-cast -Wcast-align -Wunused -Woverloaded-virtual -Wpedantic -Wconversion -Wsign-conversion -Wnull-dereference -Wdouble-promotion -Wformat=2 -Wimplicit-fallthrough -Werror -Wno-sign-conversion -Wno-shadow -Wno-implicit-fallthrough -Wno-old-style-cast -Wno-deprecated-copy -Wno-missing-field-initializers -Wno-null-dereference -Wno-unknown-warning-option -MD -MT src/CMakeFiles/python-cpp.dir/runtime/PyCoroutine.cpp.o -MF src/CMakeFiles/python-cpp.dir/runtime/PyCoroutine.cpp.o.d -o src/CMakeFiles/python-cpp.dir/runtime/PyCoroutine.cpp.o -c /home/lux/code/language/python-cpp/src/runtime/PyCoroutine.cpp
+[build] In file included from /home/lux/code/language/python-cpp/src/runtime/PyCoroutine.cpp:1:
+[build] In file included from /home/lux/code/language/python-cpp/src/runtime/PyCoroutine.hpp:3:
+[build] In file included from /home/lux/code/language/python-cpp/src/runtime/GeneratorInterface.hpp:3:
+[build] In file included from /home/lux/code/language/python-cpp/src/runtime/PyFrame.hpp:4:
+[build] In file included from /home/lux/code/language/python-cpp/src/./runtime/PyObject.hpp:3:
+[build] In file included from /home/lux/code/language/python-cpp/src/./runtime/../utilities.hpp:3:
+[build] In file included from /home/lux/code/language/python-cpp/build/debug/.cache/CPM/spdlog/be97/include/spdlog/spdlog.h:12:
+[build] In file included from /home/lux/code/language/python-cpp/build/debug/.cache/CPM/spdlog/be97/include/spdlog/common.h:10:
+[build] In file included from /usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/chrono:49:
+[build] In file included from /usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/bits/shared_ptr.h:53:
+[build] In file included from /usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/bits/shared_ptr_base.h:59:
+[build] /usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/bits/unique_ptr.h:97:16: error: invalid application of 'sizeof' to an incomplete type 'StackFrame'
+[build]    97 |         static_assert(sizeof(_Tp)>0,
+[build]       |                       ^~~~~~~~~~~
+[build] /usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/bits/unique_ptr.h:404:4: note: in instantiation of member function 'std::default_delete<StackFrame>::operator()' requested here
+[build]   404 |           get_deleter()(std::move(__ptr));
+[build]       |           ^
+[build] /home/lux/code/language/python-cpp/src/runtime/GeneratorInterface.hpp:8:40: note: in instantiation of member function 'std::unique_ptr<StackFrame>::~unique_ptr' requested here
+[build]     8 | template<typename GeneratorType> class GeneratorInterface : public PyBaseObject
+[build]       |                                        ^
+[build] /home/lux/code/language/python-cpp/src/./runtime/../forward.hpp:23:8: note: forward declaration of 'StackFrame'
+[build]    23 | struct StackFrame;
+[build]       |        ^
+[build] 1 error generated.
+[build] [8/25] Building CXX object src/CMakeFiles/unittests_.dir/runtime/PyDict_tests.cpp.o
+[build] [9/25] Building CXX object src/CMakeFiles/python-cpp.dir/runtime/UnboundLocalError.cpp.o
+[build] [10/25] Building CXX object src/CMakeFiles/python-cpp.dir/runtime/TypeError.cpp.o
+[build] [11/25] Building CXX object src/CMakeFiles/unittests_.dir/runtime/PyType_tests.cpp.o
+[build] [12/25] Building CXX object src/CMakeFiles/python-cpp.dir/runtime/SyntaxError.cpp.o
+[build] [13/25] Building CXX object src/CMakeFiles/python-cpp.dir/runtime/ValueError.cpp.o
+[build] [14/25] Building CXX object src/CMakeFiles/python-cpp.dir/vm/VM.cpp.o
+[build] [15/25] Building CXX object src/CMakeFiles/python-cpp.dir/runtime/modules/IOModule.cpp.o
+[build] FAILED: [code=1] src/CMakeFiles/python-cpp.dir/runtime/modules/IOModule.cpp.o 
+[build] /usr/bin/ccache /usr/lib/ccache/c++ -DPYLANG_USE_ARENA -DSPDLOG_COMPILED_LIB -I/home/lux/code/language/python-cpp/src/. -I/home/lux/code/language/python-cpp/build/debug/src -isystem /home/lux/code/language/python-cpp/build/debug/.cache/CPM/spdlog/be97/include -isystem /home/lux/code/language/python-cpp/build/debug/.cache/CPM/ordered-map/397e/include -g -std=c++20 -fcolor-diagnostics -fno-omit-frame-pointer -Wall -Wextra -Wextra-semi -Wshadow -Wnon-virtual-dtor -Wold-style-cast -Wcast-align -Wunused -Woverloaded-virtual -Wpedantic -Wconversion -Wsign-conversion -Wnull-dereference -Wdouble-promotion -Wformat=2 -Wimplicit-fallthrough -Werror -Wno-sign-conversion -Wno-shadow -Wno-implicit-fallthrough -Wno-old-style-cast -Wno-deprecated-copy -Wno-missing-field-initializers -Wno-null-dereference -Wno-unknown-warning-option -MD -MT src/CMakeFiles/python-cpp.dir/runtime/modules/IOModule.cpp.o -MF src/CMakeFiles/python-cpp.dir/runtime/modules/IOModule.cpp.o.d -o src/CMakeFiles/python-cpp.dir/runtime/modules/IOModule.cpp.o -c /home/lux/code/language/python-cpp/src/runtime/modules/IOModule.cpp
+[build] /home/lux/code/language/python-cpp/src/runtime/modules/IOModule.cpp:88:48: error: incomplete type 'VirtualMachine' named in nested name specifier
+[build]    88 |                         return truthy(std::get<0>(closed).unwrap(), VirtualMachine::the().interpreter())
+[build]       |                                                                     ^~~~~~~~~~~~~~~~
+[build] /home/lux/code/language/python-cpp/src/./runtime/../forward.hpp:21:7: note: forward declaration of 'VirtualMachine'
+[build]    21 | class VirtualMachine;
+[build]       |       ^
+[build] /home/lux/code/language/python-cpp/src/runtime/modules/IOModule.cpp:856:27: error: incomplete type 'VirtualMachine' named in nested name specifier
+[build]   856 |                                 return truthy(closed, VirtualMachine::the().interpreter());
+[build]       |                                                       ^~~~~~~~~~~~~~~~
+[build] /home/lux/code/language/python-cpp/src/./runtime/../forward.hpp:21:7: note: forward declaration of 'VirtualMachine'
+[build]    21 | class VirtualMachine;
+[build]       |       ^
+[build] In file included from /home/lux/code/language/python-cpp/src/runtime/modules/IOModule.cpp:1:
+[build] In file included from /home/lux/code/language/python-cpp/src/runtime/modules/Modules.hpp:1:
+[build] In file included from /home/lux/code/language/python-cpp/src/./runtime/PyModule.hpp:3:
+[build] In file included from /home/lux/code/language/python-cpp/src/./runtime/PyObject.hpp:4:
+[build] /home/lux/code/language/python-cpp/src/./runtime/Value.hpp:303:16: error: static assertion failed due to requirement 'py::detail::is_ok<void>{} || py::detail::is_pyresult<void>{}': Return type of function must be of type Ok<U> or PyResult<U>
+[build]   303 |         static_assert(detail::is_ok<ResultType>{} || detail::is_pyresult<ResultType>{},
+[build]       |                       ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+[build] /home/lux/code/language/python-cpp/src/runtime/modules/IOModule.cpp:855:5: note: in instantiation of function template specialization 'py::PyResult<py::PyObject *>::and_then<(lambda at /home/lux/code/language/python-cpp/src/runtime/modules/IOModule.cpp:855:14), std::integral_constant<bool, false>>' requested here
+[build]   855 |                         .and_then([](PyObject *closed) {
+[build]       |                          ^
+[build] /home/lux/code/language/python-cpp/src/runtime/modules/IOModule.cpp:865:12: note: in instantiation of member function 'py::Buffered<py::BufferedReader>::closed' requested here
+[build]   865 |                 auto r = closed();
+[build]       |                          ^
+[build] /home/lux/code/language/python-cpp/src/runtime/modules/IOModule.cpp:1162:47: note: in instantiation of member function 'py::Buffered<py::BufferedReader>::close' requested here
+[build]  1162 |                                         .def("close", &Buffered<BufferedReader>::close)
+[build]       |                                                                                  ^
+[build] In file included from /home/lux/code/language/python-cpp/src/runtime/modules/IOModule.cpp:1:
+[build] In file included from /home/lux/code/language/python-cpp/src/runtime/modules/Modules.hpp:1:
+[build] In file included from /home/lux/code/language/python-cpp/src/./runtime/PyModule.hpp:3:
+[build] In file included from /home/lux/code/language/python-cpp/src/./runtime/PyObject.hpp:4:
+[build] /home/lux/code/language/python-cpp/src/./runtime/Value.hpp:306:10: error: no viable conversion from returned value of type 'void' to function return type 'PyResult<integral_constant<bool, false>>'
+[build]   306 |                 return op(unwrap());
+[build]       |                        ^~~~~~~~~~~~
+[build] /home/lux/code/language/python-cpp/src/./runtime/Value.hpp:233:28: note: candidate constructor (the implicit copy constructor) not viable: cannot convert argument of incomplete type 'void' to 'const PyResult<integral_constant<bool, false>> &' for 1st argument
+[build]   233 | template<typename T> class PyResult
+[build]       |                            ^~~~~~~~
+[build] /home/lux/code/language/python-cpp/src/./runtime/Value.hpp:233:28: note: candidate constructor (the implicit move constructor) not viable: cannot convert argument of incomplete type 'void' to 'PyResult<integral_constant<bool, false>> &&' for 1st argument
+[build]   233 | template<typename T> class PyResult
+[build]       |                            ^~~~~~~~
+[build] /home/lux/code/language/python-cpp/src/./runtime/Value.hpp:244:2: note: candidate constructor not viable: cannot convert argument of incomplete type 'void' to 'Ok<integral_constant<bool, false>>' for 1st argument
+[build]   244 |         PyResult(Ok<T> result_) : result(std::move(result_)) {}
+[build]       |         ^        ~~~~~~~~~~~~~
+[build] /home/lux/code/language/python-cpp/src/./runtime/Value.hpp:249:12: note: candidate constructor not viable: cannot convert argument of incomplete type 'void' to 'Err' for 1st argument
+[build]   249 |         constexpr PyResult(Err result_) : result(result_) {}
+[build]       |                   ^        ~~~~~~~~~~~
+[build] /home/lux/code/language/python-cpp/src/./runtime/Value.hpp:245:33: note: candidate template ignored: could not match 'Ok<U>' against 'void'
+[build]   245 |         template<typename U> constexpr PyResult(Ok<U> result_) : result(Ok<T>(std::move(result_.value)))
+[build]       |                                        ^
+[build] /home/lux/code/language/python-cpp/src/./runtime/Value.hpp:251:33: note: candidate template ignored: could not match 'PyResult<U>' against 'void'
+[build]   251 |         template<typename U> constexpr PyResult(const PyResult<U> &other) : result(Err(nullptr))
+[build]       |                                        ^
+[build] /home/lux/code/language/python-cpp/src/./runtime/Value.hpp:303:16: error: static assertion failed due to requirement 'py::detail::is_ok<void>{} || py::detail::is_pyresult<void>{}': Return type of function must be of type Ok<U> or PyResult<U>
+[build]   303 |         static_assert(detail::is_ok<ResultType>{} || detail::is_pyresult<ResultType>{},
+[build]       |                       ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+[build] /home/lux/code/language/python-cpp/src/runtime/modules/IOModule.cpp:855:5: note: in instantiation of function template specialization 'py::PyResult<py::PyObject *>::and_then<(lambda at /home/lux/code/language/python-cpp/src/runtime/modules/IOModule.cpp:855:14), std::integral_constant<bool, false>>' requested here
+[build]   855 |                         .and_then([](PyObject *closed) {
+[build]       |                          ^
+[build] /home/lux/code/language/python-cpp/src/runtime/modules/IOModule.cpp:865:12: note: in instantiation of member function 'py::Buffered<py::BufferedRandom>::closed' requested here
+[build]   865 |                 auto r = closed();
+[build]       |                          ^
+[build] /home/lux/code/language/python-cpp/src/runtime/modules/IOModule.cpp:1694:47: note: in instantiation of member function 'py::Buffered<py::BufferedRandom>::close' requested here
+[build]  1694 |                                         .def("close", &Buffered<BufferedRandom>::close)
+[build]       |                                                                                  ^
+[build] In file included from /home/lux/code/language/python-cpp/src/runtime/modules/IOModule.cpp:1:
+[build] In file included from /home/lux/code/language/python-cpp/src/runtime/modules/Modules.hpp:1:
+[build] In file included from /home/lux/code/language/python-cpp/src/./runtime/PyModule.hpp:3:
+[build] In file included from /home/lux/code/language/python-cpp/src/./runtime/PyObject.hpp:4:
+[build] /home/lux/code/language/python-cpp/src/./runtime/Value.hpp:306:10: error: no viable conversion from returned value of type 'void' to function return type 'PyResult<integral_constant<bool, false>>'
+[build]   306 |                 return op(unwrap());
+[build]       |                        ^~~~~~~~~~~~
+[build] /home/lux/code/language/python-cpp/src/./runtime/Value.hpp:233:28: note: candidate constructor (the implicit copy constructor) not viable: cannot convert argument of incomplete type 'void' to 'const PyResult<integral_constant<bool, false>> &' for 1st argument
+[build]   233 | template<typename T> class PyResult
+[build]       |                            ^~~~~~~~
+[build] /home/lux/code/language/python-cpp/src/./runtime/Value.hpp:233:28: note: candidate constructor (the implicit move constructor) not viable: cannot convert argument of incomplete type 'void' to 'PyResult<integral_constant<bool, false>> &&' for 1st argument
+[build]   233 | template<typename T> class PyResult
+[build]       |                            ^~~~~~~~
+[build] /home/lux/code/language/python-cpp/src/./runtime/Value.hpp:244:2: note: candidate constructor not viable: cannot convert argument of incomplete type 'void' to 'Ok<integral_constant<bool, false>>' for 1st argument
+[build]   244 |         PyResult(Ok<T> result_) : result(std::move(result_)) {}
+[build]       |         ^        ~~~~~~~~~~~~~
+[build] /home/lux/code/language/python-cpp/src/./runtime/Value.hpp:249:12: note: candidate constructor not viable: cannot convert argument of incomplete type 'void' to 'Err' for 1st argument
+[build]   249 |         constexpr PyResult(Err result_) : result(result_) {}
+[build]       |                   ^        ~~~~~~~~~~~
+[build] /home/lux/code/language/python-cpp/src/./runtime/Value.hpp:245:33: note: candidate template ignored: could not match 'Ok<U>' against 'void'
+[build]   245 |         template<typename U> constexpr PyResult(Ok<U> result_) : result(Ok<T>(std::move(result_.value)))
+[build]       |                                        ^
+[build] /home/lux/code/language/python-cpp/src/./runtime/Value.hpp:251:33: note: candidate template ignored: could not match 'PyResult<U>' against 'void'
+[build]   251 |         template<typename U> constexpr PyResult(const PyResult<U> &other) : result(Err(nullptr))
+[build]       |                                        ^
+[build] 6 errors generated.
+[build] [16/25] Building CXX object integration/CMakeFiles/integration-tests_.dir/program.cpp.o
+[build] [17/25] Building CXX object src/CMakeFiles/python.dir/repl/repl.cpp.o
+[build] [18/25] Building CXX object src/CMakeFiles/freeze.dir/utilities/freeze.cpp.o
+[build] [19/25] Building CXX object src/CMakeFiles/python-cpp.dir/runtime/Value.cpp.o
+[build] ninja: build stopped: subcommand failed.
+[proc] 命令“/home/lux/soft/cmake/bin/cmake --build /home/lux/code/language/python-cpp/build/debug --config Debug --”已退出，代码为 1
+[driver] 生成完毕: 00:00:07.129
+[build] 生成已完成，退出代码为 1

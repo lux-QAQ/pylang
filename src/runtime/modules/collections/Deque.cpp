@@ -2,13 +2,13 @@
 #include "runtime/IndexError.hpp"
 #include "runtime/PyInteger.hpp"
 #include "runtime/PyObject.hpp"
+#include "runtime/RuntimeContext.hpp"
 #include "runtime/TypeError.hpp"
 #include "runtime/Value.hpp"
 #include "runtime/ValueError.hpp"
 #include "runtime/types/api.hpp"
 #include "runtime/types/builtin.hpp"
 #include "utilities.hpp"
-#include "vm/VM.hpp"
 
 #include "runtime/compat.hpp"
 #include <algorithm>
@@ -25,6 +25,25 @@ namespace {
 PyType *s_collections_deque = nullptr;
 
 static std::unordered_set<PyObject *> visited;
+
+bool runtime_equals(PyObject *lhs, const Value &rhs)
+{
+	if (RuntimeContext::has_current()) {
+		auto &ctx = RuntimeContext::current();
+		auto rhs_obj = PyObject::from(rhs);
+		if (rhs_obj.is_err()) return false;
+		auto *eq_result = ctx.equals(lhs, rhs_obj.unwrap());
+		return ctx.is_true(eq_result);
+	}
+	// 降级
+	auto rhs_obj = PyObject::from(rhs);
+	if (rhs_obj.is_err()) return false;
+	auto result = lhs->eq(rhs_obj.unwrap());
+	if (result.is_err()) return false;
+	auto t = result.unwrap()->true_();
+	if (t.is_err()) return false;
+	return t.unwrap();
+}
 
 }// namespace
 
@@ -153,13 +172,7 @@ PyResult<PyObject *> Deque::count(PyObject *x)
 {
 	size_t count = 0;
 	for (const auto &el : m_deque) {
-		auto equals_ = equals(x, el, VirtualMachine::the().interpreter()).and_then([](auto cmp) {
-			return truthy(cmp, VirtualMachine::the().interpreter());
-		});
-
-		if (equals_.is_err()) { return Err(equals_.unwrap_err()); }
-
-		if (equals_.unwrap()) { count++; }
+		if (runtime_equals(x, el)) { count++; }
 	}
 
 	return PyInteger::create(count);
@@ -219,15 +232,7 @@ PyResult<PyObject *> Deque::popleft()
 PyResult<PyObject *> Deque::remove(PyObject *value)
 {
 	for (size_t i = 0; i < m_deque.size(); ++i) {
-		const auto &el = m_deque[i];
-		auto equals_ =
-			equals(value, el, VirtualMachine::the().interpreter()).and_then([](auto cmp) {
-				return truthy(cmp, VirtualMachine::the().interpreter());
-			});
-
-		if (equals_.is_err()) { return Err(equals_.unwrap_err()); }
-
-		if (equals_.unwrap()) {
+		if (runtime_equals(value, m_deque[i])) {
 			m_deque.erase(m_deque.begin() + i);
 			return Ok(py_none());
 		}

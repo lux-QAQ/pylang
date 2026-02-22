@@ -3,7 +3,7 @@
 #include "BaseException.hpp"
 #include "PyString.hpp"
 #include "PyTuple.hpp"
-#include "vm/VM.hpp"
+//// #include "vm/VM.hpp"
 #include "runtime/compat.hpp"
 
 namespace py {
@@ -25,9 +25,8 @@ class Exception : public BaseException
   private:
 	Exception(PyTuple *args);
 
-	static Exception *create(PyTuple *args)
-	{
-                return PYLANG_ALLOC(Exception, args);}
+	static Exception *create(PyTuple *args) { return PYLANG_ALLOC(Exception, args); }
+
   public:
 	static PyResult<PyObject *> __new__(const PyType *type, PyTuple *args, PyDict *kwargs);
 

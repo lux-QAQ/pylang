@@ -10,12 +10,12 @@
 #include "modules/Modules.hpp"
 #include "parser/Parser.hpp"
 #include "runtime/AttributeError.hpp"
+#include "runtime/RuntimeContext.hpp"
 #include "types/api.hpp"
 #include "types/builtin.hpp"
-#include "vm/VM.hpp"
 
-#include <filesystem>
 #include "runtime/compat.hpp"
+#include <filesystem>
 
 namespace py {
 
@@ -39,15 +39,16 @@ PyModule::PyModule(PyDict *symbol_table, PyString *module_name, PyObject *doc)
 
 PyResult<PyObject *> PyModule::__repr__() const
 {
-	if (VirtualMachine::the().interpreter().importlib()) {
-		auto module_repr = VirtualMachine::the().interpreter().importlib()->get_method(
-			PyString::create("_module_repr").unwrap());
-		return module_repr.and_then([this](PyObject *obj) {
-			return obj->call(PyTuple::create(const_cast<PyModule *>(this)).unwrap(), nullptr);
-		});
-	} else {
-		return PyString::create(fmt::format("<module {}>", m_module_name->value()));
+	if (RuntimeContext::has_current() && RuntimeContext::current().has_interpreter()) {
+		auto *importlib = RuntimeContext::current().interpreter()->importlib();
+		if (importlib) {
+			auto module_repr = importlib->get_method(PyString::create("_module_repr").unwrap());
+			return module_repr.and_then([this](PyObject *obj) {
+				return obj->call(PyTuple::create(const_cast<PyModule *>(this)).unwrap(), nullptr);
+			});
+		}
 	}
+	return PyString::create(fmt::format("<module {}>", m_module_name->value()));
 }
 
 PyResult<PyObject *> PyModule::__new__(const PyType *type, PyTuple *args, PyDict *kwargs)
@@ -99,7 +100,10 @@ namespace {
 		ASSERT(_initializing_str.is_ok());
 		auto value = spec->get_attribute(_initializing_str.unwrap());
 		if (value.is_err()) { return false; }
-		auto is_true = truthy(value.unwrap(), VirtualMachine::the().interpreter());
+		if (RuntimeContext::has_current()) {
+			return RuntimeContext::current().is_true(value.unwrap());
+		}
+		auto is_true = value.unwrap()->true_();
 		if (is_true.is_ok()) { return is_true.unwrap(); }
 		return false;
 	}

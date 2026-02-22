@@ -11,10 +11,10 @@
 #include "runtime/PyType.hpp"
 #include "runtime/TypeError.hpp"
 #include "runtime/ValueError.hpp"
-#include "runtime/types/builtin.hpp"
 #include "runtime/compat.hpp"
+#include "runtime/types/builtin.hpp"
 
-#include "vm/VM.hpp"
+// #include "vm/VM.hpp"
 #include <bit>
 #include <cstdint>
 
@@ -50,16 +50,16 @@ PyResult<PyObject *> getweakrefs(PyTuple *args, PyDict *kwargs)
 
 	if (result.is_err()) { return Err(result.unwrap_err()); }
 
-    auto [object] = result.unwrap();
+	auto [object] = result.unwrap();
 
-    auto weakrefs = PYLANG_WEAKREF_LIST(object);
+	auto weakrefs = PYLANG_WEAKREF_LIST(object);
 
-    auto weakref_list = PyList::create();
-    if (result.is_err()) { return weakref_list; }
-    weakref_list.unwrap()->elements().insert(
-        weakref_list.unwrap()->elements().end(), weakrefs.begin(), weakrefs.end());
+	auto weakref_list = PyList::create();
+	if (result.is_err()) { return weakref_list; }
+	weakref_list.unwrap()->elements().insert(
+		weakref_list.unwrap()->elements().end(), weakrefs.begin(), weakrefs.end());
 
-    return weakref_list;
+	return weakref_list;
 }
 
 PyResult<PyObject *> proxy(PyTuple *args, PyDict *kwargs)

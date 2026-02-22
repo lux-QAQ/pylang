@@ -3,7 +3,7 @@
 #include "runtime/Exception.hpp"
 #include "runtime/PyString.hpp"
 #include "runtime/PyTuple.hpp"
-#include "vm/VM.hpp"
+// #include "vm/VM.hpp"
 
 namespace py {
 

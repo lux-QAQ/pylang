@@ -11,11 +11,11 @@
 #include "runtime/Value.hpp"
 #include "types/api.hpp"
 #include "types/builtin.hpp"
-#include "vm/VM.hpp"
+// // #include "vm/VM.hpp"
 
+#include "runtime/compat.hpp"
 #include <unordered_set>
 #include <variant>
-#include "runtime/compat.hpp"
 
 namespace py {
 
@@ -166,10 +166,7 @@ PyResult<PyObject *> PyDict::__eq__(const PyObject *other) const
 
 PyResult<size_t> PyDict::__len__() const { return Ok(m_map.size()); }
 
-PyDictItems *PyDict::items() const
-{
-	return PYLANG_ALLOC(PyDictItems, *this);
-}
+PyDictItems *PyDict::items() const { return PYLANG_ALLOC(PyDictItems, *this); }
 
 std::optional<Value> PyDict::operator[](Value key) const
 {
@@ -806,8 +803,7 @@ PyResult<PyDictItemsIterator *> PyDictItemsIterator::create(const PyDictItems &p
 PyResult<PyDictItemsIterator *> PyDictItemsIterator::create(const PyDictItems &pydict_items,
 	size_t position)
 {
-	auto *result =
-		PYLANG_ALLOC(PyDictItemsIterator, pydict_items, position);
+	auto *result = PYLANG_ALLOC(PyDictItemsIterator, pydict_items, position);
 	if (!result) { return Err(memory_error(sizeof(PyDictItemsIterator))); }
 	return Ok(result);
 }
@@ -1003,8 +999,7 @@ PyResult<PyDictValueIterator *> PyDictValueIterator::create(const PyDictValues &
 PyResult<PyDictValueIterator *> PyDictValueIterator::create(const PyDictValues &pydict_values,
 	size_t position)
 {
-	auto *result =
-		PYLANG_ALLOC(PyDictValueIterator, pydict_values, position);
+	auto *result = PYLANG_ALLOC(PyDictValueIterator, pydict_values, position);
 	if (!result) { return Err(memory_error(sizeof(PyDictValueIterator))); }
 	return Ok(result);
 }

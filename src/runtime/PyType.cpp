@@ -23,11 +23,11 @@
 #include "ValueError.hpp"
 #include "interpreter/Interpreter.hpp"
 #include "runtime/PyTuple.hpp"
-#include "runtime/compat.hpp"
 #include "runtime/RuntimeContext.hpp"
+#include "runtime/compat.hpp"
 #include "types/api.hpp"
 #include "types/builtin.hpp"
-#include "vm/VM.hpp"
+// #include "vm/VM.hpp"
 
 #include <algorithm>
 #include <string_view>
@@ -302,18 +302,15 @@ namespace {
 						}
 						return Err(attribute_error("__abstractmethods__"));
 					},
-					                    [](PyType *self, PyObject *value) -> PyResult<std::monostate> {
-                        // 旧代码:
-                        // auto abstract = truthy(value, VirtualMachine::the().interpreter());
-                        // 新代码: 使用 PyObject::true_()，不依赖 VM
-                        auto abstract = value->true_();
-                        if (abstract.is_err()) {
-                            return Err(abstract.unwrap_err());
-                        }
-                        self->attributes()->insert(
-                            String{ "__abstractmethods__" }, value);
-                        return Ok(std::monostate{});
-                    })
+					[](PyType *self, PyObject *value) -> PyResult<std::monostate> {
+						// 旧代码:
+						// auto abstract = truthy(value, VirtualMachine::the().interpreter());
+						// 新代码: 使用 PyObject::true_()，不依赖 VM
+						auto abstract = value->true_();
+						if (abstract.is_err()) { return Err(abstract.unwrap_err()); }
+						self->attributes()->insert(String{ "__abstractmethods__" }, value);
+						return Ok(std::monostate{});
+					})
 				.type);
 	}
 }// namespace
@@ -483,19 +480,18 @@ PyResult<std::monostate> PyType::initialize(const std::string &name,
 	underlying_type().__dict__ = dict;
 	m_attributes = dict;
 
-    if (!m_attributes->map().contains(String{ "__module__" })) {
-        // 旧代码:
-        // auto *globals = VirtualMachine::the().interpreter().execution_frame()->globals();
-        // 新代码: 通过 RuntimeContext 获取 globals
-        auto *g = RuntimeContext::has_current()
-            ? RuntimeContext::current().current_globals()
-            : nullptr;
-        if (g) {
-            if (auto it = g->map().find(String{ "__name__" }); it != g->map().end()) {
-                m_attributes->insert(String{ "__module__" }, it->second);
-            }
-        }
-    }
+	if (!m_attributes->map().contains(String{ "__module__" })) {
+		// 旧代码:
+		// auto *globals = VirtualMachine::the().interpreter().execution_frame()->globals();
+		// 新代码: 通过 RuntimeContext 获取 globals
+		auto *g =
+			RuntimeContext::has_current() ? RuntimeContext::current().current_globals() : nullptr;
+		if (g) {
+			if (auto it = g->map().find(String{ "__name__" }); it != g->map().end()) {
+				m_attributes->insert(String{ "__module__" }, it->second);
+			}
+		}
+	}
 
 	if (auto it = m_attributes->map().find(String{ "__qualname__" });
 		it != m_attributes->map().end()) {

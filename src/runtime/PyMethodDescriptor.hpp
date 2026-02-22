@@ -2,7 +2,7 @@
 
 #include "MemoryError.hpp"
 #include "PyObject.hpp"
-#include "vm/VM.hpp"
+// #include "vm/VM.hpp"
 
 namespace py {
 

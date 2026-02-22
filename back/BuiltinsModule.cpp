@@ -29,7 +29,6 @@
 #include "runtime/PyString.hpp"
 #include "runtime/PyTuple.hpp"
 #include "runtime/PyType.hpp"
-#include "runtime/RuntimeContext.hpp"
 #include "runtime/RuntimeError.hpp"
 #include "runtime/StopIteration.hpp"
 #include "runtime/SyntaxError.hpp"
@@ -57,7 +56,7 @@
 
 #include "parser/Parser.hpp"
 
-// #include "vm/VM.hpp"
+#include "vm/VM.hpp"
 
 #include "runtime/compat.hpp"
 #include "utilities.hpp"
@@ -70,20 +69,7 @@ static PyModule *s_builtin_module = nullptr;
 
 namespace {
 
-// ============================================================
-// 辅助: 获取当前 Interpreter（仅解释器路径使用）
-// ============================================================
-Interpreter &current_interpreter()
-{
-	ASSERT(RuntimeContext::has_current() && RuntimeContext::current().has_interpreter());
-	return *RuntimeContext::current().interpreter();
-}
-
-// ============================================================
-// 不依赖 Interpreter 的函数 — 直接移除参数
-// ============================================================
-
-PyResult<PyObject *> print(const PyTuple *args, const PyDict *kwargs)
+PyResult<PyObject *> print(const PyTuple *args, const PyDict *kwargs, Interpreter &)
 {
 	std::string separator = " ";
 	std::string end = "\n";
@@ -147,7 +133,8 @@ PyResult<PyObject *> print(const PyTuple *args, const PyDict *kwargs)
 	return Ok(py_none());
 }
 
-PyResult<PyObject *> iter(const PyTuple *args, const PyDict *kwargs)
+
+PyResult<PyObject *> iter(const PyTuple *args, const PyDict *kwargs, Interpreter &)
 {
 	ASSERT(args->size() == 1);
 	const auto &arg = args->operator[](0);
@@ -155,7 +142,7 @@ PyResult<PyObject *> iter(const PyTuple *args, const PyDict *kwargs)
 	return arg.and_then([](auto *obj) { return obj->iter(); });
 }
 
-PyResult<PyObject *> hash(const PyTuple *args, const PyDict *kwargs)
+PyResult<PyObject *> hash(const PyTuple *args, const PyDict *kwargs, Interpreter &)
 {
 	ASSERT(args->size() == 1);
 	const auto &arg = args->operator[](0);
@@ -165,7 +152,7 @@ PyResult<PyObject *> hash(const PyTuple *args, const PyDict *kwargs)
 	});
 }
 
-PyResult<PyObject *> next(const PyTuple *args, const PyDict *kwargs)
+PyResult<PyObject *> next(const PyTuple *args, const PyDict *kwargs, Interpreter &)
 {
 	ASSERT(args->size() == 1);
 	if (kwargs) { return Err(type_error("next() takes no keyword arguments")); }
@@ -173,11 +160,9 @@ PyResult<PyObject *> next(const PyTuple *args, const PyDict *kwargs)
 	return arg.and_then([](auto *obj) { return obj->next(); });
 }
 
-// ============================================================
-// 依赖 Interpreter 的函数 — 改用 current_interpreter()
-// ============================================================
 
-PyResult<PyObject *> build_class(const PyTuple *args, const PyDict *kwargs)
+PyResult<PyObject *>
+	build_class(const PyTuple *args, const PyDict *kwargs, Interpreter &interpreter)
 {
 	if (args->size() < 2) {
 		return Err(type_error("__build_class__: not enough arguments, got {}", args->size()));
@@ -214,8 +199,12 @@ PyResult<PyObject *> build_class(const PyTuple *args, const PyDict *kwargs)
 	const auto mangled_class_name_as_string = as<PyString>(mangled_class_name)->value();
 
 	PyResult<PyFunction *> callable = [&]() -> PyResult<PyFunction *> {
+		// TODO: Remove as<PyInteger>(maybe_function_location) branch. This is deprecated
 		if (as<PyInteger>(maybe_function_location)) {
-			auto *f = current_interpreter().execution_frame()->code()->make_function(
+			// auto function_id = std::get<int64_t>(pynumber->value().value);
+			// FIXME: what should be the global dictionary for this?
+			// FIXME: what should be the module for this?
+			auto *f = interpreter.execution_frame()->code()->make_function(
 				mangled_class_name_as_string, {}, {}, {});
 			ASSERT(as<PyFunction>(f));
 			return Ok(as<PyFunction>(f));
@@ -249,10 +238,13 @@ PyResult<PyObject *> build_class(const PyTuple *args, const PyDict *kwargs)
 	if (bases_.is_err()) { return Err(bases_.unwrap_err()); }
 	auto *bases = bases_.unwrap();
 
+	// finalize this class' metaclass
 	if (metaclass == py_none()) {
 		if (bases->size() == 0) {
+			// if there are no bases, use `type`
 			metaclass = py::types::type();
 		} else {
+			// else get the type of the first base
 			metaclass = PyObject::from(bases->elements()[0]).unwrap()->type();
 		}
 		metaclass_is_class = true;
@@ -274,6 +266,7 @@ PyResult<PyObject *> build_class(const PyTuple *args, const PyDict *kwargs)
 		metaclass = const_cast<PyType *>(winner.unwrap());
 	}
 
+	// lookup __prepare__ and instantiate namespace
 	auto ns_ = [metaclass, class_name, bases, kwargs]() -> PyResult<PyObject *> {
 		if (metaclass == types::type()) {
 			return PyDict::create();
@@ -307,6 +300,29 @@ PyResult<PyObject *> build_class(const PyTuple *args, const PyDict *kwargs)
 	if (ns_.is_err()) { return Err(ns_.unwrap_err()); }
 	auto *ns = ns_.unwrap();
 
+	// this calls a function that defines a class
+	// For example:
+	// class A:
+	//   def foo(self):
+	//     pass
+	//
+	// becomes something like this (in bytecode):
+	//   1           0 LOAD_NAME                0 (__name__)
+	//               2 STORE_NAME               1 (__module__)
+	//               4 LOAD_CONST               0 ('A')
+	//               6 STORE_NAME               2 (__qualname__)
+	//
+	//   2           8 LOAD_CONST               1 (<code object foo at 0x5557f27c0390, file
+	//   "example.py", line 2>)
+	//              10 LOAD_CONST               2 ('A.foo')
+	//              12 MAKE_FUNCTION            0
+	//              14 STORE_NAME               3 (foo)
+	//              16 LOAD_CONST               3 (None)
+	//              18 RETURN_VALUE
+	// and calling these instructions creates the class' methods and attributes (i.e. foo)
+	// call with frame keeps a reference to locals in a ns
+	// so we have a reference to all class attributes and methods
+	// i.e. {__module__: __name__, __qualname__: 'A', foo: <function A.foo>}
 	auto args_ = PyTuple::create();
 	if (args_.is_err()) { return args_; }
 	auto *empty_args = args_.unwrap();
@@ -322,6 +338,8 @@ PyResult<PyObject *> build_class(const PyTuple *args, const PyDict *kwargs)
 
 	auto cls = metaclass->call(call_args.unwrap(), nullptr);
 
+	// FIXME: according to CPython this is *not* how you do it, but RustPython does it this way
+	//        what are the implications? Find out how CPython sets __classcell__.
 	return cls.and_then([&classcell](PyObject *cls) {
 		if (as<PyCell>(classcell.unwrap())) { as<PyCell>(classcell.unwrap())->set_cell(cls); }
 		return Ok(cls);
@@ -330,25 +348,24 @@ PyResult<PyObject *> build_class(const PyTuple *args, const PyDict *kwargs)
 
 PyResult<PyObject *> globals(const PyTuple *, const PyDict *)
 {
-	if (RuntimeContext::has_current()) {
-		auto *g = RuntimeContext::current().current_globals();
-		if (g) { return Ok(static_cast<PyObject *>(g)); }
-		if (RuntimeContext::current().has_interpreter()) {
-			return Ok(current_interpreter().execution_frame()->globals());
-		}
-	}
-	return Err(runtime_error("no current globals"));
+    auto *g = RuntimeContext::current().current_globals();
+    if (!g) { return Err(runtime_error("no current globals")); }
+    return Ok(static_cast<PyObject *>(g));
 }
+
 
 PyResult<PyObject *> locals(const PyTuple *, const PyDict *)
 {
-	if (RuntimeContext::has_current() && RuntimeContext::current().has_interpreter()) {
-		return Ok(current_interpreter().execution_frame()->locals());
-	}
-	return Err(runtime_error("locals() not available in compiled mode"));
+    // RuntimeContext 可扩展 locals_provider
+    if (RuntimeContext::current().has_interpreter()) {
+        return Ok(RuntimeContext::current().interpreter()->execution_frame()->locals());
+    }
+    // 编译器路径: 由编译器生成的代码提供 locals
+    return Err(runtime_error("locals() not available in compiled mode"));
 }
 
-PyResult<PyObject *> len(const PyTuple *args, const PyDict *kwargs)
+
+PyResult<PyObject *> len(const PyTuple *args, const PyDict *kwargs, Interpreter &)
 {
 	if (args->size() != 1) {
 		return Err(type_error("len() takes exactly one argument ({} given)", args->size()));
@@ -368,7 +385,7 @@ PyResult<PyObject *> len(const PyTuple *args, const PyDict *kwargs)
 	});
 }
 
-PyResult<PyObject *> id(const PyTuple *args, const PyDict *)
+PyResult<PyObject *> id(const PyTuple *args, const PyDict *, Interpreter &)
 {
 	ASSERT(args->size() == 1);
 	auto obj = args->operator[](0);
@@ -376,8 +393,9 @@ PyResult<PyObject *> id(const PyTuple *args, const PyDict *)
 	return PyInteger::create(bit_cast<intptr_t>(obj.unwrap()));
 }
 
-PyResult<PyObject *> import(const PyTuple *args, const PyDict *)
+PyResult<PyObject *> import(const PyTuple *args, const PyDict *, Interpreter &)
 {
+	// TODO: support globals, locals, fromlist and level
 	ASSERT(args->size() > 0);
 	auto arg0 = args->operator[](0);
 	if (arg0.is_err()) return arg0;
@@ -409,11 +427,13 @@ PyResult<PyObject *> import(const PyTuple *args, const PyDict *)
 		if (args->size() > 2) {
 			auto arg2 = args->operator[](2);
 			if (arg2.is_err()) return arg2;
-			return Ok(arg2.unwrap());
+			auto *locals = arg2.unwrap();
+			return Ok(locals);
 		} else {
 			return Ok(py_none());
 		}
 	}();
+
 	if (arg2.is_err()) return arg2;
 	auto *locals = arg2.unwrap();
 
@@ -421,11 +441,13 @@ PyResult<PyObject *> import(const PyTuple *args, const PyDict *)
 		if (args->size() > 3) {
 			auto arg3 = args->operator[](3);
 			if (arg3.is_err()) return arg3;
-			return Ok(arg3.unwrap());
+			auto *fromlist = arg3.unwrap();
+			return Ok(fromlist);
 		} else {
 			return PyTuple::create();
 		}
 	}();
+
 	if (arg3.is_err()) return arg3;
 	auto *fromlist = arg3.unwrap();
 
@@ -446,6 +468,7 @@ PyResult<PyObject *> import(const PyTuple *args, const PyDict *)
 	if (arg4.is_err()) return arg4;
 	auto *level = arg4.unwrap();
 
+
 	return import_module_level_object(as<PyString>(name),
 		as<PyDict>(globals),
 		locals,
@@ -453,7 +476,7 @@ PyResult<PyObject *> import(const PyTuple *args, const PyDict *)
 		static_cast<uint32_t>(as<PyInteger>(level)->as_size_t()));
 }
 
-PyResult<PyObject *> hasattr(const PyTuple *args, const PyDict *)
+PyResult<PyObject *> hasattr(const PyTuple *args, const PyDict *, Interpreter &)
 {
 	if (args->size() != 2) {
 		return Err(type_error("hasattr expected 2 arguments, got {}", args->size()));
@@ -476,7 +499,7 @@ PyResult<PyObject *> hasattr(const PyTuple *args, const PyDict *)
 	}
 }
 
-PyResult<PyObject *> getattr(const PyTuple *args, const PyDict *)
+PyResult<PyObject *> getattr(const PyTuple *args, const PyDict *, Interpreter &)
 {
 	if (args->size() != 2 && args->size() != 3) {
 		return Err(type_error("getattr expected 2 or 3 arguments, got {}", args->size()));
@@ -499,7 +522,9 @@ PyResult<PyObject *> getattr(const PyTuple *args, const PyDict *)
 		auto *default_value = default_value_.unwrap();
 
 		auto [attr_value, found_status] = obj->lookup_attribute(name);
+
 		if (attr_value.is_err()) { return attr_value; }
+
 		if (found_status == LookupAttrResult::FOUND) {
 			if (attr_value.is_ok()) { ASSERT(attr_value.unwrap()); }
 			return attr_value;
@@ -510,7 +535,7 @@ PyResult<PyObject *> getattr(const PyTuple *args, const PyDict *)
 	}
 }
 
-PyResult<PyObject *> setattr(const PyTuple *args, const PyDict *)
+PyResult<PyObject *> setattr(const PyTuple *args, const PyDict *, Interpreter &)
 {
 	if (args->size() != 3) {
 		return Err(type_error("setattr expected 3 arguments, got {}", args->size()));
@@ -534,7 +559,7 @@ PyResult<PyObject *> setattr(const PyTuple *args, const PyDict *)
 	}
 }
 
-PyResult<PyObject *> hex(const PyTuple *args, const PyDict *)
+PyResult<PyObject *> hex(const PyTuple *args, const PyDict *, Interpreter &)
 {
 	ASSERT(args->size() == 1);
 	auto obj_ = args->operator[](0);
@@ -546,6 +571,7 @@ PyResult<PyObject *> hex(const PyTuple *args, const PyDict *)
 			os << std::hex << std::ios::showbase << std::get<BigIntType>(pynumber->value().value);
 			return PyString::create(os.str());
 		} else {
+			// FIXME: when float is separated from integer fix this
 			return Err(type_error(
 				"'float' object cannot be interpreted as an integer", obj->type()->name()));
 		}
@@ -555,7 +581,7 @@ PyResult<PyObject *> hex(const PyTuple *args, const PyDict *)
 	}
 }
 
-PyResult<PyObject *> ord(const PyTuple *args, const PyDict *)
+PyResult<PyObject *> ord(const PyTuple *args, const PyDict *, Interpreter &)
 {
 	ASSERT(args->size() == 1);
 	auto obj_ = args->operator[](0);
@@ -578,7 +604,7 @@ PyResult<PyObject *> ord(const PyTuple *args, const PyDict *)
 	}
 }
 
-PyResult<PyObject *> chr(const PyTuple *args, const PyDict *)
+PyResult<PyObject *> chr(const PyTuple *args, const PyDict *, Interpreter &)
 {
 	ASSERT(args->size() == 1);
 	auto obj_ = args->operator[](0);
@@ -596,28 +622,35 @@ PyResult<PyObject *> chr(const PyTuple *args, const PyDict *)
 	}
 }
 
-PyResult<PyObject *> dir(const PyTuple *args, const PyDict *)
+PyResult<PyObject *> dir(const PyTuple *args, const PyDict *, Interpreter &interpreter)
 {
 	ASSERT(args->size() < 2);
 	auto dir_list_ = PyList::create();
 	if (dir_list_.is_err()) return Err(dir_list_.unwrap_err());
 	auto *dir_list = dir_list_.unwrap();
 	if (args->size() == 0) {
-		auto &interp = current_interpreter();
-		ASSERT(as<PyDict>(interp.execution_frame()->locals()));
-		for (const auto &[k, _] : as<PyDict>(interp.execution_frame()->locals())->map()) {
+		ASSERT(as<PyDict>(interpreter.execution_frame()->locals()));
+		for (const auto &[k, _] : as<PyDict>(interpreter.execution_frame()->locals())->map()) {
 			auto obj_ = PyObject::from(k);
 			if (obj_.is_err()) return obj_;
 			dir_list->elements().push_back(obj_.unwrap());
 		}
 	} else {
 		const auto &arg = args->elements()[0];
+
+		// If the object is a module object, the list contains the names of the module’s attributes.
 		if (std::holds_alternative<PyObject *>(arg) && as<PyModule>(std::get<PyObject *>(arg))) {
 			auto *pymodule = as<PyModule>(std::get<PyObject *>(arg));
 			for (const auto &[k, _] : pymodule->symbol_table()->map()) {
 				dir_list->elements().push_back(k);
 			}
-		} else {
+		}
+		// If the object is a type or class object, the list contains the names of its attributes,
+		// and recursively of the attributes of its bases.
+
+		// Otherwise, the list contains the object’s attributes’ names, the names of its class’s
+		// attributes, and recursively of the attributes of its class’s base classes.
+		else {
 			auto object_ = PyObject::from(arg);
 			if (object_.is_err()) return object_;
 			auto *object = object_.unwrap();
@@ -631,7 +664,7 @@ PyResult<PyObject *> dir(const PyTuple *args, const PyDict *)
 	return Ok(static_cast<PyObject *>(dir_list_.unwrap()));
 }
 
-PyResult<PyObject *> repr(const PyTuple *args, const PyDict *)
+PyResult<PyObject *> repr(const PyTuple *args, const PyDict *, Interpreter &)
 {
 	if (args->size() != 1) {
 		return Err(type_error("repr() takes exactly one argument ({} given)", args->size()));
@@ -639,7 +672,7 @@ PyResult<PyObject *> repr(const PyTuple *args, const PyDict *)
 	return PyObject::from(args->elements()[0]).and_then([](auto *obj) { return obj->repr(); });
 }
 
-PyResult<PyObject *> abs(const PyTuple *args, const PyDict *kwargs)
+PyResult<PyObject *> abs(const PyTuple *args, const PyDict *kwargs, Interpreter &)
 {
 	if (args->size() != 1) {
 		return Err(type_error("abs() takes exactly one argument ({} given)", args->size()));
@@ -650,9 +683,10 @@ PyResult<PyObject *> abs(const PyTuple *args, const PyDict *kwargs)
 	return PyObject::from(args->elements()[0]).and_then([](auto *obj) { return obj->abs(); });
 }
 
-PyResult<PyObject *> max(const PyTuple *args, const PyDict *kwargs)
+PyResult<PyObject *> max(const PyTuple *args, const PyDict *kwargs, Interpreter &interpreter)
 {
 	if (!args || args->size() == 0) { return Err(type_error("")); }
+
 	if (kwargs && kwargs->size() > 0) { TODO(); }
 
 	if (args->size() == 1) {
@@ -679,13 +713,12 @@ PyResult<PyObject *> max(const PyTuple *args, const PyDict *kwargs)
 
 		return Ok(max_value);
 	} else {
-		auto &interp = current_interpreter();
 		std::optional<Value> max_value;
 		for (const auto &el : args->elements()) {
 			if (max_value.has_value()) {
-				auto cmp = greater_than(el, *max_value, interp);
+				auto cmp = greater_than(el, *max_value, interpreter);
 				if (cmp.is_err()) return Err(cmp.unwrap_err());
-				auto r = truthy(cmp.unwrap(), interp);
+				auto r = truthy(cmp.unwrap(), interpreter);
 				if (r.is_err()) return Err(r.unwrap_err());
 				if (r.unwrap()) { max_value = el; }
 			} else {
@@ -694,13 +727,15 @@ PyResult<PyObject *> max(const PyTuple *args, const PyDict *kwargs)
 		}
 
 		ASSERT(max_value.has_value());
+
 		return PyObject::from(*max_value);
 	}
 }
 
-PyResult<PyObject *> min(const PyTuple *args, const PyDict *kwargs)
+PyResult<PyObject *> min(const PyTuple *args, const PyDict *kwargs, Interpreter &interpreter)
 {
 	if (!args || args->size() == 0) { return Err(type_error("")); }
+
 	if (kwargs && kwargs->size() > 0) { TODO(); }
 
 	if (args->size() == 1) {
@@ -727,13 +762,12 @@ PyResult<PyObject *> min(const PyTuple *args, const PyDict *kwargs)
 
 		return Ok(min_value);
 	} else {
-		auto &interp = current_interpreter();
 		std::optional<Value> min_value;
 		for (const auto &el : args->elements()) {
 			if (min_value.has_value()) {
-				auto cmp = less_than(el, *min_value, interp);
+				auto cmp = less_than(el, *min_value, interpreter);
 				if (cmp.is_err()) return Err(cmp.unwrap_err());
-				auto r = truthy(cmp.unwrap(), interp);
+				auto r = truthy(cmp.unwrap(), interpreter);
 				if (r.is_err()) return Err(r.unwrap_err());
 				if (r.unwrap()) { min_value = el; }
 			} else {
@@ -742,15 +776,17 @@ PyResult<PyObject *> min(const PyTuple *args, const PyDict *kwargs)
 		}
 
 		ASSERT(min_value.has_value());
+
 		return PyObject::from(*min_value);
 	}
 }
 
-PyResult<PyObject *> isinstance(const PyTuple *args, const PyDict *kwargs)
+PyResult<PyObject *> isinstance(const PyTuple *args, const PyDict *kwargs, Interpreter &)
 {
 	if (args->size() != 2) {
 		return Err(type_error("isinstance expected 2 arguments, got {}", args->size()));
 	}
+
 	if (kwargs && !kwargs->map().empty()) {
 		return Err(type_error("isinstance() takes no keyword arguments"));
 	}
@@ -785,11 +821,12 @@ PyResult<PyObject *> isinstance(const PyTuple *args, const PyDict *kwargs)
 	return Ok(result ? py_true() : py_false());
 }
 
-PyResult<PyObject *> issubclass(const PyTuple *args, const PyDict *kwargs)
+PyResult<PyObject *> issubclass(const PyTuple *args, const PyDict *kwargs, Interpreter &)
 {
 	if (args->size() != 2) {
 		return Err(type_error("issubclass expected 2 arguments, got {}", args->size()));
 	}
+
 	if (kwargs && !kwargs->map().empty()) {
 		return Err(type_error("issubclass() takes no keyword arguments"));
 	}
@@ -813,11 +850,12 @@ PyResult<PyObject *> issubclass(const PyTuple *args, const PyDict *kwargs)
 	}
 }
 
-PyResult<PyObject *> all(const PyTuple *args, const PyDict *kwargs)
+PyResult<PyObject *> all(const PyTuple *args, const PyDict *kwargs, Interpreter &)
 {
 	if (args->size() != 1) {
 		return Err(type_error("all expected 1 arguments, got {}", args->size()));
 	}
+
 	if (kwargs && !kwargs->map().empty()) {
 		return Err(type_error("all() takes no keyword arguments"));
 	}
@@ -842,11 +880,13 @@ PyResult<PyObject *> all(const PyTuple *args, const PyDict *kwargs)
 	}
 }
 
-PyResult<PyObject *> any(const PyTuple *args, const PyDict *kwargs)
+
+PyResult<PyObject *> any(const PyTuple *args, const PyDict *kwargs, Interpreter &)
 {
 	if (args->size() != 1) {
 		return Err(type_error("any expected 1 arguments, got {}", args->size()));
 	}
+
 	if (kwargs && !kwargs->map().empty()) {
 		return Err(type_error("any() takes no keyword arguments"));
 	}
@@ -871,7 +911,7 @@ PyResult<PyObject *> any(const PyTuple *args, const PyDict *kwargs)
 	}
 }
 
-PyResult<PyObject *> exec(const PyTuple *args, const PyDict *)
+PyResult<PyObject *> exec(const PyTuple *args, const PyDict *, Interpreter &interpreter)
 {
 	ASSERT(args);
 	if (args->size() < 1) {
@@ -880,8 +920,6 @@ PyResult<PyObject *> exec(const PyTuple *args, const PyDict *)
 	if (args->size() > 3) {
 		return Err(type_error("exec expected at most 3 arguments, got {}", args->size()));
 	}
-
-	auto &interp = current_interpreter();
 
 	auto source_ = PyObject::from(args->elements()[0]);
 	auto globals_ = args->size() >= 2 ? PyObject::from(args->elements()[1]) : Ok(py_none());
@@ -900,8 +938,8 @@ PyResult<PyObject *> exec(const PyTuple *args, const PyDict *)
 	ASSERT(locals);
 
 	if (globals == py_none()) {
-		globals = interp.execution_frame()->globals();
-		if (locals == py_none()) { locals = interp.execution_frame()->locals(); }
+		globals = interpreter.execution_frame()->globals();
+		if (locals == py_none()) { locals = interpreter.execution_frame()->locals(); }
 		if (!globals || !locals) { TODO(); }
 	} else if (locals == py_none()) {
 		locals = globals;
@@ -916,7 +954,8 @@ PyResult<PyObject *> exec(const PyTuple *args, const PyDict *)
 	}
 
 	if (!as<PyDict>(globals)->map().contains(String{ "__builtin__" })) {
-		as<PyDict>(globals)->insert(String{ "__builtin__" }, interp.execution_frame()->builtins());
+		as<PyDict>(globals)->insert(
+			String{ "__builtin__" }, interpreter.execution_frame()->builtins());
 	}
 
 	if (auto *code = as<PyCode>(source)) {
@@ -934,25 +973,23 @@ PyResult<PyObject *> exec(const PyTuple *args, const PyDict *)
 	}
 }
 
-PyResult<PyObject *> eval(PyTuple *args, PyDict *kwargs)
+PyResult<PyObject *> eval(PyTuple *args, PyDict *kwargs, Interpreter &interpreter)
 {
 	auto result = PyArgsParser<PyObject *, PyObject *, PyObject *>::unpack_tuple(args,
 		kwargs,
 		"eval",
 		std::integral_constant<size_t, 1>{},
 		std::integral_constant<size_t, 3>{},
-		py_none(),
-		py_none());
+		py_none() /* globals */,
+		py_none() /* locals */);
 
 	if (result.is_err()) { return Err(result.unwrap_err()); }
 
 	auto [source, globals, locals] = result.unwrap();
 
-	auto &interp = current_interpreter();
-
 	if (globals == py_none()) {
-		globals = interp.execution_frame()->globals();
-		if (locals == py_none()) { locals = interp.execution_frame()->locals(); }
+		globals = interpreter.execution_frame()->globals();
+		if (locals == py_none()) { locals = interpreter.execution_frame()->locals(); }
 	} else if (locals == py_none()) {
 		locals = globals;
 	}
@@ -968,7 +1005,8 @@ PyResult<PyObject *> eval(PyTuple *args, PyDict *kwargs)
 	ASSERT(globals && globals != py_none() && locals && locals != py_none());
 
 	if (!as<PyDict>(globals)->map().contains(String{ "__builtin__" })) {
-		as<PyDict>(globals)->insert(String{ "__builtin__" }, interp.execution_frame()->builtins());
+		as<PyDict>(globals)->insert(
+			String{ "__builtin__" }, interpreter.execution_frame()->builtins());
 	}
 
 	if (!as<PyDict>(locals)) { TODO(); }
@@ -1004,7 +1042,7 @@ PyResult<PyObject *> eval(PyTuple *args, PyDict *kwargs)
 	TODO();
 }
 
-PyResult<PyObject *> compile(const PyTuple *args, const PyDict *)
+PyResult<PyObject *> compile(const PyTuple *args, const PyDict *, Interpreter &)
 {
 	ASSERT(args);
 	if (args->size() < 1) {
@@ -1092,13 +1130,14 @@ PyResult<PyObject *> compile(const PyTuple *args, const PyDict *)
 	}
 }
 
-PyResult<PyObject *> callable(const PyTuple *args, const PyDict *kwargs)
+PyResult<PyObject *> callable(const PyTuple *args, const PyDict *kwargs, Interpreter &)
 {
 	if (!args) {
 		return Err(type_error("callable() takes exactly one argument (0 given)"));
 	} else if (args->size() != 1) {
 		return Err(type_error("callable() takes exactly one argument ({} given)", args->size()));
 	}
+
 	if (kwargs && kwargs->size() != 0) {
 		return Err(type_error("callable() takes no keyword arguments", args->size()));
 	}
@@ -1113,7 +1152,7 @@ PyResult<PyObject *> callable(const PyTuple *args, const PyDict *kwargs)
 			   : Ok(py_false());
 }
 
-PyResult<PyObject *> ascii(PyTuple *args, PyDict *kwargs)
+PyResult<PyObject *> ascii(PyTuple *args, PyDict *kwargs, Interpreter &)
 {
 	auto result = PyArgsParser<PyObject *>::unpack_tuple(args,
 		kwargs,
@@ -1127,14 +1166,12 @@ PyResult<PyObject *> ascii(PyTuple *args, PyDict *kwargs)
 	return PyString::convert_to_ascii(obj);
 }
 
-PyResult<PyObject *> sorted(PyTuple *args, PyDict *kwargs)
+PyResult<PyObject *> sorted(PyTuple *args, PyDict *kwargs, Interpreter &interpreter)
 {
 	if (!args) { return Err(type_error("sorted expected 1 arguments, got 0")); }
 	if (args->elements().size() != 1) {
 		return Err(type_error("sorted expected 1 arguments, got {}", args->elements().size()));
 	}
-
-	auto &interp = current_interpreter();
 
 	auto iterable_ = PyObject::from(args->elements()[0]);
 	if (iterable_.is_err()) { return iterable_; }
@@ -1153,7 +1190,7 @@ PyResult<PyObject *> sorted(PyTuple *args, PyDict *kwargs)
 			key = key_.unwrap();
 		}
 		if (auto it = kwargs->map().find(String{ "reverse" }); it != kwargs->map().end()) {
-			auto t = truthy(it->second, interp);
+			auto t = truthy(it->second, interpreter);
 			if (t.is_err()) { return Err(t.unwrap_err()); }
 			reverse = t.unwrap();
 		}
@@ -1189,10 +1226,12 @@ PyResult<PyObject *> sorted(PyTuple *args, PyDict *kwargs)
 	if (!value.unwrap_err()->type()->issubclass(types::stop_iteration())) { return value; }
 
 	if (key == py_none()) {
+		// FIXME: should throw exception when comparing, as returning true is
+		// probably messing up the C++ Compare requirment
 		PyResult<PyObject *> err = Ok(py_none());
-		auto cmp = [&err, &interp](const Value &lhs, const Value &rhs) -> bool {
-			if (auto cmp = less_than(lhs, rhs, interp); cmp.is_ok()) {
-				auto is_true = truthy(cmp.unwrap(), interp);
+		auto cmp = [&err](const Value &lhs, const Value &rhs) -> bool {
+			if (auto cmp = less_than(lhs, rhs, VirtualMachine::the().interpreter()); cmp.is_ok()) {
+				auto is_true = truthy(cmp.unwrap(), VirtualMachine::the().interpreter());
 				if (is_true.is_err()) {
 					err = Err(is_true.unwrap_err());
 					return true;
@@ -1207,16 +1246,19 @@ PyResult<PyObject *> sorted(PyTuple *args, PyDict *kwargs)
 		} else {
 			std::stable_sort(result->elements().begin(), result->elements().end(), cmp);
 		}
+
 		if (err.is_err()) { return err; }
 	} else {
 		PyResult<PyObject *> err = Ok(py_none());
 		std::vector<size_t> indices(cmp_list->elements().size());
 		std::iota(indices.begin(), indices.end(), 0);
-		auto cmp = [&err, cmp_list, &interp](size_t lhs_index, size_t rhs_index) -> bool {
+		// FIXME: should throw exception when comparing, as returning true is
+		// probably messing up the C++ Compare requirment
+		auto cmp = [&err, cmp_list](size_t lhs_index, size_t rhs_index) -> bool {
 			const auto &lhs = cmp_list->elements()[lhs_index];
 			const auto &rhs = cmp_list->elements()[rhs_index];
-			if (auto cmp = less_than(lhs, rhs, interp); cmp.is_ok()) {
-				auto is_true = truthy(cmp.unwrap(), interp);
+			if (auto cmp = less_than(lhs, rhs, VirtualMachine::the().interpreter()); cmp.is_ok()) {
+				auto is_true = truthy(cmp.unwrap(), VirtualMachine::the().interpreter());
 				if (is_true.is_err()) {
 					err = Err(is_true.unwrap_err());
 					return true;
@@ -1231,6 +1273,7 @@ PyResult<PyObject *> sorted(PyTuple *args, PyDict *kwargs)
 		} else {
 			std::stable_sort(indices.begin(), indices.end(), cmp);
 		}
+
 		if (err.is_err()) { return err; }
 
 		cmp_list->elements().clear();
@@ -1243,7 +1286,7 @@ PyResult<PyObject *> sorted(PyTuple *args, PyDict *kwargs)
 	return Ok(result);
 }
 
-PyResult<PyObject *> vars(PyTuple *args, PyDict *kwargs)
+PyResult<PyObject *> vars(PyTuple *args, PyDict *kwargs, Interpreter &interpreter)
 {
 	auto result = PyArgsParser<PyObject *>::unpack_tuple(args,
 		kwargs,
@@ -1255,7 +1298,7 @@ PyResult<PyObject *> vars(PyTuple *args, PyDict *kwargs)
 	if (result.is_err()) { return Err(result.unwrap_err()); }
 	auto [obj] = result.unwrap();
 
-	if (!obj) { return Ok(current_interpreter().execution_frame()->locals()); }
+	if (!obj) { return Ok(interpreter.execution_frame()->locals()); }
 
 	auto dict = obj->lookup_attribute(PyString::create("__dict__").unwrap());
 	if (std::get<1>(dict) == LookupAttrResult::NOT_FOUND) {
@@ -1265,7 +1308,7 @@ PyResult<PyObject *> vars(PyTuple *args, PyDict *kwargs)
 	return std::get<0>(dict);
 }
 
-PyResult<PyObject *> divmod(PyTuple *args, PyDict *kwargs)
+PyResult<PyObject *> divmod(PyTuple *args, PyDict *kwargs, Interpreter &)
 {
 	auto result = PyArgsParser<PyObject *, PyObject *>::unpack_tuple(args,
 		kwargs,
@@ -1279,7 +1322,7 @@ PyResult<PyObject *> divmod(PyTuple *args, PyDict *kwargs)
 	return lhs->divmod(rhs);
 }
 
-PyResult<PyObject *> round(PyTuple *args, PyDict *kwargs)
+PyResult<PyObject *> round(PyTuple *args, PyDict *kwargs, Interpreter &)
 {
 	auto result = PyArgsParser<PyObject *, PyObject *>::unpack_tuple(args,
 		kwargs,
@@ -1304,7 +1347,6 @@ PyResult<PyObject *> round(PyTuple *args, PyDict *kwargs)
 
 auto builtin_types()
 {
-	// ...existing code... (unchanged)
 	return std::array{
 		types::type(),
 		types::super(),
@@ -1334,12 +1376,12 @@ auto builtin_types()
 		types::enumerate(),
 		types::not_implemented(),
 		types::map(),
+
 	};
 }
 
 auto builtin_exceptions()
 {
-	// ...existing code... (unchanged)
 	return std::array{
 		types::base_exception(),
 		types::exception(),
@@ -1372,7 +1414,7 @@ auto builtin_exceptions()
 
 namespace py {
 
-PyModule *builtins_module()
+PyModule *builtins_module(Interpreter &interpreter)
 {
 	if (s_builtin_module) { return s_builtin_module; }
 
@@ -1395,173 +1437,174 @@ PyModule *builtins_module()
 	}
 
 	s_builtin_module->add_symbol(PyString::create("__build_class__").unwrap(),
-		PYLANG_ALLOC(PyNativeFunction, "__build_class__", [](PyTuple *args, PyDict *kwargs) {
-			return build_class(args, kwargs);
-		}));
+		PYLANG_ALLOC(
+			PyNativeFunction, "__build_class__", [&interpreter](PyTuple *args, PyDict *kwargs) {
+				return build_class(args, kwargs, interpreter);
+			}));
 
 	s_builtin_module->add_symbol(PyString::create("__import__").unwrap(),
-		PYLANG_ALLOC(PyNativeFunction, "__import__", [](PyTuple *args, PyDict *kwargs) {
-			return import(args, kwargs);
+		PYLANG_ALLOC(PyNativeFunction, "__import__", [&interpreter](PyTuple *args, PyDict *kwargs) {
+			return import(args, kwargs, interpreter);
 		}));
 
 	s_builtin_module->add_symbol(PyString::create("abs").unwrap(),
-		PYLANG_ALLOC(PyNativeFunction, "abs", [](PyTuple *args, PyDict *kwargs) {
-			return abs(args, kwargs);
+		PYLANG_ALLOC(PyNativeFunction, "abs", [&interpreter](PyTuple *args, PyDict *kwargs) {
+			return abs(args, kwargs, interpreter);
 		}));
 
 	s_builtin_module->add_symbol(PyString::create("all").unwrap(),
-		PYLANG_ALLOC(PyNativeFunction, "all", [](PyTuple *args, PyDict *kwargs) {
-			return all(args, kwargs);
+		PYLANG_ALLOC(PyNativeFunction, "all", [&interpreter](PyTuple *args, PyDict *kwargs) {
+			return all(args, kwargs, interpreter);
 		}));
 
 	s_builtin_module->add_symbol(PyString::create("any").unwrap(),
-		PYLANG_ALLOC(PyNativeFunction, "any", [](PyTuple *args, PyDict *kwargs) {
-			return any(args, kwargs);
+		PYLANG_ALLOC(PyNativeFunction, "any", [&interpreter](PyTuple *args, PyDict *kwargs) {
+			return any(args, kwargs, interpreter);
 		}));
 
 	s_builtin_module->add_symbol(PyString::create("dir").unwrap(),
-		PYLANG_ALLOC(PyNativeFunction, "dir", [](PyTuple *args, PyDict *kwargs) {
-			return dir(args, kwargs);
+		PYLANG_ALLOC(PyNativeFunction, "dir", [&interpreter](PyTuple *args, PyDict *kwargs) {
+			return dir(args, kwargs, interpreter);
 		}));
 
 	s_builtin_module->add_symbol(PyString::create("getattr").unwrap(),
-		PYLANG_ALLOC(PyNativeFunction, "getattr", [](PyTuple *args, PyDict *kwargs) {
-			return getattr(args, kwargs);
+		PYLANG_ALLOC(PyNativeFunction, "getattr", [&interpreter](PyTuple *args, PyDict *kwargs) {
+			return getattr(args, kwargs, interpreter);
 		}));
 
 	s_builtin_module->add_symbol(PyString::create("globals").unwrap(),
-		PYLANG_ALLOC(PyNativeFunction, "globals", [](PyTuple *args, PyDict *kwargs) {
-			return globals(args, kwargs);
+		PYLANG_ALLOC(PyNativeFunction, "globals", [&interpreter](PyTuple *args, PyDict *kwargs) {
+			return globals(args, kwargs, interpreter);
 		}));
 
 	s_builtin_module->add_symbol(PyString::create("hasattr").unwrap(),
-		PYLANG_ALLOC(PyNativeFunction, "hasattr", [](PyTuple *args, PyDict *kwargs) {
-			return hasattr(args, kwargs);
+		PYLANG_ALLOC(PyNativeFunction, "hasattr", [&interpreter](PyTuple *args, PyDict *kwargs) {
+			return hasattr(args, kwargs, interpreter);
 		}));
 
 	s_builtin_module->add_symbol(PyString::create("hash").unwrap(),
-		PYLANG_ALLOC(PyNativeFunction, "hash", [](PyTuple *args, PyDict *kwargs) {
-			return hash(args, kwargs);
+		PYLANG_ALLOC(PyNativeFunction, "hash", [&interpreter](PyTuple *args, PyDict *kwargs) {
+			return hash(args, kwargs, interpreter);
 		}));
 
 	s_builtin_module->add_symbol(PyString::create("hex").unwrap(),
-		PYLANG_ALLOC(PyNativeFunction, "hex", [](PyTuple *args, PyDict *kwargs) {
-			return hex(args, kwargs);
+		PYLANG_ALLOC(PyNativeFunction, "hex", [&interpreter](PyTuple *args, PyDict *kwargs) {
+			return hex(args, kwargs, interpreter);
 		}));
 
 	s_builtin_module->add_symbol(PyString::create("id").unwrap(),
-		PYLANG_ALLOC(PyNativeFunction, "id", [](PyTuple *args, PyDict *kwargs) {
-			return id(args, kwargs);
+		PYLANG_ALLOC(PyNativeFunction, "id", [&interpreter](PyTuple *args, PyDict *kwargs) {
+			return id(args, kwargs, interpreter);
 		}));
 
 	s_builtin_module->add_symbol(PyString::create("iter").unwrap(),
-		PYLANG_ALLOC(PyNativeFunction, "iter", [](PyTuple *args, PyDict *kwargs) {
-			return iter(args, kwargs);
+		PYLANG_ALLOC(PyNativeFunction, "iter", [&interpreter](PyTuple *args, PyDict *kwargs) {
+			return iter(args, kwargs, interpreter);
 		}));
 
 	s_builtin_module->add_symbol(PyString::create("isinstance").unwrap(),
-		PYLANG_ALLOC(PyNativeFunction, "isinstance", [](PyTuple *args, PyDict *kwargs) {
-			return isinstance(args, kwargs);
+		PYLANG_ALLOC(PyNativeFunction, "isinstance", [&interpreter](PyTuple *args, PyDict *kwargs) {
+			return isinstance(args, kwargs, interpreter);
 		}));
 
 	s_builtin_module->add_symbol(PyString::create("issubclass").unwrap(),
-		PYLANG_ALLOC(PyNativeFunction, "issubclass", [](PyTuple *args, PyDict *kwargs) {
-			return issubclass(args, kwargs);
+		PYLANG_ALLOC(PyNativeFunction, "issubclass", [&interpreter](PyTuple *args, PyDict *kwargs) {
+			return issubclass(args, kwargs, interpreter);
 		}));
 
 	s_builtin_module->add_symbol(PyString::create("locals").unwrap(),
-		PYLANG_ALLOC(PyNativeFunction, "locals", [](PyTuple *args, PyDict *kwargs) {
-			return locals(args, kwargs);
+		PYLANG_ALLOC(PyNativeFunction, "locals", [&interpreter](PyTuple *args, PyDict *kwargs) {
+			return locals(args, kwargs, interpreter);
 		}));
 
 	s_builtin_module->add_symbol(PyString::create("len").unwrap(),
-		PYLANG_ALLOC(PyNativeFunction, "len", [](PyTuple *args, PyDict *kwargs) {
-			return len(args, kwargs);
+		PYLANG_ALLOC(PyNativeFunction, "len", [&interpreter](PyTuple *args, PyDict *kwargs) {
+			return len(args, kwargs, interpreter);
 		}));
 
 	s_builtin_module->add_symbol(PyString::create("next").unwrap(),
-		PYLANG_ALLOC(PyNativeFunction, "next", [](PyTuple *args, PyDict *kwargs) {
-			return next(args, kwargs);
+		PYLANG_ALLOC(PyNativeFunction, "next", [&interpreter](PyTuple *args, PyDict *kwargs) {
+			return next(args, kwargs, interpreter);
 		}));
 
 	s_builtin_module->add_symbol(PyString::create("ord").unwrap(),
-		PYLANG_ALLOC(PyNativeFunction, "ord", [](PyTuple *args, PyDict *kwargs) {
-			return ord(args, kwargs);
+		PYLANG_ALLOC(PyNativeFunction, "ord", [&interpreter](PyTuple *args, PyDict *kwargs) {
+			return ord(args, kwargs, interpreter);
 		}));
 
 	s_builtin_module->add_symbol(PyString::create("chr").unwrap(),
-		PYLANG_ALLOC(PyNativeFunction, "chr", [](PyTuple *args, PyDict *kwargs) {
-			return chr(args, kwargs);
+		PYLANG_ALLOC(PyNativeFunction, "chr", [&interpreter](PyTuple *args, PyDict *kwargs) {
+			return chr(args, kwargs, interpreter);
 		}));
 
 	s_builtin_module->add_symbol(PyString::create("print").unwrap(),
-		PYLANG_ALLOC(PyNativeFunction, "print", [](PyTuple *args, PyDict *kwargs) {
-			return print(args, kwargs);
+		PYLANG_ALLOC(PyNativeFunction, "print", [&interpreter](PyTuple *args, PyDict *kwargs) {
+			return print(args, kwargs, interpreter);
 		}));
 
 	s_builtin_module->add_symbol(PyString::create("repr").unwrap(),
-		PYLANG_ALLOC(PyNativeFunction, "repr", [](PyTuple *args, PyDict *kwargs) {
-			return repr(args, kwargs);
+		PYLANG_ALLOC(PyNativeFunction, "repr", [&interpreter](PyTuple *args, PyDict *kwargs) {
+			return repr(args, kwargs, interpreter);
 		}));
 
 	s_builtin_module->add_symbol(PyString::create("setattr").unwrap(),
-		PYLANG_ALLOC(PyNativeFunction, "setattr", [](PyTuple *args, PyDict *kwargs) {
-			return setattr(args, kwargs);
+		PYLANG_ALLOC(PyNativeFunction, "setattr", [&interpreter](PyTuple *args, PyDict *kwargs) {
+			return setattr(args, kwargs, interpreter);
 		}));
 
 	s_builtin_module->add_symbol(PyString::create("exec").unwrap(),
-		PYLANG_ALLOC(PyNativeFunction, "exec", [](PyTuple *args, PyDict *kwargs) {
-			return exec(args, kwargs);
+		PYLANG_ALLOC(PyNativeFunction, "exec", [&interpreter](PyTuple *args, PyDict *kwargs) {
+			return exec(args, kwargs, interpreter);
 		}));
 
 	s_builtin_module->add_symbol(PyString::create("callable").unwrap(),
-		PYLANG_ALLOC(PyNativeFunction, "callable", [](PyTuple *args, PyDict *kwargs) {
-			return callable(args, kwargs);
+		PYLANG_ALLOC(PyNativeFunction, "callable", [&interpreter](PyTuple *args, PyDict *kwargs) {
+			return callable(args, kwargs, interpreter);
 		}));
 
 	s_builtin_module->add_symbol(PyString::create("compile").unwrap(),
-		PYLANG_ALLOC(PyNativeFunction, "compile", [](PyTuple *args, PyDict *kwargs) {
-			return compile(args, kwargs);
+		PYLANG_ALLOC(PyNativeFunction, "compile", [&interpreter](PyTuple *args, PyDict *kwargs) {
+			return compile(args, kwargs, interpreter);
 		}));
 
 	s_builtin_module->add_symbol(PyString::create("max").unwrap(),
-		PYLANG_ALLOC(PyNativeFunction, "max", [](PyTuple *args, PyDict *kwargs) {
-			return max(args, kwargs);
+		PYLANG_ALLOC(PyNativeFunction, "max", [&interpreter](PyTuple *args, PyDict *kwargs) {
+			return max(args, kwargs, interpreter);
 		}));
 
 	s_builtin_module->add_symbol(PyString::create("min").unwrap(),
-		PYLANG_ALLOC(PyNativeFunction, "min", [](PyTuple *args, PyDict *kwargs) {
-			return min(args, kwargs);
+		PYLANG_ALLOC(PyNativeFunction, "min", [&interpreter](PyTuple *args, PyDict *kwargs) {
+			return min(args, kwargs, interpreter);
 		}));
 
 	s_builtin_module->add_symbol(PyString::create("eval").unwrap(),
-		PYLANG_ALLOC(PyNativeFunction, "eval", [](PyTuple *args, PyDict *kwargs) {
-			return eval(args, kwargs);
+		PYLANG_ALLOC(PyNativeFunction, "eval", [&interpreter](PyTuple *args, PyDict *kwargs) {
+			return eval(args, kwargs, interpreter);
 		}));
 
 	s_builtin_module->add_symbol(PyString::create("ascii").unwrap(),
-		PYLANG_ALLOC(PyNativeFunction, "ascii", [](PyTuple *args, PyDict *kwargs) {
-			return ascii(args, kwargs);
+		PYLANG_ALLOC(PyNativeFunction, "ascii", [&interpreter](PyTuple *args, PyDict *kwargs) {
+			return ascii(args, kwargs, interpreter);
 		}));
 
 	s_builtin_module->add_symbol(PyString::create("sorted").unwrap(),
-		PYLANG_ALLOC(PyNativeFunction, "sorted", [](PyTuple *args, PyDict *kwargs) {
-			return sorted(args, kwargs);
+		PYLANG_ALLOC(PyNativeFunction, "sorted", [&interpreter](PyTuple *args, PyDict *kwargs) {
+			return sorted(args, kwargs, interpreter);
 		}));
 
 	s_builtin_module->add_symbol(PyString::create("vars").unwrap(),
-		PYLANG_ALLOC(PyNativeFunction, "vars", [](PyTuple *args, PyDict *kwargs) {
-			return vars(args, kwargs);
+		PYLANG_ALLOC(PyNativeFunction, "vars", [&interpreter](PyTuple *args, PyDict *kwargs) {
+			return vars(args, kwargs, interpreter);
 		}));
 
 	s_builtin_module->add_symbol(PyString::create("divmod").unwrap(),
-		PYLANG_ALLOC(PyNativeFunction, "divmod", [](PyTuple *args, PyDict *kwargs) {
-			return divmod(args, kwargs);
+		PYLANG_ALLOC(PyNativeFunction, "divmod", [&interpreter](PyTuple *args, PyDict *kwargs) {
+			return divmod(args, kwargs, interpreter);
 		}));
 
 	s_builtin_module->add_symbol(PyString::create("round").unwrap(),
-		PYLANG_ALLOC(PyNativeFunction, "round", [](PyTuple *args, PyDict *kwargs) {
-			return round(args, kwargs);
+		PYLANG_ALLOC(PyNativeFunction, "round", [&interpreter](PyTuple *args, PyDict *kwargs) {
+			return round(args, kwargs, interpreter);
 		}));
 
 	return s_builtin_module;

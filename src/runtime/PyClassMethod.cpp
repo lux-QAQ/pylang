@@ -4,10 +4,10 @@
 #include "PyString.hpp"
 #include "PyTuple.hpp"
 #include "RuntimeError.hpp"
-#include "interpreter/Interpreter.hpp"
+// #include "interpreter/Interpreter.hpp"
 #include "types/api.hpp"
 #include "types/builtin.hpp"
-#include "vm/VM.hpp"
+// // #include "vm/VM.hpp"
 #include "runtime/compat.hpp"
 
 namespace py {

@@ -6,7 +6,7 @@
 #include "PyString.hpp"
 #include "PyTuple.hpp"
 #include "runtime/compat.hpp"
-#include "vm/VM.hpp"
+// // #include "vm/VM.hpp"
 
 namespace py {
 

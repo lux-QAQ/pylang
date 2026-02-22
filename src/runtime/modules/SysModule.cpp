@@ -11,13 +11,14 @@
 #include "runtime/PyTraceback.hpp"
 #include "runtime/PyTuple.hpp"
 #include "runtime/PyType.hpp"
+#include "runtime/RuntimeContext.hpp"
 #include "runtime/compat.hpp"
 #include "runtime/types/api.hpp"
 
 #include "config.hpp"
 #include "interpreter/Interpreter.hpp"
 #include "runtime/modules/paths.hpp"
-#include "vm/VM.hpp"
+// #include "vm/VM.hpp"
 
 #include "runtime/compat.hpp"
 #include <bit>
@@ -37,29 +38,45 @@ static_assert(false, "Unknown compiler!");
 #endif
 
 namespace {
-PyResult<PyList *> create_sys_paths(Interpreter &interpreter)
-{
-	const auto &entry_script = interpreter.entry_script();
-	auto entry_parent = PyString::create(std::filesystem::path(entry_script).parent_path());
-	if (entry_parent.is_err()) return Err(entry_parent.unwrap_err());
-	auto path_list = PyList::create({
-		entry_parent.unwrap(),
-		PyString::create(kPythonLibPath.data()).unwrap(),
-	});
 
-	return path_list;
+// ============================================================
+// 辅助: 获取当前 Interpreter（仅解释器路径使用）
+// ============================================================
+Interpreter &current_interpreter()
+{
+	ASSERT(RuntimeContext::has_current() && RuntimeContext::current().has_interpreter());
+	return *RuntimeContext::current().interpreter();
 }
 
-PyResult<PyList *> create_sys_argv(Interpreter &interpreter)
+PyResult<PyList *> create_sys_paths()
+{
+	if (RuntimeContext::has_current() && RuntimeContext::current().has_interpreter()) {
+		const auto &entry_script = current_interpreter().entry_script();
+		auto entry_parent = PyString::create(std::filesystem::path(entry_script).parent_path());
+		if (entry_parent.is_err()) return Err(entry_parent.unwrap_err());
+		return PyList::create({
+			entry_parent.unwrap(),
+			PyString::create(kPythonLibPath.data()).unwrap(),
+		});
+	}
+	// 编译器路径: 返回空列表，由编译器生成的 main() 填充
+	return PyList::create({
+		PyString::create("").unwrap(),
+		PyString::create(kPythonLibPath.data()).unwrap(),
+	});
+}
+
+PyResult<PyList *> create_sys_argv()
 {
 	auto argv_list = PyList::create();
 	if (argv_list.is_err()) return argv_list;
-	for (const auto &arg : interpreter.argv()) {
-		auto arg_str = PyString::create(arg);
-		if (arg_str.is_err()) { return Err(arg_str.unwrap_err()); }
-		argv_list.unwrap()->elements().push_back(arg_str.unwrap());
+	if (RuntimeContext::has_current() && RuntimeContext::current().has_interpreter()) {
+		for (const auto &arg : current_interpreter().argv()) {
+			auto arg_str = PyString::create(arg);
+			if (arg_str.is_err()) { return Err(arg_str.unwrap_err()); }
+			argv_list.unwrap()->elements().push_back(arg_str.unwrap());
+		}
 	}
-
 	return argv_list;
 }
 
@@ -248,7 +265,6 @@ class Version : public PyTuple
 	PyString *m_release_level{ nullptr };
 	PyInteger *m_serial{ nullptr };
 
-
   private:
 	Version(PyType *t) : PyTuple(t) {}
 
@@ -315,9 +331,10 @@ class Version : public PyTuple
 	}
 };
 
-PyResult<PyObject *> exc_info(Interpreter &interpreter)
+PyResult<PyObject *> exc_info()
 {
-	auto exc = interpreter.execution_frame()->exception_info();
+	auto &interp = current_interpreter();
+	auto exc = interp.execution_frame()->exception_info();
 	if (!exc.has_value()) { return PyTuple::create(py_none(), py_none(), py_none()); }
 	return PyTuple::create(exc->exception_type, exc->exception, exc->traceback);
 }
@@ -340,16 +357,8 @@ std::string_view get_endianness()
 
 namespace py {
 
-PyModule *sys_module(Interpreter &interpreter)
+PyModule *sys_module()
 {
-	// 旧代码:
-	// auto &heap = VirtualMachine::the().heap();
-	// if (s_sys_module && heap.slab().has_address(bit_cast<uint8_t *>(s_sys_module))) {
-	//     return s_sys_module;
-	// }
-
-	// 新代码: 模块一旦创建就持续存活（注册在 sys.modules 中），
-	// 不需要通过 Heap 地址验证存活性
 	if (s_sys_module) { return s_sys_module; }
 
 	s_sys_module = PyModule::create(
@@ -359,11 +368,9 @@ PyModule *sys_module(Interpreter &interpreter)
 	(void)Version::register_type(s_sys_module);
 	(void)Flags::register_type(s_sys_module);
 
-	// symbols
-	s_sys_module->add_symbol(
-		PyString::create("path").unwrap(), create_sys_paths(interpreter).unwrap());
-	s_sys_module->add_symbol(
-		PyString::create("argv").unwrap(), create_sys_argv(interpreter).unwrap());
+	// symbols — 通过辅助函数获取，内部判断是否有 Interpreter
+	s_sys_module->add_symbol(PyString::create("path").unwrap(), create_sys_paths().unwrap());
+	s_sys_module->add_symbol(PyString::create("argv").unwrap(), create_sys_argv().unwrap());
 
 	s_sys_module->add_symbol(
 		PyString::create("builtin_module_names").unwrap(), builtin_module_names().unwrap());
@@ -373,8 +380,14 @@ PyModule *sys_module(Interpreter &interpreter)
 	s_sys_module->add_symbol(PyString::create("platform").unwrap(),
 		PyString::create(std::string{ platform() }).unwrap());
 
-	ASSERT(interpreter.modules());
-	s_sys_module->add_symbol(PyString::create("modules").unwrap(), interpreter.modules());
+	// sys.modules — 解释器路径用 Interpreter 的 dict，编译器路径用空 dict
+	if (RuntimeContext::has_current() && RuntimeContext::current().has_interpreter()) {
+		ASSERT(current_interpreter().modules());
+		s_sys_module->add_symbol(
+			PyString::create("modules").unwrap(), current_interpreter().modules());
+	} else {
+		s_sys_module->add_symbol(PyString::create("modules").unwrap(), PyDict::create().unwrap());
+	}
 
 	s_sys_module->add_symbol(PyString::create("path_hooks").unwrap(), PyList::create().unwrap());
 
@@ -385,7 +398,6 @@ PyModule *sys_module(Interpreter &interpreter)
 
 	s_sys_module->add_symbol(PyString::create("dont_write_bytecode").unwrap(), py_true());
 
-	// avoid GC'ing implementation and version
 	PYLANG_GC_PAUSE_SCOPE();
 
 	auto *implementation = PyDict::create().unwrap();
@@ -393,9 +405,6 @@ PyModule *sys_module(Interpreter &interpreter)
 	auto *flags = Flags::create(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, false, 0).unwrap();
 
 	implementation->insert(String{ "name" }, String{ "python-cpp" });
-	// TODO: Add caching and add cache tag.
-	// This is used by _bootstrap_external.cache_from_source.
-	// The expectation is that if cache_tag is None, we will not try to load the cached path
 	implementation->insert(String{ "cache_tag" }, py_none());
 	implementation->insert(String{ "version" }, version);
 	implementation->insert(String{ "hexversion" }, Number{ 0x03090000 });
@@ -408,11 +417,12 @@ PyModule *sys_module(Interpreter &interpreter)
 
 	s_sys_module->add_symbol(PyString::create("flags").unwrap(), flags);
 
+	// exc_info — 不再捕获 interpreter 引用
 	s_sys_module->add_symbol(PyString::create("exc_info").unwrap(),
-		PyNativeFunction::create("exc_info", [&interpreter](PyTuple *args, PyDict *kwargs) {
+		PyNativeFunction::create("exc_info", [](PyTuple *args, PyDict *kwargs) {
 			ASSERT(!args || args->elements().empty());
 			ASSERT(!kwargs || kwargs->map().empty());
-			return exc_info(interpreter);
+			return exc_info();
 		}).unwrap());
 
 	s_sys_module->add_symbol(PyString::create("maxsize").unwrap(),
@@ -428,7 +438,6 @@ PyModule *sys_module(Interpreter &interpreter)
 					std::integral_constant<size_t, 1>{});
 				if (result.is_err()) { return Err(result.unwrap_err()); }
 				auto [string] = result.unwrap();
-				// TODO: add string to intern table when this is implemented
 				return Ok(string);
 			})
 			.unwrap());
@@ -462,9 +471,6 @@ PyModule *sys_module(Interpreter &interpreter)
 
 	s_sys_module->add_symbol(PyString::create("base_exec_prefix").unwrap(),
 		PyString::create(std::string{ kPythonInstallPath }).unwrap());
-
-	s_sys_module->add_symbol(PyString::create("executable").unwrap(),
-		PyString::create(std::filesystem::canonical("/proc/self/exe").string()).unwrap());
 
 	s_sys_module->add_symbol(
 		PyString::create("platlibdir").unwrap(), PyString::create("lib").unwrap());

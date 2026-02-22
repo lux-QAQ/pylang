@@ -4,9 +4,9 @@
 #include "runtime/PyNone.hpp"
 #include "runtime/PyType.hpp"
 #include "runtime/ValueError.hpp"
-#include "runtime/types/api.hpp"
 #include "runtime/compat.hpp"
-#include "vm/VM.hpp"
+#include "runtime/types/api.hpp"
+// #include "vm/VM.hpp"
 
 namespace py {
 
@@ -22,9 +22,9 @@ PyWeakProxy::PyWeakProxy(PyObject *object, PyObject *callback)
 
 PyResult<PyWeakProxy *> PyWeakProxy::create(PyObject *object, PyObject *callback)
 {
-    auto *result = PYLANG_ALLOC_WEAKREF(PyWeakProxy, object, callback);
-    PYLANG_CHECK_ALLOC(result, PyWeakProxy);
-    return Ok(result);
+	auto *result = PYLANG_ALLOC_WEAKREF(PyWeakProxy, object, callback);
+	PYLANG_CHECK_ALLOC(result, PyWeakProxy);
+	return Ok(result);
 }
 
 void PyWeakProxy::visit_graph(Visitor &visitor)
@@ -121,11 +121,8 @@ PyType *PyWeakProxy::register_type(PyModule *module, std::string_view name)
 
 bool PyWeakProxy::is_alive() const
 {
-    if (m_object
-        && !PYLANG_WEAKREF_ALIVE(m_object)) {
-        m_object = py_none();
-    }
-    return m_object != py_none();
+	if (m_object && !PYLANG_WEAKREF_ALIVE(m_object)) { m_object = py_none(); }
+	return m_object != py_none();
 }
 
 }// namespace py

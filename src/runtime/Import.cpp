@@ -15,16 +15,25 @@
 #include "interpreter/Interpreter.hpp"
 #include "modules/config.hpp"
 #include "runtime/KeyError.hpp"
+#include "runtime/ModuleRegistry.hpp"
 #include "runtime/PyObject.hpp"
 #include "runtime/PyString.hpp"
 #include "runtime/RuntimeContext.hpp"
 #include "runtime/Value.hpp"
 #include "runtime/compat.hpp"
-#include "vm/VM.hpp"
+// // #include "vm/VM.hpp"
 
 namespace py {
 
 namespace {
+
+	// ---- 辅助: 获取当前 Interpreter ----
+	Interpreter &current_interpreter()
+	{
+		ASSERT(RuntimeContext::has_current() && RuntimeContext::current().has_interpreter());
+		return *RuntimeContext::current().interpreter();
+	}
+
 	// adapted from CPython import.c resolve_name
 	PyResult<PyString *> resolve_name(PyString *name, PyDict *globals, uint32_t level)
 	{
@@ -53,7 +62,6 @@ namespace {
 				if (are_equal.is_err()) return Err(are_equal.unwrap_err());
 				if (are_equal.unwrap() == py_false()) {
 					// TODO: emit import warning
-					//       "__package__ != __spec__.parent"
 				}
 			}
 		} else if (spec != py_none()) {
@@ -64,9 +72,6 @@ namespace {
 			}
 			package = package_.unwrap();
 		} else {
-			// TODO: emit import warning
-			// "can't resolve package from __spec__ or __package__, "
-			// "falling back on __name__ and __path__"
 			if (!globals->map().contains(String{ "__name__" })) {
 				return Err(value_error("'__name__' not in globals"));
 			}
@@ -78,7 +83,6 @@ namespace {
 			const bool haspath = globals->map().contains(String{ "__path__" });
 
 			if (!haspath) {
-				// Unicode what?
 				const auto &package_str = as<PyString>(package)->value();
 				auto pos = package_str.find_last_of('.');
 				if (pos == std::string::npos) {
@@ -122,12 +126,27 @@ namespace {
 		return abs_name;
 	}
 
-	// adapted from CPython import.c import_get_module
+	// ========================================================================
+	// import_get_module — 双路径查找 (RuntimeContext 版)
+	// ========================================================================
 	std::optional<PyModule *> import_get_module(PyString *name)
 	{
-		auto *available_modules = VirtualMachine::the().interpreter().modules();
-		if (auto it = available_modules->map().find(name); it != available_modules->map().end()) {
-			return as<PyModule>(PyObject::from(it->second).unwrap());
+		const auto &name_str = name->value();
+
+		// 新路径: 先查 ModuleRegistry
+		if (auto *mod = ModuleRegistry::instance().find(name_str)) { return mod; }
+
+		// 旧路径: 从 Interpreter.modules() 查找
+		if (RuntimeContext::has_current() && RuntimeContext::current().has_interpreter()) {
+			auto *available_modules = current_interpreter().modules();
+			if (available_modules) {
+				if (auto it = available_modules->map().find(name);
+					it != available_modules->map().end()) {
+					auto *mod = as<PyModule>(PyObject::from(it->second).unwrap());
+					if (mod) { ModuleRegistry::instance().register_module(name_str, mod); }
+					return mod;
+				}
+			}
 		}
 		return {};
 	}
@@ -136,13 +155,19 @@ namespace {
 	{
 		auto m = import_get_module(name);
 		if (m.has_value()) return Ok(*m);
-		return PyModule::create(PyDict::create().unwrap(), name, PyString::create("").unwrap());
+		auto mod = PyModule::create(PyDict::create().unwrap(), name, PyString::create("").unwrap());
+		if (mod.is_ok()) {
+			ModuleRegistry::instance().register_module(name->value(), mod.unwrap());
+		}
+		return mod;
 	}
 
 	void remove_module(PyString *name)
 	{
-		auto *available_modules = VirtualMachine::the().interpreter().modules();
-		available_modules->remove(name);
+		if (RuntimeContext::has_current() && RuntimeContext::current().has_interpreter()) {
+			auto *available_modules = current_interpreter().modules();
+			if (available_modules) { available_modules->remove(name); }
+		}
 	}
 
 	PyResult<std::monostate> import_ensure_initialized(PyModule *module, PyString *name)
@@ -155,12 +180,10 @@ namespace {
 			auto value = spec.unwrap()->get_attribute(PyString::create("_initializing").unwrap());
 			if (value.is_err()) return Ok(std::monostate{});
 
-
 			bool initializing = false;
 			if (RuntimeContext::has_current()) {
 				initializing = RuntimeContext::current().is_true(value.unwrap());
 			} else {
-				// 降级：通过 true_() 方法判断
 				auto result = value.unwrap()->true_();
 				if (result.is_err()) return Err(result.unwrap_err());
 				initializing = result.unwrap();
@@ -171,7 +194,7 @@ namespace {
 				if (_lock_unlock_module.is_err()) return Err(_lock_unlock_module.unwrap_err());
 				auto args = PyTuple::create(name);
 				if (args.is_err()) return Err(args.unwrap_err());
-				auto *importlib = VirtualMachine::the().interpreter().importlib();
+				auto *importlib = current_interpreter().importlib();
 				if (!importlib) { return Err(import_error("importlib not imported")); }
 				value = importlib->get_method(_lock_unlock_module.unwrap())
 							.and_then([args](PyObject *lock_unlock_module) {
@@ -188,12 +211,12 @@ namespace {
 	{
 		auto find_and_load = PyString::create("_find_and_load");
 		if (find_and_load.is_err()) return Err(find_and_load.unwrap_err());
-		auto *importlib = VirtualMachine::the().interpreter().importlib();
+		auto *importlib = current_interpreter().importlib();
 		if (!importlib) { return Err(import_error("importlib not imported")); }
 		auto import_find_and_load = importlib->get_method(find_and_load.unwrap());
 		if (import_find_and_load.is_err()) return Err(import_find_and_load.unwrap_err());
 
-		auto args = PyTuple::create(name, VirtualMachine::the().interpreter().importfunc());
+		auto args = PyTuple::create(name, current_interpreter().importfunc());
 		if (args.is_err()) return Err(args.unwrap_err());
 
 		auto module = import_find_and_load.unwrap()->call(args.unwrap(), nullptr);
@@ -220,7 +243,6 @@ std::optional<std::reference_wrapper<const FrozenModule>> find_frozen(PyString *
 	}
 	return {};
 }
-
 
 // adapted from CPython import.c PyImport_ImportModuleLevelObject
 PyResult<PyObject *> import_module_level_object(PyString *name,
@@ -257,16 +279,11 @@ PyResult<PyObject *> import_module_level_object(PyString *name,
 
 	if (module.is_err()) { return module; }
 
-
 	const auto has_from = [fromlist]() -> PyResult<bool> {
 		if (!fromlist) { return Ok(false); }
-
-		// 新路径：使用 RuntimeContext
 		if (RuntimeContext::has_current()) {
 			return Ok(RuntimeContext::current().is_true(fromlist));
 		}
-
-		// 降级：使用 true_() 方法
 		return fromlist->true_();
 	}();
 
@@ -293,16 +310,12 @@ PyResult<PyObject *> import_module_level_object(PyString *name,
 	} else {
 		auto path = module.unwrap()->symbol_table()->map().find(String{ "__path__" });
 		if (path != module.unwrap()->symbol_table()->map().end()) {
-			return VirtualMachine::the()
-				.interpreter()
-				.importlib()
+			auto &interp = current_interpreter();
+			return interp.importlib()
 				->get_method(PyString::create("_handle_fromlist").unwrap())
-				.and_then([module, fromlist](auto *_handle_fromlist) {
+				.and_then([&interp, module, fromlist](auto *_handle_fromlist) {
 					return _handle_fromlist->call(
-						PyTuple::create(module.unwrap(),
-							fromlist,
-							VirtualMachine::the().interpreter().importfunc())
-							.unwrap(),
+						PyTuple::create(module.unwrap(), fromlist, interp.importfunc()).unwrap(),
 						nullptr);
 				});
 		} else {
@@ -332,26 +345,25 @@ PyResult<PyModule *> import_frozen_module(PyString *name)
 	if (module.is_err()) return module;
 	module.unwrap()->set_program(program);
 
-	auto &vm = VirtualMachine::the();
+	auto &interp = current_interpreter();
 
-	module.unwrap()->symbol_table()->insert(String{ "__builtins__" }, vm.interpreter().builtins());
+	module.unwrap()->symbol_table()->insert(String{ "__builtins__" }, interp.builtins());
 
-	auto result = [&vm, &program, module]() {
+	auto result = [&interp, &program, module]() {
 		auto *code = as<PyCode>(static_cast<BytecodeProgram &>(*program).main_function());
 		ASSERT(code);
-		auto *function_frame =
-			PyFrame::create(VirtualMachine::the().interpreter().execution_frame(),
-				code->register_count(),
-				0,
-				code,
-				module.unwrap()->symbol_table(),
-				module.unwrap()->symbol_table(),
-				code->consts(),
-				code->names(),
-				nullptr);
+		auto *function_frame = PyFrame::create(interp.execution_frame(),
+			code->register_count(),
+			0,
+			code,
+			module.unwrap()->symbol_table(),
+			module.unwrap()->symbol_table(),
+			code->consts(),
+			code->names(),
+			nullptr);
 		[[maybe_unused]] auto scoped_stack =
-			vm.interpreter().setup_call_stack(code->function(), function_frame);
-		return vm.interpreter().call(code->function(), function_frame);
+			interp.setup_call_stack(code->function(), function_frame);
+		return interp.call(code->function(), function_frame);
 	}();
 
 	if (result.is_err()) {
@@ -366,7 +378,9 @@ PyResult<PyModule *> import_frozen_module(PyString *name)
 	return module;
 }
 
-// adapted from _imp_create_builtin(PyObject *module, PyObject *spec)
+// ========================================================================
+// create_builtin — Registry 查找
+// ========================================================================
 PyResult<PyObject *> create_builtin(PyObject *spec)
 {
 	PyObject *mod{ nullptr };
@@ -380,13 +394,18 @@ PyResult<PyObject *> create_builtin(PyObject *spec)
 			"expected spec name to str, but got {}", name.unwrap()->type()->to_string()));
 	}
 
-	for (const auto &[name, init_func] : builtin_modules) {
-		if (name == namestr->value()) {
+	// 新路径: 先查 Registry
+	if (auto *cached = ModuleRegistry::instance().find(namestr->value())) {
+		return Ok(static_cast<PyObject *>(cached));
+	}
+
+	// 旧路径: 遍历 builtin_modules 表
+	for (const auto &[bname, init_func] : builtin_modules) {
+		if (bname == namestr->value()) {
 			if (!init_func) { return import_add_module(namestr); }
 			mod = init_func();
-			// TODO: init_func should return PyResult<PyModule*>
 			if (!mod) { TODO(); }
-			// FIXME: this isn't quite right, see cpython _imp_create_builtin
+			ModuleRegistry::instance().register_module(std::string(bname), as<PyModule>(mod));
 			return Ok(mod);
 		}
 	}

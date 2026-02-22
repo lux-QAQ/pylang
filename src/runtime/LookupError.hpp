@@ -4,7 +4,7 @@
 #include "PyNone.hpp"
 #include "PyString.hpp"
 #include "PyTuple.hpp"
-#include "vm/VM.hpp"
+// // #include "vm/VM.hpp"
 #include "runtime/compat.hpp"
 
 namespace py {

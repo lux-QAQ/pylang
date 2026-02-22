@@ -12,7 +12,7 @@
 #include "runtime/PyNone.hpp"
 #include "runtime/PyType.hpp"
 #include "runtime/TypeError.hpp"
-#include "vm/VM.hpp"
+// #include "vm/VM.hpp"
 
 namespace py {
 namespace {

@@ -4,10 +4,10 @@
 #include "runtime/PyNone.hpp"
 #include "runtime/PyType.hpp"
 #include "runtime/ValueError.hpp"
-#include "runtime/types/api.hpp"
 #include "runtime/compat.hpp"
+#include "runtime/types/api.hpp"
 
-#include "vm/VM.hpp"
+// #include "vm/VM.hpp"
 
 namespace py {
 
@@ -23,9 +23,9 @@ PyCallableProxyType::PyCallableProxyType(PyObject *object, PyObject *callback)
 
 PyResult<PyCallableProxyType *> PyCallableProxyType::create(PyObject *object, PyObject *callback)
 {
-    auto *result = PYLANG_ALLOC_WEAKREF(PyCallableProxyType, object, callback);
-    PYLANG_CHECK_ALLOC(result, PyCallableProxyType);
-    return Ok(result);
+	auto *result = PYLANG_ALLOC_WEAKREF(PyCallableProxyType, object, callback);
+	PYLANG_CHECK_ALLOC(result, PyCallableProxyType);
+	return Ok(result);
 }
 
 void PyCallableProxyType::visit_graph(Visitor &visitor)
@@ -131,11 +131,8 @@ PyType *PyCallableProxyType::register_type(PyModule *module, std::string_view na
 
 bool PyCallableProxyType::is_alive() const
 {
-    if (m_object
-        && !PYLANG_WEAKREF_ALIVE(m_object)) {
-        m_object = nullptr;
-    }
-    return m_object != nullptr;
+	if (m_object && !PYLANG_WEAKREF_ALIVE(m_object)) { m_object = nullptr; }
+	return m_object != nullptr;
 }
 
 }// namespace py

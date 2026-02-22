@@ -12,10 +12,10 @@
 #include "runtime/types/api.hpp"
 #include "runtime/types/builtin.hpp"
 #include "utilities.hpp"
-#include "vm/VM.hpp"
+// #include "vm/VM.hpp"
+#include "runtime/compat.hpp"
 #include <cstdint>
 #include <limits>
-#include "runtime/compat.hpp"
 
 using namespace py;
 using namespace py::sre;
@@ -74,8 +74,14 @@ PyResult<Pattern *> Pattern::create(PyObject *pattern,
 		}
 	}
 
-	auto obj = PYLANG_ALLOC(Pattern, 
-		groups, groupindex, indexgroup, flags, pattern, std::move(isbytes), std::move(code_vec));
+	auto obj = PYLANG_ALLOC(Pattern,
+		groups,
+		groupindex,
+		indexgroup,
+		flags,
+		pattern,
+		std::move(isbytes),
+		std::move(code_vec));
 	if (!obj) { return Err(memory_error(sizeof(Pattern))); }
 	return Ok(obj);
 }

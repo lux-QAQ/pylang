@@ -141,10 +141,20 @@ void Interpreter::internal_setup(const std::string &name,
 		m_entry_script = std::move(entry_script);
 		m_argv = std::move(argv);
 
-		m_builtins = builtins_module(*this);
-		m_modules->insert(String{ "builtins" }, m_builtins);
-		sys = sys_module(*this);
-		m_modules->insert(String{ "sys" }, sys);
+		// 统一通过 register_all_builtins + ModuleRegistry 初始化
+		register_all_builtins();
+
+		// 从 Registry 获取 builtins 和 sys
+		m_builtins = ModuleRegistry::instance().find("builtins");
+		ASSERT(m_builtins);
+		sys = ModuleRegistry::instance().find("sys");
+		ASSERT(sys);
+
+		// 同步到 m_modules dict (解释器路径仍需要)
+		for (const auto &[mod_name, _] : builtin_modules) {
+			auto *mod = ModuleRegistry::instance().find(std::string(mod_name));
+			if (mod) { m_modules->insert(String{ std::string{ mod_name } }, mod); }
+		}
 
 		auto name_ = PyString::create(name);
 		if (name_.is_err()) { TODO(); }
@@ -178,12 +188,6 @@ void Interpreter::internal_setup(const std::string &name,
 		auto open = io_module()->symbol_table()->map().at(String{ "open" });
 		m_builtins->add_symbol(PyString::create("open").unwrap(), open);
 	}
-	// {
-	// 	auto open = io_module()->symbol_table()->map().at(String{ "open" });
-	// 	m_builtins->add_symbol(PyString::create("open").unwrap(), open);
-	// 	sys->add_symbol(PyString::create("stderr").unwrap(),
-	// 		std::get<PyObject *>(open)->call(PyTuple::create().unwrap(), nullptr).unwrap());
-	// }
 
 	if (config.requires_importlib) {
 		auto *_imp = imp_module();

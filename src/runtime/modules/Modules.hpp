@@ -2,7 +2,9 @@
 
 namespace py {
 
-PyModule *builtins_module(Interpreter &interpreter);
+// 重构后: 所有模块工厂函数统一为无参数签名
+// builtins/sys 内部通过 RuntimeContext 获取所需信息
+PyModule *builtins_module();
 PyModule *codecs_module();
 PyModule *collections_module();
 PyModule *errno_module();
@@ -18,6 +20,6 @@ PyModule *itertools_module();
 PyModule *signal_module();
 PyModule *sre_module();
 PyModule *struct_module();
-PyModule *sys_module(Interpreter &interpreter);
+PyModule *sys_module();
 PyModule *time_module();
 }// namespace py

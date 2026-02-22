@@ -3,7 +3,7 @@
 #include "Exception.hpp"
 #include "PyString.hpp"
 #include "PyTuple.hpp"
-#include "vm/VM.hpp"
+//// #include "vm/VM.hpp"
 
 #include "runtime/compat.hpp"
 
@@ -22,10 +22,8 @@ class AttributeError : public Exception
 
 	AttributeError(PyTuple *args);
 
-	static AttributeError *create(PyTuple *args)
-	{
-                return PYLANG_ALLOC(AttributeError, args);
-	}
+	static AttributeError *create(PyTuple *args) { return PYLANG_ALLOC(AttributeError, args); }
+
   public:
 	static PyResult<PyObject *> __new__(const PyType *type, PyTuple *args, PyDict *kwargs);
 

@@ -1,7 +1,8 @@
 #pragma once
 
-#include "PyFrame.hpp"
-#include "PyObject.hpp"
+#include "runtime/PyFrame.hpp"
+#include "vm/StackFrame.hpp"
+
 
 namespace py {
 

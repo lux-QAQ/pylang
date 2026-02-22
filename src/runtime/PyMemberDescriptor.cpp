@@ -6,7 +6,7 @@
 #include "interpreter/Interpreter.hpp"
 #include "types/api.hpp"
 #include "types/builtin.hpp"
-#include "vm/VM.hpp"
+// #include "vm/VM.hpp"
 #include "runtime/compat.hpp"
 
 namespace py {
@@ -43,8 +43,7 @@ PyResult<PyMemberDescriptor *> PyMemberDescriptor::create(PyString *name,
 	std::function<PyResult<PyObject *>(PyObject *)> member,
 	std::function<PyResult<std::monostate>(PyObject *, PyObject *)> setter)
 {
-	auto *obj = PYLANG_ALLOC(PyMemberDescriptor, 
-		name, underlying_type, member, setter);
+	auto *obj = PYLANG_ALLOC(PyMemberDescriptor, name, underlying_type, member, setter);
 	if (!obj) { return Err(memory_error(sizeof(PyMemberDescriptor))); }
 	return Ok(obj);
 }

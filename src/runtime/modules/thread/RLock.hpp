@@ -9,7 +9,7 @@
 #include "runtime/ValueError.hpp"
 #include "runtime/compat.hpp"
 #include "runtime/types/api.hpp"
-#include "vm/VM.hpp"
+// #include "vm/VM.hpp"
 
 namespace py {
 
@@ -34,12 +34,10 @@ class RLock : public PyBaseObject
   public:
 	static PyResult<RLock *> create()
 	{
-		
+
 		auto *result = PYLANG_ALLOC(RLock);
 		if (!result) { return Err(memory_error(sizeof(RLock))); }
 		return Ok(result);
-
-		
 	}
 
 	PyResult<PyObject *> acquire(PyTuple *args, PyDict *kwargs)

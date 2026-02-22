@@ -11,7 +11,7 @@
 #include "StopIteration.hpp"
 #include "ValueError.hpp"
 #include "interpreter/Interpreter.hpp"
-#include "vm/VM.hpp"
+//// #include "vm/VM.hpp"
 
 namespace py {
 

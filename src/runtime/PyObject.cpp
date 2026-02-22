@@ -23,7 +23,7 @@
 #include "types/api.hpp"
 #include "types/builtin.hpp"
 
-#include "vm/VM.hpp"
+// #include "vm/VM.hpp"
 #include <variant>
 
 namespace py {
@@ -908,39 +908,35 @@ PyResult<PyObject *> PyObject::xor_(PyObject *other)
 
 PyResult<bool> PyObject::contains(PyObject *value)
 {
-    if (auto seq = as_sequence(); seq.is_ok()) {
-        if (type_prototype().sequence_type_protocol->__contains__.has_value()) {
-            return seq.unwrap().contains(value);
-        }
-    }
-    auto it = value->iter();
-    if (it.is_err()) { return Err(it.unwrap_err()); }
+	if (auto seq = as_sequence(); seq.is_ok()) {
+		if (type_prototype().sequence_type_protocol->__contains__.has_value()) {
+			return seq.unwrap().contains(value);
+		}
+	}
+	auto it = value->iter();
+	if (it.is_err()) { return Err(it.unwrap_err()); }
 
-    auto n = it.unwrap()->next();
+	auto n = it.unwrap()->next();
 
-    while (n.is_ok()) {
-        if (auto r = eq(n.unwrap()); r.is_ok()) {
-            // 修改：使用 RuntimeContext 的 is_true 方法
-            if (RuntimeContext::has_current()) {
-                if (RuntimeContext::current().is_true(r.unwrap())) {
-                    return Ok(true);
-                }
-            } else {
-                // 降级
-                if (r.unwrap() != py_false() && r.unwrap() != py_none()) {
-                    return Ok(true);
-                }
-            }
-        } else if (r.is_err()) {
-            return Err(r.unwrap_err());
-        }
-        n = it.unwrap()->next();
-    }
+	while (n.is_ok()) {
+		if (auto r = eq(n.unwrap()); r.is_ok()) {
+			// 修改：使用 RuntimeContext 的 is_true 方法
+			if (RuntimeContext::has_current()) {
+				if (RuntimeContext::current().is_true(r.unwrap())) { return Ok(true); }
+			} else {
+				// 降级
+				if (r.unwrap() != py_false() && r.unwrap() != py_none()) { return Ok(true); }
+			}
+		} else if (r.is_err()) {
+			return Err(r.unwrap_err());
+		}
+		n = it.unwrap()->next();
+	}
 
-    if (n.is_err() && (n.unwrap_err()->type() != stop_iteration()->type())) {
-        return Err(n.unwrap_err());
-    }
-    return Ok(false);
+	if (n.is_err() && (n.unwrap_err()->type() != stop_iteration()->type())) {
+		return Err(n.unwrap_err());
+	}
+	return Ok(false);
 }
 
 PyResult<std::monostate> PyObject::delete_item(PyObject *key)
@@ -1163,17 +1159,17 @@ PyResult<PyObject *> PyObject::__eq__(const PyObject *other) const
 
 PyResult<PyObject *> PyObject::__ne__(const PyObject *other) const
 {
-    if (!type_prototype().__eq__.has_value()) { return Ok(not_implemented()); }
+	if (!type_prototype().__eq__.has_value()) { return Ok(not_implemented()); }
 
-    return call_slot(*type_prototype().__eq__, this, other).and_then([](PyObject *obj) {
-        // 修改：使用 RuntimeContext 的 is_true 方法
-        if (RuntimeContext::has_current()) {
-            bool is_true = RuntimeContext::current().is_true(obj);
-            return Ok(is_true ? py_false() : py_true());
-        }
-        // 降级：假设非 false/none 为真
-        return Ok(obj == py_false() || obj == py_none() ? py_true() : py_false());
-    });
+	return call_slot(*type_prototype().__eq__, this, other).and_then([](PyObject *obj) {
+		// 修改：使用 RuntimeContext 的 is_true 方法
+		if (RuntimeContext::has_current()) {
+			bool is_true = RuntimeContext::current().is_true(obj);
+			return Ok(is_true ? py_false() : py_true());
+		}
+		// 降级：假设非 false/none 为真
+		return Ok(obj == py_false() || obj == py_none() ? py_true() : py_false());
+	});
 }
 
 PyResult<PyObject *> PyObject::__getattribute__(PyObject *attribute) const

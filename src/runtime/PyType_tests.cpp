@@ -2,7 +2,7 @@
 #include "PyTuple.hpp"
 #include "PyType.hpp"
 #include "types/builtin.hpp"
-#include "vm/VM.hpp"
+// #include "vm/VM.hpp"
 #include "runtime/compat.hpp"
 
 #include "gtest/gtest.h"

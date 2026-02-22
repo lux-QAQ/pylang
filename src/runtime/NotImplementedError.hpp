@@ -3,7 +3,7 @@
 #include "Exception.hpp"
 #include "PyString.hpp"
 #include "PyTuple.hpp"
-#include "vm/VM.hpp"
+// // #include "vm/VM.hpp"
 #include "runtime/compat.hpp"
 
 namespace py {
@@ -24,8 +24,9 @@ class NotImplementedError : public Exception
 
 	static NotImplementedError *create(PyTuple *args)
 	{
-                return PYLANG_ALLOC(NotImplementedError, args);
+		return PYLANG_ALLOC(NotImplementedError, args);
 	}
+
   public:
 	static PyResult<PyObject *> __new__(const PyType *type, PyTuple *args, PyDict *kwargs);
 

@@ -5,7 +5,7 @@
 #include "PyNone.hpp"
 #include "PyString.hpp"
 #include "PyTuple.hpp"
-#include "vm/VM.hpp"
+// // #include "vm/VM.hpp"
 #include "runtime/compat.hpp"
 
 namespace py {
@@ -24,10 +24,8 @@ class IndexError : public LookupError
 
 	IndexError(PyTuple *msg);
 
-	static IndexError *create(PyTuple *args)
-	{
-                return PYLANG_ALLOC(IndexError, args);
-	}
+	static IndexError *create(PyTuple *args) { return PYLANG_ALLOC(IndexError, args); }
+
   public:
 	static std::function<std::unique_ptr<TypePrototype>()> type_factory();
 

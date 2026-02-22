@@ -53,7 +53,7 @@
 #else
 // ---- 旧路径: Heap + GC (不变) ----
 
-#include "vm/VM.hpp"
+// #include "vm/VM.hpp"
 
 #define PYLANG_ALLOC(Type, ...) VirtualMachine::the().heap().allocate<Type>(__VA_ARGS__)
 

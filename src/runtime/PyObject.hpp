@@ -5,18 +5,18 @@
 #include "concepts.hpp"
 #include "forward.hpp"
 #include "memory/GarbageCollector.hpp"
-#include "runtime/forward.hpp"
 #include "runtime/compat.hpp"
+#include "runtime/forward.hpp"
 #ifndef PYLANG_USE_ARENA
-#include "vm/VM.hpp"
+// #include "vm/VM.hpp"
 #endif
 
+#include <bitset>
 #include <cstddef>
 #include <functional>
 #include <memory>
 #include <optional>
 #include <string>
-#include <bitset>
 
 #include <spdlog/fmt/fmt.h>
 

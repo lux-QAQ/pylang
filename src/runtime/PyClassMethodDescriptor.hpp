@@ -3,7 +3,7 @@
 #include "MemoryError.hpp"
 #include "PyObject.hpp"
 #include "runtime/compat.hpp"
-#include "vm/VM.hpp"
+// // #include "vm/VM.hpp"
 
 namespace py {
 
@@ -35,7 +35,11 @@ class PyClassMethodDescriptor : public PyBaseObject
 		// 	name, underlying_type, method, std::vector<PyObject *>{ args... });
 		// if (!obj) { return Err(memory_error(sizeof(PyClassMethodDescriptor))); }
 		// return Ok(obj);
-		auto *obj = PYLANG_ALLOC(PyClassMethodDescriptor, name, underlying_type, method, std::vector<PyObject *>{ args... });
+		auto *obj = PYLANG_ALLOC(PyClassMethodDescriptor,
+			name,
+			underlying_type,
+			method,
+			std::vector<PyObject *>{ args... });
 		if (!obj) { return Err(memory_error(sizeof(PyClassMethodDescriptor))); }
 		return Ok(obj);
 	}

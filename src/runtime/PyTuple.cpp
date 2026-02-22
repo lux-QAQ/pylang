@@ -13,7 +13,7 @@
 #include "runtime/compat.hpp"
 #include "types/api.hpp"
 #include "types/builtin.hpp"
-#include "vm/VM.hpp"
+// #include "vm/VM.hpp"
 
 namespace py {
 
@@ -218,23 +218,23 @@ PyResult<PyObject *> PyTuple::__add__(const PyObject *other) const
 
 PyResult<PyObject *> PyTuple::__eq__(const PyObject *other) const
 {
-    if (!as<PyTuple>(other)) { return Ok(py_false()); }
+	if (!as<PyTuple>(other)) { return Ok(py_false()); }
 
-    auto *other_tuple = as<PyTuple>(other);
-    if (m_elements.size() != other_tuple->elements().size()) { return Ok(py_false()); }
+	auto *other_tuple = as<PyTuple>(other);
+	if (m_elements.size() != other_tuple->elements().size()) { return Ok(py_false()); }
 
-    // 修改：使用 RuntimeContext 替代 VirtualMachine::the().interpreter()
-    const bool result = std::equal(m_elements.begin(),
-        m_elements.end(),
-        other_tuple->elements().begin(),
-        [](const auto &lhs, const auto &rhs) -> bool {
-            if (!RuntimeContext::has_current()) { return false; }
-            auto &ctx = RuntimeContext::current();
-            auto *eq_result = ctx.equals(
-                PyObject::from(lhs).unwrap(), PyObject::from(rhs).unwrap());
-            return ctx.is_true(eq_result);
-        });
-    return Ok(result ? py_true() : py_false());
+	// 修改：使用 RuntimeContext 替代 VirtualMachine::the().interpreter()
+	const bool result = std::equal(m_elements.begin(),
+		m_elements.end(),
+		other_tuple->elements().begin(),
+		[](const auto &lhs, const auto &rhs) -> bool {
+			if (!RuntimeContext::has_current()) { return false; }
+			auto &ctx = RuntimeContext::current();
+			auto *eq_result =
+				ctx.equals(PyObject::from(lhs).unwrap(), PyObject::from(rhs).unwrap());
+			return ctx.is_true(eq_result);
+		});
+	return Ok(result ? py_true() : py_false());
 }
 
 PyResult<PyObject *> PyTuple::__getitem__(int64_t index)

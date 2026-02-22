@@ -15,7 +15,7 @@
 #include "runtime/utilities.hpp"
 #include "types/api.hpp"
 #include "types/builtin.hpp"
-#include "vm/VM.hpp"
+// // #include "vm/VM.hpp"
 
 #include "runtime/compat.hpp"
 #include <string_view>

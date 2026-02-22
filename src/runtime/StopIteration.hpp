@@ -3,7 +3,7 @@
 #include "Exception.hpp"
 #include "PyString.hpp"
 #include "PyTuple.hpp"
-#include "vm/VM.hpp"
+// #include "vm/VM.hpp"
 #include "runtime/compat.hpp"
 namespace py {
 
@@ -24,7 +24,7 @@ class StopIteration : public Exception
 	static StopIteration *create(PyTuple *args)
 	{
 		auto *result = PYLANG_ALLOC(StopIteration, args);
-	
+
 		return result;
 	}
 	static PyResult<PyObject *> __new__(const PyType *type, PyTuple *args, PyDict *kwargs);

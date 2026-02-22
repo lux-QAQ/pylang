@@ -3,7 +3,7 @@
 #include "Exception.hpp"
 #include "PyString.hpp"
 #include "PyTuple.hpp"
-#include "vm/VM.hpp"
+//// #include "vm/VM.hpp"
 #include "runtime/compat.hpp"
 
 namespace py {
@@ -30,9 +30,8 @@ class ImportError : public Exception
   private:
 	ImportError(PyTuple *args);
 
-	static ImportError *create(PyTuple *args)
-	{
-        return PYLANG_ALLOC(ImportError, args);}
+	static ImportError *create(PyTuple *args) { return PYLANG_ALLOC(ImportError, args); }
+
   public:
 	static PyResult<PyObject *> __new__(const PyType *type, PyTuple *args, PyDict *kwargs);
 	PyResult<int32_t> __init__(PyTuple *args, PyDict *kwargs);

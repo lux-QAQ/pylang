@@ -9,10 +9,10 @@
 #include "runtime/PyObject.hpp"
 #include "runtime/PyString.hpp"
 #include "runtime/PyTuple.hpp"
+#include "runtime/RuntimeContext.hpp"
 #include "runtime/TypeError.hpp"
 #include "runtime/Value.hpp"
 #include "runtime/types/builtin.hpp"
-#include "vm/VM.hpp"
 
 #include <algorithm>
 #include <cctype>
@@ -21,6 +21,13 @@
 namespace py {
 namespace detail {
 	namespace {
+
+		Interpreter &current_interpreter()
+		{
+			ASSERT(RuntimeContext::has_current() && RuntimeContext::current().has_interpreter());
+			return *RuntimeContext::current().interpreter();
+		}
+
 		PyResult<PyObject *> lookup_error(PyTuple *args, PyDict *kwargs)
 		{
 			auto result = PyArgsParser<PyString *>::unpack_tuple(args,
@@ -32,9 +39,9 @@ namespace detail {
 			if (result.is_err()) { return Err(result.unwrap_err()); }
 			auto [error] = result.unwrap();
 
-			if (auto it =
-					VirtualMachine::the().interpreter().codec_error_registry()->map().find(error);
-				it != VirtualMachine::the().interpreter().codec_error_registry()->map().end()) {
+			auto &interp = current_interpreter();
+			if (auto it = interp.codec_error_registry()->map().find(error);
+				it != interp.codec_error_registry()->map().end()) {
 				return PyObject::from(it->second);
 			}
 
@@ -65,17 +72,19 @@ namespace detail {
 			if (py_normalized_encoding.is_err()) {
 				return Err(py_normalized_encoding.unwrap_err());
 			}
-			if (auto it = VirtualMachine::the().interpreter().codec_search_path_cache()->map().find(
-					py_normalized_encoding.unwrap());
-				it != VirtualMachine::the().interpreter().codec_search_path_cache()->map().end()) {
+
+			auto &interp = current_interpreter();
+
+			if (auto it =
+					interp.codec_search_path_cache()->map().find(py_normalized_encoding.unwrap());
+				it != interp.codec_search_path_cache()->map().end()) {
 				return PyObject::from(it->second);
 			}
 			auto args_ = PyTuple::create(py_normalized_encoding.unwrap());
 			PyObject *result = nullptr;
 			if (args_.is_err()) { return Err(args_.unwrap_err()); }
 			auto *codec_args = args_.unwrap();
-			for (const auto &el :
-				VirtualMachine::the().interpreter().codec_search_path()->elements()) {
+			for (const auto &el : interp.codec_search_path()->elements()) {
 				auto func_ = PyObject::from(el);
 				if (func_.is_err()) { return func_; }
 				auto *func = func_.unwrap();
@@ -94,8 +103,7 @@ namespace detail {
 				return Err(py::lookup_error("unknown encoding: {}", encoding->value()));
 			}
 
-			VirtualMachine::the().interpreter().codec_search_path_cache()->insert(
-				py_normalized_encoding.unwrap(), result);
+			interp.codec_search_path_cache()->insert(py_normalized_encoding.unwrap(), result);
 
 			return Ok(result);
 		}

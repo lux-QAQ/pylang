@@ -166,6 +166,7 @@ set(RUNTIME_SOURCE_FILES
     runtime/LookupError.cpp
     runtime/MemoryError.cpp
     runtime/ModuleNotFoundError.cpp
+    runtime/ModuleRegistry.cpp
     runtime/NameError.cpp
     runtime/NotImplemented.cpp
     runtime/NotImplementedError.cpp
