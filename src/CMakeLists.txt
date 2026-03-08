@@ -231,6 +231,9 @@ set(RUNTIME_SOURCE_FILES
 set(VM_SOURCE_FILES # cmake-format: sortable
                     vm/VM.cpp)
 
+# Runtime export layer — auto-collected
+file(GLOB RUNTIME_EXPORT_FILES CONFIGURE_DEPENDS runtime/export/*.cpp)
+
 set(UNITTEST_SOURCES
     # cmake-format: sortable
     ast/optimizers/Optimizers_tests.cpp
@@ -283,6 +286,7 @@ add_library(
   ${MEMORY_SOURCE_FILES}
   ${PARSER_SOURCE_FILES}
   ${RUNTIME_SOURCE_FILES}
+  ${RUNTIME_EXPORT_FILES}
   ${VM_SOURCE_FILES})
 
 # If the top-level option is set, add compile definition to enable Arena
