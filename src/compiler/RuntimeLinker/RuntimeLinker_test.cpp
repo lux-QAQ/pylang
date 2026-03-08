@@ -4,6 +4,7 @@
 #include "compiler/Support/gtest_wrapper.hpp"
 
 
+#include <llvm-20/llvm/IR/IRBuilder.h>
 #include <llvm/IR/LLVMContext.h>
 #include <llvm/Linker/Linker.h>
 
@@ -146,31 +147,76 @@ TEST_F(RuntimeLinkerTest, DeclareInUserModule)
 
 TEST_F(RuntimeLinkerTest, LinkRuntimeModule)
 {
-	auto linker = RuntimeLinker::create(*loader, runtime_bc_path);
-	ASSERT_TRUE(linker.has_value());
+    auto linker = RuntimeLinker::create(*loader, runtime_bc_path);
+    ASSERT_TRUE(linker.has_value());
 
-	llvm::Module user_module("test_user", ctx);
+    llvm::Module user_module("test_user", ctx);
 
-	// 在用户模块中声明 runtime 函数
-	auto *decl = linker->declare_in(&user_module, "binary_add");
-	ASSERT_NE(decl, nullptr);
-	EXPECT_TRUE(decl->isDeclaration());
+    auto *decl = linker->declare_in(&user_module, "binary_add");
+    ASSERT_NE(decl, nullptr);
+    EXPECT_TRUE(decl->isDeclaration());
 
-	// 链接 runtime.bc
-	llvm::Linker linker_obj(user_module);
-	auto *runtime_mod = linker->runtime_module();
+    // ✅ 使用封装的 link_into 方法
+    auto link_result = linker->link_into(&user_module);
+    ASSERT_TRUE(link_result.has_value()) << link_result.error().to_string();
 
-	// 克隆 runtime module（Linker 会修改源 module）
-	auto cloned = llvm::CloneModule(*runtime_mod);
+    auto *resolved = user_module.getFunction(decl->getName());
+    ASSERT_NE(resolved, nullptr);
+    EXPECT_FALSE(resolved->isDeclaration());
+    EXPECT_FALSE(resolved->empty());
+}
 
-	bool link_failed = linker_obj.linkInModule(std::move(cloned));
-	EXPECT_FALSE(link_failed);
+TEST_F(RuntimeLinkerTest, GetFunction_TupleGetitem)
+{
+    auto linker = RuntimeLinker::create(*loader, runtime_bc_path);
+    ASSERT_TRUE(linker.has_value());
 
-	// 链接后，声明应该被解析为定义
-	auto *resolved = user_module.getFunction(decl->getName());
-	ASSERT_NE(resolved, nullptr);
-	EXPECT_FALSE(resolved->isDeclaration());// ← 现在是定义了
-	EXPECT_FALSE(resolved->empty());// ← 有函数体了
+    auto func = linker->get_function("tuple_getitem");
+    ASSERT_TRUE(func.has_value()) << func.error().to_string();
+
+    const auto *rt_func = *func;
+    EXPECT_EQ(rt_func->category, "subscr");
+    EXPECT_EQ(rt_func->return_type, "obj");
+    EXPECT_EQ(rt_func->param_types, "obj,i32");
+    EXPECT_NE(rt_func->llvm_func, nullptr);
+
+    auto *func_type = rt_func->llvm_func_type;
+    ASSERT_NE(func_type, nullptr);
+    EXPECT_EQ(func_type->getNumParams(), 2);
+    EXPECT_TRUE(func_type->getParamType(0)->isPointerTy());
+    EXPECT_TRUE(func_type->getParamType(1)->isIntegerTy(32));
+}
+
+TEST_F(RuntimeLinkerTest, LinkAndCallTupleGetitem)
+{
+    auto linker = RuntimeLinker::create(*loader, runtime_bc_path);
+    ASSERT_TRUE(linker.has_value());
+
+    llvm::Module user_module("test_tuple_getitem", ctx);
+
+    auto *tuple_getitem = linker->declare_in(&user_module, "tuple_getitem");
+    ASSERT_NE(tuple_getitem, nullptr);
+
+    auto *obj_ptr_ty = linker->pyobject_ptr_type();
+    auto *func_type = llvm::FunctionType::get(obj_ptr_ty, {obj_ptr_ty}, false);
+    auto *test_func = llvm::Function::Create(
+        func_type, llvm::Function::ExternalLinkage, "test_func", &user_module);
+    
+    auto *entry = llvm::BasicBlock::Create(ctx, "entry", test_func);
+    llvm::IRBuilder<> builder(entry);
+
+    auto *tuple_arg = test_func->getArg(0);
+    auto *index = builder.getInt32(0);
+    auto *result = builder.CreateCall(tuple_getitem, {tuple_arg, index});
+    builder.CreateRet(result);
+
+    auto link_result = linker->link_into(&user_module);
+    ASSERT_TRUE(link_result.has_value()) << link_result.error().to_string();
+
+    auto *resolved = user_module.getFunction(tuple_getitem->getName());
+    ASSERT_NE(resolved, nullptr);
+    EXPECT_FALSE(resolved->isDeclaration());
+    EXPECT_FALSE(resolved->empty());
 }
 
 TEST_F(RuntimeLinkerTest, UnknownFunction)

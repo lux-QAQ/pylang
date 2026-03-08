@@ -58,6 +58,9 @@ class RuntimeLinker
 	/// 诊断：列出所有已注册函数（按 category 分组）
 	void print_registry() const;
 
+	/// 将 runtime module 链接到用户 module（会克隆 runtime module）
+    VoidResult link_into(llvm::Module *user_module);
+
   private:
 	RuntimeLinker() = default;
 

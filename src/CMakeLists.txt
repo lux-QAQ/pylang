@@ -405,7 +405,7 @@ if(LLVM_FOUND)
     bitwriter 
     support 
     transformutils    # CloneModule
-    linker            # ← 新增：llvm::Linker
+    linker            # llvm::Linker
   )
   target_link_libraries(pylang-support INTERFACE ${_pylang_support_llvm_libs})
 endif()
@@ -432,7 +432,24 @@ if(LLVM_FOUND)
     target_include_directories(pylang-compiler PRIVATE ${LLVM_INCLUDE_DIRS})
     
   endif()
+  # =========================================================================
+  # Codegen
+  # =========================================================================
 
+  file(GLOB_RECURSE CODEGEN_SOURCE_FILES 
+    CONFIGURE_DEPENDS
+    compiler/Codegen/*.cpp
+  )
+  list(FILTER CODEGEN_SOURCE_FILES EXCLUDE REGEX ".*_test\\.cpp$")
+
+  if(CODEGEN_SOURCE_FILES)
+    if(TARGET pylang-compiler)
+      target_sources(pylang-compiler PRIVATE ${CODEGEN_SOURCE_FILES})
+    else()
+      add_library(pylang-compiler OBJECT ${CODEGEN_SOURCE_FILES})
+      target_link_libraries(pylang-compiler PUBLIC pylang-support)
+    endif()
+  endif()
   # =========================================================================
   # Compiler Tests — 独立可执行文件
   # =========================================================================

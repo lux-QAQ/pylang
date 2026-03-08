@@ -4,6 +4,8 @@
 
 #include <llvm/IR/Constants.h>
 #include <llvm/IR/GlobalVariable.h>
+#include <llvm/Linker/Linker.h>
+
 
 namespace pylang {
 
@@ -262,6 +264,27 @@ void RuntimeLinker::print_registry() const
             log::linker()->debug("    - {}", n);
         }
     }
+}
+
+// =============================================================================
+// RuntimeLinker::link_into
+// =============================================================================
+VoidResult RuntimeLinker::link_into(llvm::Module *user_module)
+{
+    if (!m_runtime_module) {
+        return MAKE_ERROR(ErrorKind::InternalError, "Runtime module not loaded");
+    }
+
+    // 克隆 runtime module（Linker 会修改源 module）
+    auto cloned = llvm::CloneModule(*m_runtime_module);
+
+    llvm::Linker linker(*user_module);
+    if (linker.linkInModule(std::move(cloned))) {
+        return MAKE_ERROR(ErrorKind::LinkError, "Failed to link runtime module");
+    }
+
+    log::linker()->info("Successfully linked runtime module into {}", user_module->getName().str());
+    return {};
 }
 
 } // namespace pylang
