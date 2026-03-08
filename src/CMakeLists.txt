@@ -327,6 +327,10 @@ endif()
 # MLIR backend
 add_subdirectory(executable/mlir)
 
+# Runtime bitcode generation — 独立于 LLVM JIT backend
+# 只要系统有 clang++ 和 llvm-link 就可以生成
+add_subdirectory(runtime/export)
+
 target_link_libraries(python-cpp
   PUBLIC
   python-mlir
