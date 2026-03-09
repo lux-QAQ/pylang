@@ -60,4 +60,8 @@ class BaseException : public PyBaseObject
 	void visit_graph(Visitor &) override;
 };
 
+/// 检查异常是否匹配给定的类型或类型元组
+/// 对应 Python 的 except 子句匹配语义
+bool check_exception_match(PyObject *exc, PyObject *exc_type);
+
 }// namespace py

@@ -51,10 +51,30 @@ TEST_F(LLVMModuleLoaderTest, LoadInvalidBitcode)
 
 TEST_F(LLVMModuleLoaderTest, CacheHit)
 {
-	// 这个测试需要一个有效的 bitcode 文件
-	// 暂时跳过，等 runtime.bc 生成后再测试
-	GTEST_SKIP() << "Requires valid bitcode file";
+    const char *env_path = std::getenv("PYLANG_RUNTIME_BC");
+#ifdef PYLANG_RUNTIME_BC_DEFAULT
+    std::string runtime_bc = env_path ? env_path : PYLANG_RUNTIME_BC_DEFAULT;
+#else
+    std::string runtime_bc = env_path ? env_path : "";
+#endif
+
+    if (runtime_bc.empty() || !std::filesystem::exists(runtime_bc)) {
+        GTEST_SKIP() << "runtime.bc not found at: " << runtime_bc;
+    }
+
+    // 第一次加载
+    auto result1 = loader->load_bitcode(runtime_bc);
+    ASSERT_TRUE(result1.has_value()) << "First load failed";
+
+    // 第二次加载同一个文件 — 应命中缓存，返回同一个指针
+    auto result2 = loader->load_bitcode(runtime_bc);
+    ASSERT_TRUE(result2.has_value()) << "Second load failed";
+
+    // load_bitcode 返回 Module*（裸指针），直接解引用比较
+    EXPECT_EQ(*result1, *result2)
+        << "Cache miss: two loads returned different Module instances";
 }
+
 
 TEST_F(LLVMModuleLoaderTest, VerifyModule)
 {

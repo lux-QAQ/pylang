@@ -40,37 +40,39 @@ using namespace py;
 Interpreter::Interpreter() {}
 
 void Interpreter::internal_setup(const std::string &name,
-	std::string entry_script,
-	std::vector<std::string> argv,
-	size_t local_registers,
-	const PyTuple *consts,
-	const std::vector<std::string> &names,
-	Config &&config,
-	std::shared_ptr<Program> &&program)
+    std::string entry_script,
+    std::vector<std::string> argv,
+    size_t local_registers,
+    const PyTuple *consts,
+    const std::vector<std::string> &names,
+    Config &&config,
+    std::shared_ptr<Program> &&program)
 {
-	PyModule *sys = nullptr;
-	{
-		PYLANG_GC_PAUSE_SCOPE();
+    PyModule *sys = nullptr;
+    {
+        PYLANG_GC_PAUSE_SCOPE();
 
-		py::initialize_types();
-		m_modules = PyDict::create().unwrap();
-		m_entry_script = std::move(entry_script);
-		m_argv = std::move(argv);
+        // 调用统一的初始化
+        py::initialize_types();
+        
+        m_modules = PyDict::create().unwrap();
+        m_entry_script = std::move(entry_script);
+        m_argv = std::move(argv);
 
-		// 统一通过 register_all_builtins + ModuleRegistry 初始化
-		register_all_builtins();
+        // 统一通过 register_all_builtins + ModuleRegistry 初始化
+        py::register_all_builtins();
 
-		// 从 Registry 获取 builtins 和 sys
-		m_builtins = ModuleRegistry::instance().find("builtins");
-		ASSERT(m_builtins);
-		sys = ModuleRegistry::instance().find("sys");
-		ASSERT(sys);
+        // 从 Registry 获取 builtins 和 sys
+        m_builtins = py::ModuleRegistry::instance().find("builtins");
+        ASSERT(m_builtins);
+        sys = py::ModuleRegistry::instance().find("sys");
+        ASSERT(sys);
 
-		// 同步到 m_modules dict (解释器路径仍需要)
-		for (const auto &[mod_name, _] : builtin_modules) {
-			auto *mod = ModuleRegistry::instance().find(std::string(mod_name));
-			if (mod) { m_modules->insert(String{ std::string{ mod_name } }, mod); }
-		}
+        // 同步到 m_modules dict (解释器路径仍需要)
+        for (const auto &[mod_name, _] : py::builtin_modules) {
+            auto *mod = py::ModuleRegistry::instance().find(std::string(mod_name));
+            if (mod) { m_modules->insert(py::String{ std::string{ mod_name } }, mod); }
+        }
 
 		auto name_ = PyString::create(name);
 		if (name_.is_err()) { TODO(); }

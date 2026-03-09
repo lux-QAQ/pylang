@@ -1,13 +1,19 @@
 #include "rt_common.hpp"
 
+#include "runtime/PyBytes.hpp"
+#include "runtime/PyComplex.hpp"
+#include "runtime/PyDict.hpp"
 #include "runtime/PyFloat.hpp"
 #include "runtime/PyInteger.hpp"
 #include "runtime/PyList.hpp"
-#include "runtime/PyString.hpp"
-#include "runtime/PyTuple.hpp"
-#include "runtime/PyDict.hpp"
+#include "runtime/PyObject.hpp"
 #include "runtime/PySet.hpp"
 #include "runtime/PySlice.hpp"
+#include "runtime/PyString.hpp"
+#include "runtime/PyTuple.hpp"
+#include "runtime/TypeError.hpp"
+#include "runtime/types/builtin.hpp"
+
 
 // =============================================================================
 // Tier 0: 对象创建
@@ -79,4 +85,26 @@ PYLANG_EXPORT_CREATE("build_slice", "obj", "obj,obj,obj")
 py::PyObject *rt_build_slice(py::PyObject *start, py::PyObject *stop, py::PyObject *step)
 {
 	return rt_unwrap(py::PySlice::create(start, stop, step));
+}
+
+
+// =============================================================================
+// Tier 1: 字节字面量 / 复数字面量
+// =============================================================================
+
+PYLANG_EXPORT_CREATE("bytes_from_buffer", "obj", "str,i64")
+py::PyObject *rt_bytes_from_buffer(const char *data, int64_t length)
+{
+	// b"hello" 字节字面量语法
+	// 委托给 PyBytes::create(Bytes{...})
+	std::vector<std::byte> bytes(static_cast<size_t>(length));
+	std::memcpy(bytes.data(), data, static_cast<size_t>(length));
+	return rt_unwrap(py::PyBytes::create(py::Bytes{ std::move(bytes) }));
+}
+
+PYLANG_EXPORT_CREATE("complex_from_doubles", "obj", "f64,f64")
+py::PyObject *rt_complex_from_doubles(double real, double imag)
+{
+	// 直接构造，避免 PyFloat/PyTuple 中间对象
+	return rt_unwrap(py::PyComplex::create(real, imag));
 }

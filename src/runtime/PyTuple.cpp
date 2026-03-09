@@ -406,4 +406,31 @@ std::function<std::unique_ptr<TypePrototype>()> PyTupleIterator::type_factory()
 	};
 }
 
+PyResult<std::monostate> unpack_sequence(PyObject *iterable, int32_t count, PyObject **out)
+{
+	auto iter_result = iterable->iter();
+	if (iter_result.is_err()) return Err(iter_result.unwrap_err());
+	auto *iter = iter_result.unwrap();
+
+	for (int32_t i = 0; i < count; ++i) {
+		auto value = iter->next();
+		if (value.is_err()) {
+			if (value.unwrap_err()->type() == stop_iteration()->type()) {
+				return Err(
+					value_error("not enough values to unpack (expected {}, got {})", count, i));
+			}
+			return Err(value.unwrap_err());
+		}
+		out[i] = value.unwrap();
+	}
+
+	auto extra = iter->next();
+	if (extra.is_ok()) {
+		return Err(value_error("too many values to unpack (expected {})", count));
+	}
+	if (extra.unwrap_err()->type() != stop_iteration()->type()) { return Err(extra.unwrap_err()); }
+
+	return Ok(std::monostate{});
+}
+
 }// namespace py

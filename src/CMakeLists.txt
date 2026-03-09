@@ -1,275 +1,275 @@
 set(AST_SOURCE_FILES # cmake-format: sortable
-                     ast/AST.cpp ast/optimizers/ConstantFolding.cpp)
+  ast/AST.cpp ast/optimizers/ConstantFolding.cpp)
 
 set(BYTECODE_SOURCE_FILES
-    # cmake-format: sortable
-    executable/bytecode/Bytecode.cpp
-    executable/bytecode/BytecodeProgram.cpp
-    executable/bytecode/codegen/BytecodeGenerator.cpp
-    executable/bytecode/codegen/VariablesResolver.cpp
-    executable/bytecode/instructions/BinaryOperation.cpp
-    executable/bytecode/instructions/BinarySubscript.cpp
-    executable/bytecode/instructions/BuildDict.cpp
-    executable/bytecode/instructions/BuildList.cpp
-    executable/bytecode/instructions/BuildTuple.cpp
-    executable/bytecode/instructions/BuildSet.cpp
-    executable/bytecode/instructions/BuildSlice.cpp
-    executable/bytecode/instructions/BuildString.cpp
-    executable/bytecode/instructions/CompareOperation.cpp
-    executable/bytecode/instructions/ClearExceptionState.cpp
-    executable/bytecode/instructions/ClearTopCleanup.cpp
-    executable/bytecode/instructions/DictAdd.cpp
-    executable/bytecode/instructions/DictMerge.cpp
-    executable/bytecode/instructions/DictUpdate.cpp
-    executable/bytecode/instructions/DeleteAttr.cpp
-    executable/bytecode/instructions/DeleteDeref.cpp
-    executable/bytecode/instructions/DeleteFast.cpp
-    executable/bytecode/instructions/DeleteGlobal.cpp
-    executable/bytecode/instructions/DeleteName.cpp
-    executable/bytecode/instructions/DeleteSubscript.cpp
-    executable/bytecode/instructions/ForIter.cpp
-    executable/bytecode/instructions/FormatValue.cpp
-    executable/bytecode/instructions/FunctionCall.cpp
-    executable/bytecode/instructions/FunctionCallEx.cpp
-    executable/bytecode/instructions/FunctionCallWithKeywords.cpp
-    executable/bytecode/instructions/GetAwaitable.cpp
-    executable/bytecode/instructions/GetIter.cpp
-    executable/bytecode/instructions/GetYieldFromIter.cpp
-    executable/bytecode/instructions/InplaceOp.cpp
-    executable/bytecode/instructions/Instructions.cpp
-    executable/bytecode/instructions/ImportFrom.cpp
-    executable/bytecode/instructions/ImportName.cpp
-    executable/bytecode/instructions/ImportStar.cpp
-    executable/bytecode/instructions/Jump.cpp
-    executable/bytecode/instructions/JumpForward.cpp
-    executable/bytecode/instructions/JumpIfFalse.cpp
-    executable/bytecode/instructions/JumpIfFalseOrPop.cpp
-    executable/bytecode/instructions/JumpIfExceptionMatch.cpp
-    executable/bytecode/instructions/JumpIfNotExceptionMatch.cpp
-    executable/bytecode/instructions/JumpIfTrue.cpp
-    executable/bytecode/instructions/JumpIfTrueOrPop.cpp
-    executable/bytecode/instructions/LeaveExceptionHandling.cpp
-    executable/bytecode/instructions/ListAppend.cpp
-    executable/bytecode/instructions/ListExtend.cpp
-    executable/bytecode/instructions/ListToTuple.cpp
-    executable/bytecode/instructions/LoadAssertionError.cpp
-    executable/bytecode/instructions/LoadAttr.cpp
-    executable/bytecode/instructions/LoadBuildClass.cpp
-    executable/bytecode/instructions/LoadClosure.cpp
-    executable/bytecode/instructions/LoadConst.cpp
-    executable/bytecode/instructions/LoadDeref.cpp
-    executable/bytecode/instructions/LoadFast.cpp
-    executable/bytecode/instructions/LoadGlobal.cpp
-    executable/bytecode/instructions/LoadMethod.cpp
-    executable/bytecode/instructions/LoadName.cpp
-    executable/bytecode/instructions/MakeFunction.cpp
-    executable/bytecode/instructions/MethodCall.cpp
-    executable/bytecode/instructions/Move.cpp
-    executable/bytecode/instructions/Pop.cpp
-    executable/bytecode/instructions/Push.cpp
-    executable/bytecode/instructions/RaiseVarargs.cpp
-    executable/bytecode/instructions/ReRaise.cpp
-    executable/bytecode/instructions/ReturnValue.cpp
-    executable/bytecode/instructions/SetAdd.cpp
-    executable/bytecode/instructions/SetUpdate.cpp
-    executable/bytecode/instructions/SetupExceptionHandling.cpp
-    executable/bytecode/instructions/SetupWith.cpp
-    executable/bytecode/instructions/StoreAttr.cpp
-    executable/bytecode/instructions/StoreDeref.cpp
-    executable/bytecode/instructions/StoreFast.cpp
-    executable/bytecode/instructions/StoreGlobal.cpp
-    executable/bytecode/instructions/StoreName.cpp
-    executable/bytecode/instructions/StoreSubscript.cpp
-    executable/bytecode/instructions/ToBool.cpp
-    executable/bytecode/instructions/Unary.cpp
-    executable/bytecode/instructions/UnpackExpand.cpp
-    executable/bytecode/instructions/UnpackSequence.cpp
-    executable/bytecode/instructions/WithExceptStart.cpp
-    executable/bytecode/instructions/YieldFrom.cpp
-    executable/bytecode/instructions/YieldLoad.cpp
-    executable/bytecode/instructions/YieldValue.cpp
-    executable/Mangler.cpp)
+  # cmake-format: sortable
+  executable/bytecode/Bytecode.cpp
+  executable/bytecode/BytecodeProgram.cpp
+  executable/bytecode/codegen/BytecodeGenerator.cpp
+  executable/bytecode/codegen/VariablesResolver.cpp
+  executable/bytecode/instructions/BinaryOperation.cpp
+  executable/bytecode/instructions/BinarySubscript.cpp
+  executable/bytecode/instructions/BuildDict.cpp
+  executable/bytecode/instructions/BuildList.cpp
+  executable/bytecode/instructions/BuildTuple.cpp
+  executable/bytecode/instructions/BuildSet.cpp
+  executable/bytecode/instructions/BuildSlice.cpp
+  executable/bytecode/instructions/BuildString.cpp
+  executable/bytecode/instructions/CompareOperation.cpp
+  executable/bytecode/instructions/ClearExceptionState.cpp
+  executable/bytecode/instructions/ClearTopCleanup.cpp
+  executable/bytecode/instructions/DictAdd.cpp
+  executable/bytecode/instructions/DictMerge.cpp
+  executable/bytecode/instructions/DictUpdate.cpp
+  executable/bytecode/instructions/DeleteAttr.cpp
+  executable/bytecode/instructions/DeleteDeref.cpp
+  executable/bytecode/instructions/DeleteFast.cpp
+  executable/bytecode/instructions/DeleteGlobal.cpp
+  executable/bytecode/instructions/DeleteName.cpp
+  executable/bytecode/instructions/DeleteSubscript.cpp
+  executable/bytecode/instructions/ForIter.cpp
+  executable/bytecode/instructions/FormatValue.cpp
+  executable/bytecode/instructions/FunctionCall.cpp
+  executable/bytecode/instructions/FunctionCallEx.cpp
+  executable/bytecode/instructions/FunctionCallWithKeywords.cpp
+  executable/bytecode/instructions/GetAwaitable.cpp
+  executable/bytecode/instructions/GetIter.cpp
+  executable/bytecode/instructions/GetYieldFromIter.cpp
+  executable/bytecode/instructions/InplaceOp.cpp
+  executable/bytecode/instructions/Instructions.cpp
+  executable/bytecode/instructions/ImportFrom.cpp
+  executable/bytecode/instructions/ImportName.cpp
+  executable/bytecode/instructions/ImportStar.cpp
+  executable/bytecode/instructions/Jump.cpp
+  executable/bytecode/instructions/JumpForward.cpp
+  executable/bytecode/instructions/JumpIfFalse.cpp
+  executable/bytecode/instructions/JumpIfFalseOrPop.cpp
+  executable/bytecode/instructions/JumpIfExceptionMatch.cpp
+  executable/bytecode/instructions/JumpIfNotExceptionMatch.cpp
+  executable/bytecode/instructions/JumpIfTrue.cpp
+  executable/bytecode/instructions/JumpIfTrueOrPop.cpp
+  executable/bytecode/instructions/LeaveExceptionHandling.cpp
+  executable/bytecode/instructions/ListAppend.cpp
+  executable/bytecode/instructions/ListExtend.cpp
+  executable/bytecode/instructions/ListToTuple.cpp
+  executable/bytecode/instructions/LoadAssertionError.cpp
+  executable/bytecode/instructions/LoadAttr.cpp
+  executable/bytecode/instructions/LoadBuildClass.cpp
+  executable/bytecode/instructions/LoadClosure.cpp
+  executable/bytecode/instructions/LoadConst.cpp
+  executable/bytecode/instructions/LoadDeref.cpp
+  executable/bytecode/instructions/LoadFast.cpp
+  executable/bytecode/instructions/LoadGlobal.cpp
+  executable/bytecode/instructions/LoadMethod.cpp
+  executable/bytecode/instructions/LoadName.cpp
+  executable/bytecode/instructions/MakeFunction.cpp
+  executable/bytecode/instructions/MethodCall.cpp
+  executable/bytecode/instructions/Move.cpp
+  executable/bytecode/instructions/Pop.cpp
+  executable/bytecode/instructions/Push.cpp
+  executable/bytecode/instructions/RaiseVarargs.cpp
+  executable/bytecode/instructions/ReRaise.cpp
+  executable/bytecode/instructions/ReturnValue.cpp
+  executable/bytecode/instructions/SetAdd.cpp
+  executable/bytecode/instructions/SetUpdate.cpp
+  executable/bytecode/instructions/SetupExceptionHandling.cpp
+  executable/bytecode/instructions/SetupWith.cpp
+  executable/bytecode/instructions/StoreAttr.cpp
+  executable/bytecode/instructions/StoreDeref.cpp
+  executable/bytecode/instructions/StoreFast.cpp
+  executable/bytecode/instructions/StoreGlobal.cpp
+  executable/bytecode/instructions/StoreName.cpp
+  executable/bytecode/instructions/StoreSubscript.cpp
+  executable/bytecode/instructions/ToBool.cpp
+  executable/bytecode/instructions/Unary.cpp
+  executable/bytecode/instructions/UnpackExpand.cpp
+  executable/bytecode/instructions/UnpackSequence.cpp
+  executable/bytecode/instructions/WithExceptStart.cpp
+  executable/bytecode/instructions/YieldFrom.cpp
+  executable/bytecode/instructions/YieldLoad.cpp
+  executable/bytecode/instructions/YieldValue.cpp
+  executable/Mangler.cpp)
 
 set(EXECUTABLE_SOURCE_FILES # cmake-format: sortable
-                            executable/Program.cpp)
+  executable/Program.cpp)
 
 set(LEXER_SOURCE_FILES # cmake-format: sortable
-                       lexer/Lexer.cpp)
+  lexer/Lexer.cpp)
 
 set(LLVM_BACKEND_FILES # cmake-format: sortable
-                       executable/llvm/LLVMGenerator.cpp executable/llvm/LLVMProgram.cpp)
+  executable/llvm/LLVMGenerator.cpp executable/llvm/LLVMProgram.cpp)
 
 set(INTERPRETER_SOURCE_FILES
-    # cmake-format: sortable
-    interpreter/Interpreter.cpp interpreter/InterpreterSession.cpp)
+  # cmake-format: sortable
+  interpreter/Interpreter.cpp interpreter/InterpreterSession.cpp)
 
 set(MEMORY_SOURCE_FILES # cmake-format: sortable
-                        memory/Arena.cpp
-                        memory/ArenaManager.cpp
-                        memory/GarbageCollector.cpp
-                        memory/Heap.cpp)
+  memory/Arena.cpp
+  memory/ArenaManager.cpp
+  memory/GarbageCollector.cpp
+  memory/Heap.cpp)
 
 set(PARSER_SOURCE_FILES # cmake-format: sortable
-                        parser/Parser.cpp)
+  parser/Parser.cpp)
 
 set(RUNTIME_SOURCE_FILES
-    # cmake-format: sortable
-    runtime/CustomPyObject.cpp
-    runtime/modules/BuiltinsModule.cpp
-    runtime/modules/CodecsModule.cpp
-    runtime/modules/ImpModule.cpp
-    runtime/modules/IOModule.cpp
-    runtime/modules/collections/module.cpp
-    runtime/modules/collections/Deque.cpp
-    runtime/modules/collections/DefaultDict.cpp
-    runtime/modules/errno/module.cpp
-    runtime/modules/itertools/module.cpp
-    runtime/modules/itertools/Chain.cpp
-    runtime/modules/itertools/Count.cpp
-    runtime/modules/itertools/ISlice.cpp
-    runtime/modules/itertools/Permutations.cpp
-    runtime/modules/itertools/Product.cpp
-    runtime/modules/itertools/Repeat.cpp
-    runtime/modules/itertools/StarMap.cpp
-    runtime/modules/math/module.cpp
-    runtime/modules/signal/module.cpp
-    runtime/modules/thread/module.cpp
-    runtime/modules/time/module.cpp
-    runtime/modules/weakref/module.cpp
-    runtime/modules/weakref/PyCallableProxyType.cpp
-    runtime/modules/weakref/PyWeakProxy.cpp
-    runtime/modules/weakref/PyWeakRef.cpp
-    runtime/modules/MarshalModule.cpp
-    runtime/modules/PosixModule.cpp
-    runtime/modules/sre/module.cpp
-    runtime/modules/sre/Match.cpp
-    runtime/modules/sre/Pattern.cpp
-    runtime/modules/struct/module.cpp
-    runtime/modules/SysModule.cpp
-    runtime/modules/WarningsModule.cpp
-    runtime/types/builtin.cpp
-    runtime/warnings/DeprecationWarning.cpp
-    runtime/warnings/ImportWarning.cpp
-    runtime/warnings/PendingDeprecationWarning.cpp
-    runtime/warnings/ResourceWarning.cpp
-    runtime/warnings/Warning.cpp
-    runtime/RuntimeContext.cpp
-    runtime/AssertionError.cpp
-    runtime/AttributeError.cpp
-    runtime/builtinTypeInit.cpp
-    runtime/BaseException.cpp
-    runtime/Exception.cpp
-    runtime/GeneratorInterface.cpp
-    runtime/IndexError.cpp
-    runtime/Import.cpp
-    runtime/ImportError.cpp
-    runtime/KeyError.cpp
-    runtime/LookupError.cpp
-    runtime/MemoryError.cpp
-    runtime/ModuleNotFoundError.cpp
-    runtime/ModuleRegistry.cpp
-    runtime/NameError.cpp
-    runtime/NotImplemented.cpp
-    runtime/NotImplementedError.cpp
-    runtime/OSError.cpp
-    runtime/PyAsyncGenerator.cpp
-    runtime/PyBoundMethod.cpp
-    runtime/PyBool.cpp
-    runtime/PyBuiltInMethod.cpp
-    runtime/PyBytes.cpp
-    runtime/PyByteArray.cpp
-    runtime/PyCell.cpp
-    runtime/PyClassMethod.cpp
-    runtime/PyClassMethodDescriptor.cpp
-    runtime/PyCode.cpp
-    runtime/PyComplex.cpp
-    runtime/PyCoroutine.cpp
-    runtime/PyDict.cpp
-    runtime/PyEllipsis.cpp
-    runtime/PyEnumerate.cpp
-    runtime/PyFloat.cpp
-    runtime/PyFrame.cpp
-    runtime/PyFrozenSet.cpp
-    runtime/PyFunction.cpp
-    runtime/PyGenerator.cpp
-    runtime/PyGenericAlias.cpp
-    runtime/PyGetSetDescriptor.cpp
-    runtime/PyInteger.cpp
-    runtime/PyIterator.cpp
-    runtime/PyList.cpp
-    runtime/PyLLVMFunction.cpp
-    runtime/PyMap.cpp
-    runtime/PyMappingProxy.cpp
-    runtime/PyMemberDescriptor.cpp
-    runtime/PyMemoryView.cpp
-    runtime/PyMethodDescriptor.cpp
-    runtime/PyModule.cpp
-    runtime/PyNamespace.cpp
-    runtime/PyNone.cpp
-    runtime/PyNumber.cpp
-    runtime/PyObject.cpp
-    runtime/PyProperty.cpp
-    runtime/PyRange.cpp
-    runtime/PyReversed.cpp
-    runtime/PySet.cpp
-    runtime/PySlice.cpp
-    runtime/PySlotWrapper.cpp
-    runtime/PyString.cpp
-    runtime/PySuper.cpp
-    runtime/PyStaticMethod.cpp
-    runtime/PyTraceback.cpp
-    runtime/PyTuple.cpp
-    runtime/PyType.cpp
-    runtime/PyZip.cpp
-    runtime/RuntimeError.cpp
-    runtime/StopIteration.cpp
-    runtime/SyntaxError.cpp
-    runtime/TypeError.cpp
-    runtime/UnboundLocalError.cpp
-    runtime/Value.cpp
-    runtime/ValueError.cpp)
+  # cmake-format: sortable
+  runtime/CustomPyObject.cpp
+  runtime/modules/BuiltinsModule.cpp
+  runtime/modules/CodecsModule.cpp
+  runtime/modules/ImpModule.cpp
+  runtime/modules/IOModule.cpp
+  runtime/modules/collections/module.cpp
+  runtime/modules/collections/Deque.cpp
+  runtime/modules/collections/DefaultDict.cpp
+  runtime/modules/errno/module.cpp
+  runtime/modules/itertools/module.cpp
+  runtime/modules/itertools/Chain.cpp
+  runtime/modules/itertools/Count.cpp
+  runtime/modules/itertools/ISlice.cpp
+  runtime/modules/itertools/Permutations.cpp
+  runtime/modules/itertools/Product.cpp
+  runtime/modules/itertools/Repeat.cpp
+  runtime/modules/itertools/StarMap.cpp
+  runtime/modules/math/module.cpp
+  runtime/modules/signal/module.cpp
+  runtime/modules/thread/module.cpp
+  runtime/modules/time/module.cpp
+  runtime/modules/weakref/module.cpp
+  runtime/modules/weakref/PyCallableProxyType.cpp
+  runtime/modules/weakref/PyWeakProxy.cpp
+  runtime/modules/weakref/PyWeakRef.cpp
+  runtime/modules/MarshalModule.cpp
+  runtime/modules/PosixModule.cpp
+  runtime/modules/sre/module.cpp
+  runtime/modules/sre/Match.cpp
+  runtime/modules/sre/Pattern.cpp
+  runtime/modules/struct/module.cpp
+  runtime/modules/SysModule.cpp
+  runtime/modules/WarningsModule.cpp
+  runtime/types/builtin.cpp
+  runtime/warnings/DeprecationWarning.cpp
+  runtime/warnings/ImportWarning.cpp
+  runtime/warnings/PendingDeprecationWarning.cpp
+  runtime/warnings/ResourceWarning.cpp
+  runtime/warnings/Warning.cpp
+  runtime/RuntimeContext.cpp
+  runtime/AssertionError.cpp
+  runtime/AttributeError.cpp
+  runtime/builtinTypeInit.cpp
+  runtime/BaseException.cpp
+  runtime/Exception.cpp
+  runtime/GeneratorInterface.cpp
+  runtime/IndexError.cpp
+  runtime/Import.cpp
+  runtime/ImportError.cpp
+  runtime/KeyError.cpp
+  runtime/LookupError.cpp
+  runtime/MemoryError.cpp
+  runtime/ModuleNotFoundError.cpp
+  runtime/ModuleRegistry.cpp
+  runtime/NameError.cpp
+  runtime/NotImplemented.cpp
+  runtime/NotImplementedError.cpp
+  runtime/OSError.cpp
+  runtime/PyAsyncGenerator.cpp
+  runtime/PyBoundMethod.cpp
+  runtime/PyBool.cpp
+  runtime/PyBuiltInMethod.cpp
+  runtime/PyBytes.cpp
+  runtime/PyByteArray.cpp
+  runtime/PyCell.cpp
+  runtime/PyClassMethod.cpp
+  runtime/PyClassMethodDescriptor.cpp
+  runtime/PyCode.cpp
+  runtime/PyComplex.cpp
+  runtime/PyCoroutine.cpp
+  runtime/PyDict.cpp
+  runtime/PyEllipsis.cpp
+  runtime/PyEnumerate.cpp
+  runtime/PyFloat.cpp
+  runtime/PyFrame.cpp
+  runtime/PyFrozenSet.cpp
+  runtime/PyFunction.cpp
+  runtime/PyGenerator.cpp
+  runtime/PyGenericAlias.cpp
+  runtime/PyGetSetDescriptor.cpp
+  runtime/PyInteger.cpp
+  runtime/PyIterator.cpp
+  runtime/PyList.cpp
+  runtime/PyLLVMFunction.cpp
+  runtime/PyMap.cpp
+  runtime/PyMappingProxy.cpp
+  runtime/PyMemberDescriptor.cpp
+  runtime/PyMemoryView.cpp
+  runtime/PyMethodDescriptor.cpp
+  runtime/PyModule.cpp
+  runtime/PyNamespace.cpp
+  runtime/PyNone.cpp
+  runtime/PyNumber.cpp
+  runtime/PyObject.cpp
+  runtime/PyProperty.cpp
+  runtime/PyRange.cpp
+  runtime/PyReversed.cpp
+  runtime/PySet.cpp
+  runtime/PySlice.cpp
+  runtime/PySlotWrapper.cpp
+  runtime/PyString.cpp
+  runtime/PySuper.cpp
+  runtime/PyStaticMethod.cpp
+  runtime/PyTraceback.cpp
+  runtime/PyTuple.cpp
+  runtime/PyType.cpp
+  runtime/PyZip.cpp
+  runtime/RuntimeError.cpp
+  runtime/StopIteration.cpp
+  runtime/SyntaxError.cpp
+  runtime/TypeError.cpp
+  runtime/UnboundLocalError.cpp
+  runtime/Value.cpp
+  runtime/ValueError.cpp)
 
 set(VM_SOURCE_FILES # cmake-format: sortable
-                    vm/VM.cpp)
+  vm/VM.cpp)
 
 # Runtime export layer — auto-collected
 file(GLOB RUNTIME_EXPORT_FILES CONFIGURE_DEPENDS runtime/export/*.cpp)
 
 set(UNITTEST_SOURCES
-    # cmake-format: sortable
-    ast/optimizers/Optimizers_tests.cpp
-    executable/bytecode/Bytecode_tests.cpp
-    executable/bytecode/BytecodeProgram_tests.cpp
-    executable/bytecode/codegen/BytecodeGenerator_tests.cpp
-    executable/bytecode/codegen/VariablesResolver_tests.cpp
-    lexer/Lexer_tests.cpp
-    memory/Arena_tests.cpp
-    memory/GarbageCollector_tests.cpp
-    memory/Heap_tests.cpp
-    parser/Parser_tests.cpp
-    runtime/PyDict_tests.cpp
-    runtime/PyNumber_tests.cpp
-    runtime/PyString_tests.cpp
-    runtime/PyType_tests.cpp
-    runtime/compat_tests.cpp
-    runtime/PyInteger_refactor_tests.cpp
-    runtime/tests/ArenaObject_tests.cpp
-    runtime/tests/CompileIsolation_tests.cpp
-    runtime/tests/Import_tests.cpp
-    runtime/tests/InterpreterCore_tests.cpp
-    runtime/tests/KeyVersionTracker_tests.cpp
-    runtime/tests/ModuleInit_tests.cpp
-    runtime/tests/ModuleMangler_tests.cpp
-    runtime/tests/ModuleRegistry_tests.cpp
-    runtime/tests/ProviderChain_tests.cpp
-    runtime/tests/PyModule_add_symbol_tests.cpp
-    runtime/tests/PyModule_version_tests.cpp
-    runtime/tests/RuntimeAPI_tests.cpp
-    runtime/tests/RuntimeContext_tests.cpp
-    runtime/tests/RuntimeContext_truthy_tests.cpp
-    runtime/tests/Truthy_fallback_tests.cpp
-    runtime/tests/Value_truthy_tests.cpp
-    testing/main.cpp)
+  # cmake-format: sortable
+  ast/optimizers/Optimizers_tests.cpp
+  executable/bytecode/Bytecode_tests.cpp
+  executable/bytecode/BytecodeProgram_tests.cpp
+  executable/bytecode/codegen/BytecodeGenerator_tests.cpp
+  executable/bytecode/codegen/VariablesResolver_tests.cpp
+  lexer/Lexer_tests.cpp
+  memory/Arena_tests.cpp
+  memory/GarbageCollector_tests.cpp
+  memory/Heap_tests.cpp
+  parser/Parser_tests.cpp
+  runtime/PyDict_tests.cpp
+  runtime/PyNumber_tests.cpp
+  runtime/PyString_tests.cpp
+  runtime/PyType_tests.cpp
+  runtime/compat_tests.cpp
+  runtime/PyInteger_refactor_tests.cpp
+  runtime/tests/ArenaObject_tests.cpp
+  runtime/tests/CompileIsolation_tests.cpp
+  runtime/tests/Import_tests.cpp
+  runtime/tests/InterpreterCore_tests.cpp
+  runtime/tests/KeyVersionTracker_tests.cpp
+  runtime/tests/ModuleInit_tests.cpp
+  runtime/tests/ModuleMangler_tests.cpp
+  runtime/tests/ModuleRegistry_tests.cpp
+  runtime/tests/ProviderChain_tests.cpp
+  runtime/tests/PyModule_add_symbol_tests.cpp
+  runtime/tests/PyModule_version_tests.cpp
+  runtime/tests/RuntimeAPI_tests.cpp
+  runtime/tests/RuntimeContext_tests.cpp
+  runtime/tests/RuntimeContext_truthy_tests.cpp
+  runtime/tests/Truthy_fallback_tests.cpp
+  runtime/tests/Value_truthy_tests.cpp
+  testing/main.cpp)
 
 set(PYTHON_LIB_PATH ${cpython_SOURCE_DIR}/Lib)
 set(PYTHON_INSTALL_PATH ${CMAKE_INSTALL_PREFIX})
@@ -298,13 +298,13 @@ add_executable(unittests_ ${UNITTEST_SOURCES})
 target_link_libraries(python-cpp
   PUBLIC spdlog m
   PRIVATE
-    project_options
-    project_warnings
-    ICU::uc
-    ICU::data
-    ${GMPXX_LIBRARIES}
-    ${GMP_LIBRARIES}
-    tsl::ordered_map
+  project_options
+  project_warnings
+  ICU::uc
+  ICU::data
+  ${GMPXX_LIBRARIES}
+  ${GMP_LIBRARIES}
+  tsl::ordered_map
 )
 
 target_include_directories(python-cpp
@@ -340,13 +340,13 @@ elseif(ENABLE_LLVM_BACKEND AND LLVM_FOUND)
   target_compile_options(
     python-cpp-llvm
     PRIVATE -Wall
-            -Wextra
-            -Werror
-            -Wno-unused-parameter
-            -fno-omit-frame-pointer)
+    -Wextra
+    -Werror
+    -Wno-unused-parameter
+    -fno-omit-frame-pointer)
 
   add_library(llvm-interface INTERFACE)
-  target_include_directories(llvm-interface INTERFACE . )
+  target_include_directories(llvm-interface INTERFACE .)
   target_include_directories(llvm-interface SYSTEM INTERFACE ${LLVM_INCLUDE_DIRS})
   target_link_libraries(llvm-interface INTERFACE spdlog)
   separate_arguments(_llvm_backend_defs NATIVE_COMMAND ${LLVM_DEFINITIONS})
@@ -355,7 +355,7 @@ elseif(ENABLE_LLVM_BACKEND AND LLVM_FOUND)
   if(STL_SUPPORTS_BIT_CAST)
     target_compile_definitions(llvm-interface INTERFACE "STL_SUPPORTS_BIT_CAST")
   endif()
-  
+
   llvm_map_components_to_libnames(
     _llvm_backend_libs
     core
@@ -400,13 +400,13 @@ if(LLVM_FOUND)
 
   # ✅ 新增 linker 组件（用于 llvm::Linker）
   llvm_map_components_to_libnames(_pylang_support_llvm_libs
-    core 
-    irreader 
-    bitreader 
-    bitwriter 
-    support 
-    transformutils    # CloneModule
-    linker            # llvm::Linker
+    core
+    irreader
+    bitreader
+    bitwriter
+    support
+    transformutils # CloneModule
+    linker # llvm::Linker
   )
   target_link_libraries(pylang-support INTERFACE ${_pylang_support_llvm_libs})
 endif()
@@ -417,7 +417,7 @@ target_link_libraries(pylang-support INTERFACE cpptrace::cpptrace spdlog)
 # Compiler Frontend — RuntimeLinker
 # =========================================================================
 if(LLVM_FOUND)
-  file(GLOB_RECURSE COMPILER_SOURCE_FILES 
+  file(GLOB_RECURSE COMPILER_SOURCE_FILES
     CONFIGURE_DEPENDS
     compiler/**/*.cpp
   )
@@ -428,16 +428,16 @@ if(LLVM_FOUND)
   if(COMPILER_SOURCE_FILES)
     add_library(pylang-compiler OBJECT ${COMPILER_SOURCE_FILES})
     target_link_libraries(pylang-compiler PUBLIC pylang-support)
-    
+
     # 因为 llvm 就是以 llvm/ 开头，正常普通 Include 就行。
     target_include_directories(pylang-compiler PRIVATE ${LLVM_INCLUDE_DIRS})
-    
+
   endif()
   # =========================================================================
   # Codegen
   # =========================================================================
 
-  file(GLOB_RECURSE CODEGEN_SOURCE_FILES 
+  file(GLOB_RECURSE CODEGEN_SOURCE_FILES
     CONFIGURE_DEPENDS
     compiler/Codegen/*.cpp
   )
@@ -460,20 +460,31 @@ if(LLVM_FOUND)
     compiler/**/*_tests.cpp
   )
 
-if(COMPILER_TEST_FILES)
+  if(COMPILER_TEST_FILES)
     add_executable(compiler_tests ${COMPILER_TEST_FILES})
-    
+
     target_include_directories(compiler_tests PRIVATE ${LLVM_INCLUDE_DIRS})
-    
-    target_link_libraries(compiler_tests PRIVATE 
-      pylang-support 
+
+    target_link_libraries(compiler_tests PRIVATE
+      pylang-support
       gtest
       gtest_main
     )
-    
-    target_compile_options(compiler_tests PRIVATE 
+
+    target_compile_options(compiler_tests PRIVATE
       -Wno-deprecated-declarations
     )
+
+
+    # 正确的目标名 + 正确的 bc 路径
+    target_compile_definitions(compiler_tests PRIVATE
+      PYLANG_RUNTIME_BC_DEFAULT="${CMAKE_BINARY_DIR}/runtime.bc"
+    )
+
+    # 确保 runtime.bc 先于测试构建
+    if(TARGET runtime_bc)
+      add_dependencies(compiler_tests runtime_bc)
+    endif()
     
     if(TARGET pylang-compiler)
       target_link_libraries(compiler_tests PRIVATE pylang-compiler)

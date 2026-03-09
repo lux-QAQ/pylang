@@ -329,12 +329,31 @@ llvm::Value *IREmitter::call_load_method(llvm::Value *obj, std::string_view meth
 // =============================================================================
 // Tier 0: 模块导入
 // =============================================================================
-llvm::Value *IREmitter::call_import(std::string_view module_name)
+// llvm::Value *IREmitter::call_import(std::string_view module_name)
+// {
+//     auto *name_str = create_global_string(module_name);
+//     auto *empty_str = create_global_string("");
+//     auto *level = m_builder.getInt32(0);
+//     return emit_runtime_call("import", {name_str, empty_str, level});
+// }
+
+llvm::Value *IREmitter::call_import(std::string_view name,
+    llvm::Value *globals,
+    llvm::Value *fromlist,
+    int level)
 {
-    auto *name_str = create_global_string(module_name);
-    auto *empty_str = create_global_string("");
-    auto *level = m_builder.getInt32(0);
-    return emit_runtime_call("import", {name_str, empty_str, level});
+    auto *name_str = create_global_string(name);
+
+    // globals 默认传 null（AOT 场景下由运行时从当前模块取）
+    if (!globals) { globals = null_pyobject(); }
+    // fromlist 默认 null（等价于 import foo，不是 from foo import bar）
+    if (!fromlist) { fromlist = null_pyobject(); }
+    // locals 在 CPython 语义里和 globals 相同，传 null 即可
+    llvm::Value *locals = null_pyobject();
+
+    auto *level_val = m_builder.getInt32(level);
+
+    return emit_runtime_call("import", { name_str, globals, fromlist, locals, level_val });
 }
 
 // =============================================================================
@@ -448,6 +467,80 @@ void IREmitter::call_dict_update(llvm::Value *dict, llvm::Value *other)
 void IREmitter::call_set_update(llvm::Value *set, llvm::Value *iterable)
 {
     emit_runtime_call("set_update", {set, iterable});
+}
+
+// =============================================================================
+// Tier 1: 字节/复数字面量
+// =============================================================================
+
+llvm::Value *IREmitter::create_bytes(std::string_view data)
+{
+    // 注意：bytes 数据可能含 \0，不能用 create_global_string
+    // 需要直接创建 ConstantDataArray
+    auto *arr_type = llvm::ArrayType::get(m_builder.getInt8Ty(), data.size() + 1);
+    std::vector<uint8_t> bytes(data.begin(), data.end());
+    bytes.push_back(0);// null terminator
+    auto *data_const = llvm::ConstantDataArray::get(m_builder.getContext(), bytes);
+    auto *global = new llvm::GlobalVariable(
+        *m_module, arr_type, true, llvm::GlobalValue::PrivateLinkage, data_const, ".bytes");
+    global->setUnnamedAddr(llvm::GlobalValue::UnnamedAddr::Global);
+
+    auto *data_ptr = m_builder.CreateConstGEP2_32(arr_type, global, 0, 0);
+    auto *len = m_builder.getInt64(static_cast<uint64_t>(data.size()));
+    return emit_runtime_call("bytes_from_buffer", { data_ptr, len });
+}
+
+llvm::Value *IREmitter::create_complex(double real, double imag)
+{
+    auto *real_val = llvm::ConstantFP::get(m_builder.getDoubleTy(), real);
+    auto *imag_val = llvm::ConstantFP::get(m_builder.getDoubleTy(), imag);
+    return emit_runtime_call("complex_from_doubles", { real_val, imag_val });
+}
+
+// =============================================================================
+// Tier 2: 解包操作
+// =============================================================================
+
+void IREmitter::call_unpack_sequence(
+    llvm::Value *iterable, int32_t count, llvm::Value *out_array)
+{
+    auto *count_val = m_builder.getInt32(count);
+    emit_runtime_call("unpack_sequence", { iterable, count_val, out_array });
+}
+
+// =============================================================================
+// Tier 4: 闭包操作 (Phase 3.2)
+// =============================================================================
+
+llvm::Value *IREmitter::call_create_cell(llvm::Value *value)
+{
+    if (!value) { value = null_pyobject(); }
+    return emit_runtime_call("create_cell", { value });
+}
+
+llvm::Value *IREmitter::call_cell_get(llvm::Value *cell)
+{
+    return emit_runtime_call("cell_get", { cell });
+}
+
+void IREmitter::call_cell_set(llvm::Value *cell, llvm::Value *value)
+{
+    emit_runtime_call("cell_set", { cell, value });
+}
+
+// =============================================================================
+// Tier 6: 异常匹配 (Phase 3.3)
+// =============================================================================
+
+llvm::Value *IREmitter::call_check_exception_match(llvm::Value *exc, llvm::Value *exc_type)
+{
+    return emit_runtime_call("check_exception_match", { exc, exc_type });
+}
+
+void IREmitter::call_reraise(llvm::Value *exc)
+{
+    if (!exc) { exc = null_pyobject(); }
+    emit_runtime_call("reraise", { exc });
 }
 
 } // namespace pylang

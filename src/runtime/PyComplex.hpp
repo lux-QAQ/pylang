@@ -20,14 +20,18 @@ class PyComplex : public PyBaseObject
 
   protected:
 	PyComplex(PyType *);
+	PyComplex(TypePrototype &type, std::complex<BigIntType> complex);
+	PyComplex(PyType *type, std::complex<BigIntType> complex);
 
-	PyComplex(TypePrototype &, std::complex<BigIntType>);
-
-	PyComplex(PyType *, std::complex<BigIntType>);
+	// 直接从两个 double 构造（用于字面量快速路径）
+	PyComplex(PyType *type, double real, double imag);
 
   public:
 	static std::function<std::unique_ptr<TypePrototype>()> type_factory();
 	PyType *static_type() const override;
+
+	/// AOT 快速路径：直接从两个 double 创建
+	static PyResult<PyComplex *> create(double real, double imag);
 };
 
 }// namespace py

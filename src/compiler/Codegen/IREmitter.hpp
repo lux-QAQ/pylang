@@ -52,11 +52,15 @@ class IREmitter
 	llvm::Value *create_integer(int64_t value);
 	llvm::Value *create_float(double value);
 	llvm::Value *create_list(llvm::ArrayRef<llvm::Value *> elements);
-    llvm::Value *create_dict(llvm::ArrayRef<llvm::Value *> keys,
-                         llvm::ArrayRef<llvm::Value *> values);
-    llvm::Value *create_set(llvm::ArrayRef<llvm::Value *> elements);
-    llvm::Value *create_slice(llvm::Value *start, llvm::Value *stop, llvm::Value *step);
-    
+	llvm::Value *create_dict(llvm::ArrayRef<llvm::Value *> keys,
+		llvm::ArrayRef<llvm::Value *> values);
+	llvm::Value *create_set(llvm::ArrayRef<llvm::Value *> elements);
+	llvm::Value *create_slice(llvm::Value *start, llvm::Value *stop, llvm::Value *step);
+
+	// ========== Tier 1: 字节/复数字面量 ==========
+	llvm::Value *create_bytes(std::string_view data);
+	llvm::Value *create_complex(double real, double imag);
+
 	// ========== Tier 1: 二元运算 ==========
 	llvm::Value *call_binary_add(llvm::Value *lhs, llvm::Value *rhs);
 	llvm::Value *call_binary_sub(llvm::Value *lhs, llvm::Value *rhs);
@@ -95,6 +99,9 @@ class IREmitter
 	// ========== Tier 2: 迭代器 ==========
 	llvm::Value *call_get_iter(llvm::Value *obj);
 
+	// ========== Tier 2: 解包 ==========
+	void call_unpack_sequence(llvm::Value *iterable, int32_t count, llvm::Value *out_array);
+
 	/// iter_next 返回下一个元素，has_value 是输出参数（i1*）
 	/// 如果迭代结束，has_value 设为 false，返回值为 nullptr
 	llvm::Value *call_iter_next(llvm::Value *iter, llvm::Value *has_value_out);
@@ -107,10 +114,10 @@ class IREmitter
 	// ========== Tier 3: 容器方法 ==========
 	void call_list_append(llvm::Value *list, llvm::Value *value);
 	void call_set_add(llvm::Value *set, llvm::Value *value);
-    void call_list_extend(llvm::Value *list, llvm::Value *iterable);
-    void call_dict_merge(llvm::Value *dict, llvm::Value *other);
-    void call_dict_update(llvm::Value *dict, llvm::Value *other);
-    void call_set_update(llvm::Value *set, llvm::Value *iterable);
+	void call_list_extend(llvm::Value *list, llvm::Value *iterable);
+	void call_dict_merge(llvm::Value *dict, llvm::Value *other);
+	void call_dict_update(llvm::Value *dict, llvm::Value *other);
+	void call_set_update(llvm::Value *set, llvm::Value *iterable);
 	// ========== Tier 0: 属性访问 ==========
 	llvm::Value *call_getattr(llvm::Value *obj, std::string_view name);
 	llvm::Value *call_load_global(llvm::Value *module, std::string_view name);
@@ -125,12 +132,24 @@ class IREmitter
 	// ========== Tier 4: 方法调用 ==========
 	llvm::Value *call_load_method(llvm::Value *obj, std::string_view method_name);
 
-	// ========== Tier 0: 模块导入 ==========
-	llvm::Value *call_import(std::string_view module_name);
+    // ========== 模块导入 ==========
+    llvm::Value *call_import(std::string_view name,
+        llvm::Value *globals = nullptr,
+        llvm::Value *fromlist = nullptr,
+        int level = 0);
 
 	// ========== Tier 0: 异常处理 ==========
 	void call_raise(llvm::Value *exception);
 	llvm::Value *call_load_assertion_error();
+
+	// ========== Tier 4: 闭包操作 (Phase 3.2) ==========
+	llvm::Value *call_create_cell(llvm::Value *value);
+	llvm::Value *call_cell_get(llvm::Value *cell);
+	void call_cell_set(llvm::Value *cell, llvm::Value *value);
+
+	// ========== Tier 6: 异常匹配 (Phase 3.3) ==========
+	llvm::Value *call_check_exception_match(llvm::Value *exc, llvm::Value *exc_type);
+	void call_reraise(llvm::Value *exc);
 
 	// ========== 辅助方法 ==========
 	llvm::Type *pyobject_ptr_type() const { return m_linker.pyobject_ptr_type(); }

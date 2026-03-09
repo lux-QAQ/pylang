@@ -183,3 +183,32 @@
 //   无参数用空串:      ""
 //
 // =============================================================================
+
+
+
+//=============================================================================
+// PYLANG_INIT — 用户模块初始化函数标记
+//
+// 用途:
+//   标记 AOT 编译器为用户 .py 文件生成的 PyInit_xxx 函数。
+//   运行时通过 dlsym(RTLD_DEFAULT, "PyInit_xxx") 查找符号。
+//
+// 注意:
+//   - C++ 内置模块 (builtins, sys, posix 等) 不需要此宏
+//   - 它们通过 config.hpp 的 builtin_modules 数组静态注册
+//
+// 示例:
+//   // 编译器为 foo.py 生成的代码
+//   PYLANG_INIT("foo")
+//   PyModule* PyInit_foo() {
+//       auto [mod, is_owner] = ModuleRegistry::instance().get_or_register("foo");
+//       if (!is_owner) return mod;
+//       InitGuard guard("foo");
+//       // ... 执行模块体 ...
+//       guard.commit();
+//       return mod;
+//   }
+// =============================================================================
+
+#define PYLANG_INIT(name) \
+    __attribute__((annotate("pylang_init_func:" name)))

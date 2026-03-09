@@ -10,6 +10,7 @@
 #include "modules/Modules.hpp"
 #include "parser/Parser.hpp"
 #include "runtime/AttributeError.hpp"
+#include "runtime/NameError.hpp"
 #include "runtime/RuntimeContext.hpp"
 #include "types/api.hpp"
 #include "types/builtin.hpp"
@@ -191,6 +192,20 @@ PyResult<PyModule *> PyModule::create(PyDict *symbol_table, PyString *module_nam
 	auto *result = PYLANG_ALLOC(PyModule, symbol_table, module_name, doc);
 	if (!result) { return Err(memory_error(sizeof(PyModule))); }
 	return Ok(result);
+}
+
+PyResult<PyObject *> PyModule::find_symbol_cstr(const char *name) const
+{
+    if (!m_attributes) {
+        return Err(name_error("name '{}' is not defined", name));
+    }
+    // 直接用 String key 查找，避免 PyString 堆分配
+    String key{ std::string(name) };
+    auto it = m_attributes->map().find(key);
+    if (it != m_attributes->map().end()) {
+        return PyObject::from(it->second);
+    }
+    return Err(name_error("name '{}' is not defined", name));
 }
 
 PyType *PyModule::static_type() const { return types::module(); }

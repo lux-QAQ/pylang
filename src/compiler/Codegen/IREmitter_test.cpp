@@ -20,7 +20,11 @@ protected:
         loader = std::make_unique<LLVMModuleLoader>(ctx);
         
         const char *env_path = std::getenv("PYLANG_RUNTIME_BC");
+#ifdef PYLANG_RUNTIME_BC_DEFAULT
+        std::string runtime_bc = env_path ? env_path : PYLANG_RUNTIME_BC_DEFAULT;
+#else
         std::string runtime_bc = env_path ? env_path : "build/debug/runtime.bc";
+#endif
         
         if (!std::filesystem::exists(runtime_bc)) {
             GTEST_SKIP() << "runtime.bc not found at " << runtime_bc;
@@ -872,11 +876,12 @@ TEST_F(IREmitterTest, Delattr)
 // =============================================================================
 TEST_F(IREmitterTest, Import)
 {
+    // 签名: call_import(name, globals=null, fromlist=null, level=0)
     auto *module = emitter->call_import("sys");
-    
+
     ASSERT_NE(module, nullptr);
     finish_test_function(module);
-    
+
     auto ir = get_ir();
     EXPECT_TRUE(ir_contains("rt_import"));
     EXPECT_TRUE(ir_contains("sys"));
@@ -1170,4 +1175,402 @@ TEST_F(IREmitterTest, SetUpdate)
     finish_test_function(set);
     
     EXPECT_TRUE(ir_contains("rt_set_update"));
+}
+
+// =============================================================================
+// Tier 1: 字节/复数字面量
+// =============================================================================
+
+TEST_F(IREmitterTest, CreateBytes)
+{
+    auto *val = emitter->create_bytes("hello");
+    ASSERT_NE(val, nullptr);
+
+    finish_test_function(val);
+
+    auto ir = get_ir();
+    EXPECT_TRUE(ir_contains("rt_bytes_from_buffer"));
+    EXPECT_TRUE(ir_contains("i64 5"));// 长度
+}
+
+TEST_F(IREmitterTest, CreateBytesEmpty)
+{
+    auto *val = emitter->create_bytes("");
+    ASSERT_NE(val, nullptr);
+
+    finish_test_function(val);
+
+    auto ir = get_ir();
+    EXPECT_TRUE(ir_contains("rt_bytes_from_buffer"));
+    EXPECT_TRUE(ir_contains("i64 0"));
+}
+
+TEST_F(IREmitterTest, CreateBytesWithNullByte)
+{
+    // bytes 数据可以包含 \0
+    std::string_view data("\x00\x01\x02", 3);
+    auto *val = emitter->create_bytes(data);
+    ASSERT_NE(val, nullptr);
+
+    finish_test_function(val);
+
+    EXPECT_TRUE(ir_contains("rt_bytes_from_buffer"));
+    EXPECT_TRUE(ir_contains("i64 3"));
+}
+
+TEST_F(IREmitterTest, CreateComplex)
+{
+    auto *val = emitter->create_complex(1.0, 2.0);
+    ASSERT_NE(val, nullptr);
+
+    finish_test_function(val);
+
+    auto ir = get_ir();
+    EXPECT_TRUE(ir_contains("rt_complex_from_doubles"));
+    EXPECT_TRUE(ir_contains("double"));
+}
+
+TEST_F(IREmitterTest, CreateComplexZero)
+{
+    auto *val = emitter->create_complex(0.0, 0.0);
+    ASSERT_NE(val, nullptr);
+
+    finish_test_function(val);
+
+    EXPECT_TRUE(ir_contains("rt_complex_from_doubles"));
+}
+
+TEST_F(IREmitterTest, CreateComplexNegative)
+{
+    // -1-2j
+    auto *val = emitter->create_complex(-1.0, -2.0);
+    ASSERT_NE(val, nullptr);
+
+    finish_test_function(val);
+
+    EXPECT_TRUE(ir_contains("rt_complex_from_doubles"));
+}
+
+// =============================================================================
+// Tier 2: 解包操作
+// =============================================================================
+
+TEST_F(IREmitterTest, UnpackSequence)
+{
+    auto *list = emitter->create_list({
+        emitter->create_integer(1),
+        emitter->create_integer(2),
+        emitter->create_integer(3),
+    });
+
+    // 创建输出数组: PyObject*[3]
+    auto *arr_type =
+        llvm::ArrayType::get(emitter->pyobject_ptr_type(), 3);
+    auto *out_arr = builder->CreateAlloca(arr_type, nullptr, "unpack_out");
+
+    emitter->call_unpack_sequence(list, 3, out_arr);
+
+    // 验证第一个元素可以被读取
+    auto *elem0 = builder->CreateLoad(
+        emitter->pyobject_ptr_type(),
+        builder->CreateConstGEP2_32(arr_type, out_arr, 0, 0));
+
+    finish_test_function(elem0);
+
+    auto ir = get_ir();
+    EXPECT_TRUE(ir_contains("rt_unpack_sequence"));
+    EXPECT_TRUE(ir_contains("i32 3"));
+    EXPECT_TRUE(ir_contains("unpack_out"));
+}
+
+TEST_F(IREmitterTest, UnpackSequencePair)
+{
+    // 模拟 a, b = (1, 2)
+    auto *tup = emitter->create_tuple({
+        emitter->create_integer(10),
+        emitter->create_integer(20),
+    });
+
+    auto *arr_type =
+        llvm::ArrayType::get(emitter->pyobject_ptr_type(), 2);
+    auto *out_arr = builder->CreateAlloca(arr_type, nullptr, "pair_out");
+
+    emitter->call_unpack_sequence(tup, 2, out_arr);
+
+    auto *a = builder->CreateLoad(
+        emitter->pyobject_ptr_type(),
+        builder->CreateConstGEP2_32(arr_type, out_arr, 0, 0));
+
+    finish_test_function(a);
+
+    auto ir = get_ir();
+    EXPECT_TRUE(ir_contains("rt_unpack_sequence"));
+    EXPECT_TRUE(ir_contains("i32 2"));
+}
+
+// =============================================================================
+// Tier 4: 闭包操作 (Phase 3.2)
+// =============================================================================
+
+TEST_F(IREmitterTest, CreateCell)
+{
+    auto *value = emitter->create_integer(42);
+    auto *cell = emitter->call_create_cell(value);
+
+    ASSERT_NE(cell, nullptr);
+    finish_test_function(cell);
+
+    EXPECT_TRUE(ir_contains("rt_create_cell"));
+}
+
+TEST_F(IREmitterTest, CreateCellEmpty)
+{
+    // 创建空 cell（变量未赋值时）
+    auto *cell = emitter->call_create_cell(nullptr);
+
+    ASSERT_NE(cell, nullptr);
+    finish_test_function(cell);
+
+    auto ir = get_ir();
+    EXPECT_TRUE(ir_contains("rt_create_cell"));
+    // null 应该作为参数传入
+    EXPECT_TRUE(ir_contains("null"));
+}
+
+TEST_F(IREmitterTest, CellGet)
+{
+    // 先创建 cell，再读取
+    auto *value = emitter->create_integer(99);
+    auto *cell = emitter->call_create_cell(value);
+    auto *retrieved = emitter->call_cell_get(cell);
+
+    ASSERT_NE(retrieved, nullptr);
+    finish_test_function(retrieved);
+
+    auto ir = get_ir();
+    EXPECT_TRUE(ir_contains("rt_create_cell"));
+    EXPECT_TRUE(ir_contains("rt_cell_get"));
+}
+
+TEST_F(IREmitterTest, CellSet)
+{
+    auto *initial = emitter->create_integer(1);
+    auto *cell = emitter->call_create_cell(initial);
+
+    auto *new_value = emitter->create_integer(2);
+    emitter->call_cell_set(cell, new_value);
+
+    // cell_set 是 void，继续用 cell 对象作为返回
+    finish_test_function(cell);
+
+    auto ir = get_ir();
+    EXPECT_TRUE(ir_contains("rt_create_cell"));
+    EXPECT_TRUE(ir_contains("rt_cell_set"));
+}
+
+TEST_F(IREmitterTest, CellGetSetRoundtrip)
+{
+    // 完整的闭包变量生命周期: create → set → get
+    auto *cell = emitter->call_create_cell(nullptr);// 空 cell
+
+    auto *val = emitter->create_string("closure_var");
+    emitter->call_cell_set(cell, val);// 赋值
+
+    auto *result = emitter->call_cell_get(cell);// 读取
+
+    ASSERT_NE(result, nullptr);
+    finish_test_function(result);
+
+    auto ir = get_ir();
+    EXPECT_TRUE(ir_contains("rt_create_cell"));
+    EXPECT_TRUE(ir_contains("rt_cell_set"));
+    EXPECT_TRUE(ir_contains("rt_cell_get"));
+}
+
+// =============================================================================
+// Tier 6: 异常匹配 (Phase 3.3)
+// =============================================================================
+
+TEST_F(IREmitterTest, CheckExceptionMatch)
+{
+    // 简化测试：用 none 模拟 exc 和 exc_type
+    auto *exc = emitter->get_none();
+    auto *exc_type = emitter->call_load_assertion_error();
+
+    auto *matched = emitter->call_check_exception_match(exc, exc_type);
+
+    ASSERT_NE(matched, nullptr);
+
+    // check_exception_match 返回 bool (i1)，需要转换为 PyObject*
+    auto *true_val = emitter->get_true();
+    auto *false_val = emitter->get_false();
+    auto *result = builder->CreateSelect(matched, true_val, false_val);
+
+    finish_test_function(result);
+
+    auto ir = get_ir();
+    EXPECT_TRUE(ir_contains("rt_check_exception_match"));
+}
+
+TEST_F(IREmitterTest, CheckExceptionMatchReturnType)
+{
+    // 验证返回类型是 i1 (bool)
+    auto *exc = emitter->get_none();
+    auto *exc_type = emitter->get_none();
+    auto *result = emitter->call_check_exception_match(exc, exc_type);
+
+    ASSERT_NE(result, nullptr);
+
+    // 返回值必须是 i1
+    EXPECT_TRUE(result->getType()->isIntegerTy(1))
+        << "check_exception_match should return i1 (bool)";
+
+    auto *py_result = builder->CreateSelect(result, emitter->get_true(), emitter->get_false());
+    finish_test_function(py_result);
+}
+
+TEST_F(IREmitterTest, Reraise)
+{
+    // reraise 接受一个异常对象并重新抛出
+    auto *exc = emitter->call_load_assertion_error();
+    emitter->call_reraise(exc);
+
+    // reraise 是 void 且 [[noreturn]]，需要 unreachable
+    builder->CreateUnreachable();
+
+    std::string err;
+    llvm::raw_string_ostream os(err);
+    ASSERT_FALSE(llvm::verifyFunction(*test_func, &os))
+        << "Function verification failed: " << err;
+
+    EXPECT_TRUE(ir_contains("rt_reraise"));
+}
+
+TEST_F(IREmitterTest, ReraiseWithNull)
+{
+    // nullptr 表示没有当前异常（运行时会报错）
+    emitter->call_reraise(nullptr);
+
+    builder->CreateUnreachable();
+
+    std::string err;
+    llvm::raw_string_ostream os(err);
+    ASSERT_FALSE(llvm::verifyFunction(*test_func, &os))
+        << "Function verification failed: " << err;
+
+    auto ir = get_ir();
+    EXPECT_TRUE(ir_contains("rt_reraise"));
+    EXPECT_TRUE(ir_contains("null"));
+}
+
+// =============================================================================
+// 集成测试：新增导出的组合使用
+// =============================================================================
+
+TEST_F(IREmitterTest, ComplexLiteralExpression)
+{
+    // 模拟 z = (1+2j) + (3+4j) 的 IR 生成
+    auto *c1 = emitter->create_complex(1.0, 2.0);
+    auto *c2 = emitter->create_complex(3.0, 4.0);
+
+    ASSERT_NE(c1, nullptr);
+    ASSERT_NE(c2, nullptr);
+
+    auto *result = emitter->call_binary_add(c1, c2);
+    ASSERT_NE(result, nullptr);
+
+    finish_test_function(result);
+
+    auto ir = get_ir();
+    EXPECT_TRUE(ir_contains("rt_complex_from_doubles"));
+    EXPECT_TRUE(ir_contains("rt_binary_add"));
+}
+
+TEST_F(IREmitterTest, UnpackAndUseElements)
+{
+    // 模拟 a, b = [10, 20]; result = a + b
+    auto *lst = emitter->create_list({
+        emitter->create_integer(10),
+        emitter->create_integer(20),
+    });
+
+    auto *arr_type =
+        llvm::ArrayType::get(emitter->pyobject_ptr_type(), 2);
+    auto *out_arr = builder->CreateAlloca(arr_type, nullptr, "unpack_ab");
+    emitter->call_unpack_sequence(lst, 2, out_arr);
+
+    auto *a = builder->CreateLoad(
+        emitter->pyobject_ptr_type(),
+        builder->CreateConstGEP2_32(arr_type, out_arr, 0, 0));
+    auto *b = builder->CreateLoad(
+        emitter->pyobject_ptr_type(),
+        builder->CreateConstGEP2_32(arr_type, out_arr, 0, 1));
+
+    auto *result = emitter->call_binary_add(a, b);
+    ASSERT_NE(result, nullptr);
+
+    finish_test_function(result);
+
+    auto ir = get_ir();
+    EXPECT_TRUE(ir_contains("rt_unpack_sequence"));
+    EXPECT_TRUE(ir_contains("rt_binary_add"));
+}
+
+TEST_F(IREmitterTest, ClosurePattern)
+{
+    // 模拟闭包模式:
+    // x = 42
+    // def inner():
+    //     return x   ← 通过 cell 访问
+    auto *x_val = emitter->create_integer(42);
+    auto *cell = emitter->call_create_cell(x_val);
+
+    // inner 函数体中读取 x
+    auto *captured_x = emitter->call_cell_get(cell);
+    ASSERT_NE(captured_x, nullptr);
+
+    // 模拟修改闭包变量: x = 100
+    auto *new_x = emitter->create_integer(100);
+    emitter->call_cell_set(cell, new_x);
+
+    // 再次读取，应得到新值
+    auto *updated_x = emitter->call_cell_get(cell);
+    ASSERT_NE(updated_x, nullptr);
+
+    finish_test_function(updated_x);
+
+    auto ir = get_ir();
+    EXPECT_TRUE(ir_contains("rt_create_cell"));
+    EXPECT_TRUE(ir_contains("rt_cell_get"));
+    EXPECT_TRUE(ir_contains("rt_cell_set"));
+}
+
+TEST_F(IREmitterTest, ExceptionHandlingPattern)
+{
+    // 模拟 try/except 的异常匹配流程:
+    // try:
+    //     raise AssertionError()
+    // except AssertionError:
+    //     pass
+
+    // 加载 AssertionError 类型
+    auto *exc_type = emitter->call_load_assertion_error();
+
+    // 假设已捕获的异常 (简化为 none)
+    auto *caught_exc = emitter->get_none();
+
+    // 检查是否匹配
+    auto *matched = emitter->call_check_exception_match(caught_exc, exc_type);
+    ASSERT_NE(matched, nullptr);
+
+    // 根据匹配结果选择处理分支
+    auto *true_val = emitter->get_true();
+    auto *false_val = emitter->get_false();
+    auto *result = builder->CreateSelect(matched, true_val, false_val);
+
+    finish_test_function(result);
+
+    auto ir = get_ir();
+    EXPECT_TRUE(ir_contains("rt_load_assertion_error"));
+    EXPECT_TRUE(ir_contains("rt_check_exception_match"));
 }

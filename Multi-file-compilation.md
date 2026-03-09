@@ -25,6 +25,91 @@
 | LLVM 内联 | 受限 (需穿透 shared_ptr 层) | 激进内联 |
 | 循环引用 | 致命缺陷 | 不存在 |
 
+
+
+
+
+### 1.1.5 统一初始化流程
+
+为了避免解释器路径和 AOT 路径的重复代码，我们将类型初始化和模块注册统一到以下两个函数：
+
+#### `py::initialize_runtime()` — 类型系统初始化
+
+定义在 `src/runtime/types/builtin.cpp`，负责：
+- 调用所有 `types::xxx()` 触发类型注册
+- 创建全局单例（`py_none()`, `py_true()`, `py_false()` 等）
+- 线程安全（内部有 `static bool` 守卫，多次调用无副作用）
+
+```cpp
+// src/runtime/types/builtin.hpp
+namespace py {
+    void initialize_runtime();
+}
+```
+
+#### `py::register_all_builtins()` — 模块注册
+
+定义在 `src/runtime/modules/config.hpp`，负责：
+- 遍历 `builtin_modules` 数组
+- 调用每个模块的初始化函数（如 `builtins_module()`, `sys_module()` 等）
+- 将模块注册到 `ModuleRegistry`
+
+```cpp
+// src/runtime/modules/config.hpp
+namespace py {
+    void register_all_builtins();
+}
+```
+
+#### 调用顺序
+
+**解释器路径** (`Interpreter::internal_setup`):
+```cpp
+py::initialize_runtime();        // 1. 类型系统
+py::register_all_builtins();     // 2. 模块注册
+// 3. 从 ModuleRegistry 获取 builtins/sys
+m_builtins = ModuleRegistry::instance().find("builtins");
+m_modules->insert("builtins", m_builtins);  // 4. 同步到 m_modules dict
+```
+
+**AOT 路径** (`rt_init`):
+```cpp
+py::initialize_runtime();        // 1. 类型系统
+py::register_all_builtins();     // 2. 模块注册
+// 3. 编译器生成的代码通过 rt_load_global 访问 builtins
+```
+
+**测试路径** (`main.cpp`):
+```cpp
+py::initialize_runtime();        // 只需类型系统，模块按需加载
+```
+
+#### 关键修正
+
+1. **删除重复代码**：
+   - ❌ `Interpreter.cpp` 中的 `void initialize_types()` 函数
+   - ❌ `rt_lifecycle.cpp` 中内联的 80+ 行 `types::xxx()` 调用
+   - ✅ 统一使用 `py::initialize_runtime()`
+
+2. **统一模块注册**：
+   - ❌ `Interpreter.cpp` 中手动遍历 `builtin_modules` 并调用
+   - ✅ 统一使用 `py::register_all_builtins()`
+   - ✅ 解释器路径额外同步到 `m_modules` dict（兼容旧代码）
+
+3. **ModuleRegistry 的作用**：
+   - 解决并发 import 的竞态条件
+   - 解决循环依赖（同线程递归 import 返回部分初始化模块）
+   - 作为 AOT 和解释器的统一模块存储
+
+#### 为什么解释器路径还需要 `m_modules` dict？
+
+`ModuleRegistry` 是全局单例，而 `Interpreter::m_modules` 是每个解释器实例的私有字典。在多解释器场景下（如嵌入式 Python），每个解释器可能有不同的模块集合。因此：
+
+- **AOT 路径**：只使用 `ModuleRegistry`（单一全局命名空间）
+- **解释器路径**：使用 `ModuleRegistry` + `m_modules`（支持多解释器隔离）
+
+未来如果需要支持多解释器，可以将 `ModuleRegistry` 改为 per-interpreter 实例。
+
 ### 1.2 改造示例 (SysModule)
 
 ```cpp

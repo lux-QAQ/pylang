@@ -110,4 +110,8 @@ class PyTupleIterator : public PyBaseObject
 	PyType *static_type() const override;
 };
 
+/// 将可迭代对象解包到固定大小的输出数组
+/// 对应 Python 的 UNPACK_SEQUENCE 字节码语义
+PyResult<std::monostate> unpack_sequence(PyObject *iterable, int32_t count, PyObject **out);
+
 }// namespace py

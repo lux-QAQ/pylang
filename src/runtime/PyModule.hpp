@@ -83,6 +83,10 @@ class PyModule : public PyBaseObject
 
 	void set_context(PyObject *obj) { m_module_context = obj; }
 	PyObject *get_context() const { return m_module_context; }
+
+	/// 直接用 C 字符串查找符号 — 避免 PyString 分配开销
+	/// 用于 AOT 编译器的快速路径
+	PyResult<PyObject *> find_symbol_cstr(const char *name) const;
 };
 
 }// namespace py

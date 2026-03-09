@@ -1,8 +1,12 @@
 #include "rt_common.hpp"
 
 #include "runtime/AssertionError.hpp"
+#include "runtime/BaseException.hpp"
 #include "runtime/PyString.hpp"
+#include "runtime/PyTuple.hpp"
 #include "runtime/PyType.hpp"
+#include "runtime/RuntimeError.hpp"
+#include "runtime/TypeError.hpp"
 #include "runtime/types/builtin.hpp"
 
 #include <cstdio>
@@ -50,3 +54,26 @@ void rt_raise_obj(py::PyObject *exc) { rt_raise(static_cast<py::BaseException *>
 
 PYLANG_EXPORT_ERROR("load_assertion_error", "obj", "")
 py::PyObject *rt_load_assertion_error() { return py::types::assertion_error(); }
+
+// =============================================================================
+// Tier 6: 异常匹配（Phase 3.3）
+// =============================================================================
+
+PYLANG_EXPORT_ERROR("check_exception_match", "bool", "obj,obj")
+bool rt_check_exception_match(py::PyObject *exc, py::PyObject *exc_type)
+{
+	// 纯委托给 runtime 的 check_exception_match
+	return py::check_exception_match(exc, exc_type);
+}
+
+PYLANG_EXPORT_ERROR("reraise", "void", "obj")
+void rt_reraise(py::PyObject *exc)
+{
+	// raise（无参数）重新抛出当前异常
+	// 委托给 rt_raise
+	if (!exc) {
+		// 没有当前异常时的错误
+		rt_raise(py::runtime_error("No active exception to re-raise"));
+	}
+	rt_raise(static_cast<py::BaseException *>(exc));
+}
