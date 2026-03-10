@@ -1574,3 +1574,231 @@ TEST_F(IREmitterTest, ExceptionHandlingPattern)
     EXPECT_TRUE(ir_contains("rt_load_assertion_error"));
     EXPECT_TRUE(ir_contains("rt_check_exception_match"));
 }
+
+
+// =============================================================================
+// Tier 4: make_function (Phase 3.2)
+// =============================================================================
+
+TEST_F(IREmitterTest, MakeFunction)
+{
+    // 模拟: def foo(x): return x
+    // 编译器生成 @compiled_foo，然后用 make_function 包装
+
+    // 创建一个假的函数指针（用 null 模拟，IR 验证只检查类型）
+    auto *code_ptr = llvm::ConstantPointerNull::get(
+        llvm::PointerType::getUnqual(builder->getContext()));
+
+    auto *module = emitter->get_none();// 简化：用 none 作为 module
+
+    auto *func = emitter->call_make_function("foo", code_ptr, module);
+
+    ASSERT_NE(func, nullptr);
+    finish_test_function(func);
+
+    auto ir = get_ir();
+    EXPECT_TRUE(ir_contains("rt_make_function"));
+    EXPECT_TRUE(ir_contains("foo"));
+}
+
+TEST_F(IREmitterTest, MakeFunctionWithDefaults)
+{
+    // 模拟: def foo(x, y=10): return x + y
+    auto *code_ptr = llvm::ConstantPointerNull::get(
+        llvm::PointerType::getUnqual(builder->getContext()));
+    auto *module = emitter->get_none();
+
+    // 默认值 tuple: (10,)
+    auto *default_val = emitter->create_integer(10);
+    auto *defaults = emitter->create_tuple({ default_val });
+
+    auto *func = emitter->call_make_function("foo", code_ptr, module, defaults);
+
+    ASSERT_NE(func, nullptr);
+    finish_test_function(func);
+
+    auto ir = get_ir();
+    EXPECT_TRUE(ir_contains("rt_make_function"));
+    // defaults 不应该是 null
+    EXPECT_TRUE(ir_contains("rt_build_tuple"));
+}
+
+TEST_F(IREmitterTest, MakeFunctionWithClosure)
+{
+    // 模拟闭包:
+    // def outer():
+    //     x = 10
+    //     def inner(): return x
+    //     return inner
+
+    auto *code_ptr = llvm::ConstantPointerNull::get(
+        llvm::PointerType::getUnqual(builder->getContext()));
+    auto *module = emitter->get_none();
+
+    // 创建 cell 并构建闭包 tuple
+    auto *x_val = emitter->create_integer(10);
+    auto *cell_x = emitter->call_create_cell(x_val);
+    auto *closure = emitter->create_tuple({ cell_x });
+
+    auto *func = emitter->call_make_function(
+        "inner", code_ptr, module,
+        nullptr,  // no defaults
+        nullptr,  // no kwdefaults
+        closure);
+
+    ASSERT_NE(func, nullptr);
+    finish_test_function(func);
+
+    auto ir = get_ir();
+    EXPECT_TRUE(ir_contains("rt_make_function"));
+    EXPECT_TRUE(ir_contains("rt_create_cell"));
+}
+
+TEST_F(IREmitterTest, GetClosure)
+{
+    // 从函数对象中提取闭包
+    auto *code_ptr = llvm::ConstantPointerNull::get(
+        llvm::PointerType::getUnqual(builder->getContext()));
+    auto *module = emitter->get_none();
+
+    auto *x_val = emitter->create_integer(42);
+    auto *cell = emitter->call_create_cell(x_val);
+    auto *closure = emitter->create_tuple({ cell });
+
+    auto *func = emitter->call_make_function(
+        "inner", code_ptr, module, nullptr, nullptr, closure);
+
+    auto *retrieved_closure = emitter->call_get_closure(func);
+    ASSERT_NE(retrieved_closure, nullptr);
+
+    finish_test_function(retrieved_closure);
+
+    auto ir = get_ir();
+    EXPECT_TRUE(ir_contains("rt_make_function"));
+    EXPECT_TRUE(ir_contains("rt_get_closure"));
+}
+
+// =============================================================================
+// Tier 5: load_build_class (Phase 3.3)
+// =============================================================================
+
+TEST_F(IREmitterTest, LoadBuildClass)
+{
+    auto *bc = emitter->call_load_build_class();
+    ASSERT_NE(bc, nullptr);
+
+    finish_test_function(bc);
+
+    EXPECT_TRUE(ir_contains("rt_load_build_class"));
+}
+
+TEST_F(IREmitterTest, ClassDefinitionPattern)
+{
+    // 模拟完整的类定义:
+    // class Foo:
+    //     x = 1
+
+    // 1. 加载 __build_class__
+    auto *build_class = emitter->call_load_build_class();
+
+    // 2. 类体函数（编译器生成）
+    auto *body_ptr = llvm::ConstantPointerNull::get(
+        llvm::PointerType::getUnqual(builder->getContext()));
+    auto *module = emitter->get_none();
+    auto *body_fn = emitter->call_make_function("Foo", body_ptr, module);
+
+    // 3. 类名
+    auto *class_name = emitter->create_string("Foo");
+
+    // 4. 构建参数: (body_fn, "Foo")
+    auto *args = emitter->create_tuple({ body_fn, class_name });
+
+    // 5. 调用 __build_class__(body_fn, "Foo")
+    auto *cls = emitter->call_function(build_class, args);
+    ASSERT_NE(cls, nullptr);
+
+    finish_test_function(cls);
+
+    auto ir = get_ir();
+    EXPECT_TRUE(ir_contains("rt_load_build_class"));
+    EXPECT_TRUE(ir_contains("rt_make_function"));
+    EXPECT_TRUE(ir_contains("rt_call"));
+}
+
+TEST_F(IREmitterTest, ClassWithBasePattern)
+{
+    // 模拟: class Bar(Foo): pass
+
+    auto *build_class = emitter->call_load_build_class();
+
+    auto *body_ptr = llvm::ConstantPointerNull::get(
+        llvm::PointerType::getUnqual(builder->getContext()));
+    auto *module = emitter->get_none();
+    auto *body_fn = emitter->call_make_function("Bar", body_ptr, module);
+
+    auto *class_name = emitter->create_string("Bar");
+
+    // 基类通过 load_global 获取
+    auto *base_foo = emitter->call_load_global(module, "Foo");
+
+    // 参数: (body_fn, "Bar", Foo)
+    auto *args = emitter->create_tuple({ body_fn, class_name, base_foo });
+
+    auto *cls = emitter->call_function(build_class, args);
+    ASSERT_NE(cls, nullptr);
+
+    finish_test_function(cls);
+
+    auto ir = get_ir();
+    EXPECT_TRUE(ir_contains("rt_load_build_class"));
+    EXPECT_TRUE(ir_contains("rt_load_global"));
+}
+
+TEST_F(IREmitterTest, NestedClosurePattern)
+{
+    // 模拟嵌套闭包:
+    // def outer():
+    //     x = 10
+    //     def middle():
+    //         y = 20
+    //         def inner():
+    //             return x + y
+    //         return inner
+    //     return middle
+
+    auto *null_ptr = llvm::ConstantPointerNull::get(
+        llvm::PointerType::getUnqual(builder->getContext()));
+    auto *module = emitter->get_none();
+
+    // outer 创建 cell_x
+    auto *x_val = emitter->create_integer(10);
+    auto *cell_x = emitter->call_create_cell(x_val);
+
+    // outer 创建 middle 的闭包 = (cell_x,)
+    auto *middle_closure = emitter->create_tuple({ cell_x });
+    auto *middle_fn = emitter->call_make_function(
+        "middle", null_ptr, module, nullptr, nullptr, middle_closure);
+
+    // middle 函数体中：
+    // 从自身闭包取出 cell_x
+    auto *middle_cells = emitter->call_get_closure(middle_fn);
+    // （实际编译器中，middle 的闭包是通过函数参数传入的，这里简化）
+
+    // middle 创建 cell_y
+    auto *y_val = emitter->create_integer(20);
+    auto *cell_y = emitter->call_create_cell(y_val);
+
+    // inner 的闭包 = (cell_x, cell_y)
+    // 注意：cell_x 从 middle 的闭包中提取
+    auto *inner_closure = emitter->create_tuple({ cell_x, cell_y });
+    auto *inner_fn = emitter->call_make_function(
+        "inner", null_ptr, module, nullptr, nullptr, inner_closure);
+
+    ASSERT_NE(inner_fn, nullptr);
+    finish_test_function(inner_fn);
+
+    auto ir = get_ir();
+    EXPECT_TRUE(ir_contains("rt_make_function"));
+    EXPECT_TRUE(ir_contains("rt_create_cell"));
+    EXPECT_TRUE(ir_contains("rt_get_closure"));
+}

@@ -42,11 +42,17 @@ void rt_init()
 	py::ArenaManager::initialize();
 #endif
 
-	// 1. 为 AOT 编译器路径提供兜底的 RuntimeContext
-	if (!py::RuntimeContext::has_current()) {
-		static py::RuntimeContext s_compiler_ctx;
-		py::RuntimeContext::set_current(&s_compiler_ctx);
-	}
+	// // 1. 为 AOT 编译器路径提供兜底的 RuntimeContext
+	// if (!py::RuntimeContext::has_current()) {
+	// 	static py::RuntimeContext s_compiler_ctx;
+	// 	py::RuntimeContext::set_current(&s_compiler_ctx);
+	// }
+	// AOT 模式下提供最小化 RuntimeContext
+    // 使用 thread_local 而非 static，避免跨 Arena shutdown 边界的析构问题
+    if (!py::RuntimeContext::has_current()) {
+        static thread_local py::RuntimeContext s_compiler_ctx;
+        py::RuntimeContext::set_current(&s_compiler_ctx);
+    }
 
 	// 2. 调用统一的 Runtime 层初始化
 	py::initialize_types();

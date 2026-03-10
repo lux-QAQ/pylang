@@ -237,7 +237,7 @@ TEST_F(RuntimeLinkerTest, DeclareUnknownFunction)
 	llvm::Module user_module("test_user", ctx);
 
 	// 尝试声明不存在的函数应返回 nullptr
-	auto *decl = linker->declare_in(&user_module, "nonexistent_function_xyz");
+	auto *decl = linker->declare_in(&user_module, "nonexistent_function_xyz AND This error is expected");
 	EXPECT_EQ(decl, nullptr);
 }
 

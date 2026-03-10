@@ -131,23 +131,52 @@ class IREmitter
 
 	// ========== Tier 4: 方法调用 ==========
 	llvm::Value *call_load_method(llvm::Value *obj, std::string_view method_name);
+	
+	// ========== Phase 4+: 快速调用 ==========
+	/// 直接传 C 数组调用，避免 PyTuple 堆分配
+	llvm::Value *call_function_fast(llvm::Value *callable, llvm::ArrayRef<llvm::Value *> args);
 
-    // ========== 模块导入 ==========
-    llvm::Value *call_import(std::string_view name,
-        llvm::Value *globals = nullptr,
-        llvm::Value *fromlist = nullptr,
-        int level = 0);
+
+	// ========== 模块导入 ==========
+	llvm::Value *call_import(std::string_view name,
+		llvm::Value *globals = nullptr,
+		llvm::Value *fromlist = nullptr,
+		int level = 0);
 
 	// ========== Tier 0: 异常处理 ==========
 	void call_raise(llvm::Value *exception);
 	llvm::Value *call_load_assertion_error();
 
-	// ========== Tier 4: 闭包操作 (Phase 3.2) ==========
-	llvm::Value *call_create_cell(llvm::Value *value);
-	llvm::Value *call_cell_get(llvm::Value *cell);
-	void call_cell_set(llvm::Value *cell, llvm::Value *value);
+    // ========== Tier 4: 闭包操作 (Phase 3.2) ==========
+    llvm::Value *call_create_cell(llvm::Value *value);
+    llvm::Value *call_cell_get(llvm::Value *cell);
+    void call_cell_set(llvm::Value *cell, llvm::Value *value);
 
-	// ========== Tier 6: 异常匹配 (Phase 3.3) ==========
+    // ========== Tier 4: 函数创建 (Phase 3.2) ==========
+    /// 从 AOT 编译后的原生函数指针创建 Python 可调用对象
+    ///
+    /// @param name       函数名
+    /// @param code_ptr   编译后的 LLVM Function*（作为 ptr 传入）
+    /// @param module     所属模块
+    /// @param defaults   默认值 PyTuple*，或 null
+    /// @param kwdefaults 关键字默认值 PyDict*，或 null
+    /// @param closure    闭包 cell 元组 PyTuple*，或 null
+    llvm::Value *call_make_function(
+        std::string_view name,
+        llvm::Value *code_ptr,
+        llvm::Value *module,
+        llvm::Value *defaults = nullptr,
+        llvm::Value *kwdefaults = nullptr,
+        llvm::Value *closure = nullptr);
+
+    /// 获取函数的闭包 cell 元组
+    llvm::Value *call_get_closure(llvm::Value *func);
+
+    // ========== Tier 5: 类创建 (Phase 3.3) ==========
+    /// 加载 builtins.__build_class__
+    llvm::Value *call_load_build_class();
+
+    // ========== Tier 6: 异常匹配 (Phase 3.3) ==========
 	llvm::Value *call_check_exception_match(llvm::Value *exc, llvm::Value *exc_type);
 	void call_reraise(llvm::Value *exc);
 

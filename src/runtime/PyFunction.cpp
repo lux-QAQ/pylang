@@ -4,6 +4,8 @@
 #include "PyDict.hpp"
 #include "PyNone.hpp"
 #include "PyString.hpp"
+
+#include "runtime/RuntimeError.hpp"
 #include "executable/Program.hpp"
 #include "interpreter/InterpreterCore.hpp"
 #include "runtime/PyObject.hpp"
@@ -54,6 +56,74 @@ PyFunction::PyFunction(std::vector<Value> defaults,
 		if (it.is_ok()) { m_module = it.unwrap(); }
 	}
 }
+
+
+// =============================================================================
+// AOT 编译器支持
+// =============================================================================
+
+/// AOT 编译后的函数指针类型（无闭包）
+using AOTFuncPtr = py::PyObject *(*)(py::PyTuple *, py::PyDict *);
+
+/// AOT 编译后的函数指针类型（有闭包）
+using AOTClosureFuncPtr = py::PyObject *(*)(py::PyObject *, py::PyTuple *, py::PyDict *);
+
+PyResult<PyNativeFunction *> PyNativeFunction::create_aot(std::string name,
+	void *code_ptr,
+	PyObject *module,
+	PyObject *defaults,
+	PyObject *kwdefaults,
+	PyObject *closure)
+{
+	PyNativeFunction *result = nullptr;
+
+	if (closure) {
+		//  闭包函数 
+		// 编译后签名: PyObject*(PyObject* closure, PyTuple* args, PyDict* kwargs)
+		// 通过 lambda 捕获 closure 指针，保持 FreeFunctionType（不用 MethodType hack）
+		auto fn = reinterpret_cast<AOTClosureFuncPtr>(code_ptr);
+		PyObject *captured_closure = closure;
+
+		FreeFunctionType func = [fn, captured_closure](
+									PyTuple *args, PyDict *kwargs) -> PyResult<PyObject *> {
+			auto *r = fn(captured_closure, args, kwargs);
+			if (!r) { return Err(runtime_error("compiled closure returned null")); }
+			return Ok(r);
+		};
+
+		result = PYLANG_ALLOC(
+			PyNativeFunction, std::move(name), FunctionType{ std::move(func) }, nullptr);
+	} else {
+		//  普通函数 
+		// 编译后签名: PyObject*(PyTuple* args, PyDict* kwargs)
+		auto fn = reinterpret_cast<AOTFuncPtr>(code_ptr);
+
+		FreeFunctionType func = [fn](PyTuple *args, PyDict *kwargs) -> PyResult<PyObject *> {
+			auto *r = fn(args, kwargs);
+			if (!r) { return Err(runtime_error("compiled function returned null")); }
+			return Ok(r);
+		};
+
+		result = PYLANG_ALLOC(
+			PyNativeFunction, std::move(name), FunctionType{ std::move(func) }, nullptr);
+	}
+
+	if (!result) { return Err(memory_error(sizeof(PyNativeFunction))); }
+
+	// 存储元数据（Python 语义需要）
+	result->m_closure = closure ? static_cast<PyTuple *>(closure) : nullptr;
+	result->m_module_ref = module;
+
+	// GC 追踪：lambda 捕获了这些指针，必须让 GC 知道
+	// 在AOT模式下是多余的,考虑删除
+	if (closure) { result->m_captures.push_back(closure); }
+	if (defaults) { result->m_captures.push_back(defaults); }
+	if (kwdefaults) { result->m_captures.push_back(kwdefaults); }
+	if (module) { result->m_captures.push_back(module); }
+
+	return Ok(result);
+}
+
 
 void PyFunction::visit_graph(Visitor &visitor)
 {
@@ -177,29 +247,48 @@ std::string PyNativeFunction::to_string() const
 	}
 }
 
+// PyResult<PyObject *> PyNativeFunction::__call__(PyTuple *args, PyDict *kwargs)
+// {
+
+// 	ASSERT(RuntimeContext::has_current() && RuntimeContext::current().has_interpreter());
+// 	auto *interpreter = RuntimeContext::current().interpreter();
+
+// 	auto result = [this, args, kwargs, interpreter]() {
+// 		if (is_method()) {
+// 			ASSERT(m_self);
+// 			return interpreter->call(this, m_self, args, kwargs);
+// 		} else {
+// 			return interpreter->call(this, args, kwargs);
+// 		}
+// 	}();
+// 	return result;
+// }
+
 PyResult<PyObject *> PyNativeFunction::__call__(PyTuple *args, PyDict *kwargs)
 {
-
-	ASSERT(RuntimeContext::has_current() && RuntimeContext::current().has_interpreter());
-	auto *interpreter = RuntimeContext::current().interpreter();
-
-	auto result = [this, args, kwargs, interpreter]() {
-		if (is_method()) {
-			ASSERT(m_self);
-			return interpreter->call(this, m_self, args, kwargs);
-		} else {
-			return interpreter->call(this, args, kwargs);
-		}
-	}();
-	return result;
+	// 直接调用存储的函数指针，不依赖 Interpreter / VM
+	// 原实现绕道 interpreter->call(this, args, kwargs)，
+	// 但 interpreter->call 只做两件事：
+	//   1. operator()(args, kwargs)       ← 实际工作
+	//   2. vm.reg(0) = result             ← VM 簿记（字节码指令自己也做）
+	// 第 2 步是冗余的，且阻止了 AOT 模式下的调用。
+	if (is_function()) {
+		return operator()(args, kwargs);
+	} else {
+		ASSERT(m_self);
+		return operator()(m_self, args, kwargs);
+	}
 }
+
 PyResult<PyObject *> PyNativeFunction::__repr__() const { return PyString::create(to_string()); }
 
 void PyNativeFunction::visit_graph(Visitor &visitor)
 {
-	PyObject::visit_graph(visitor);
-	if (m_self) { visitor.visit(*m_self); }
-	for (auto *obj : m_captures) { visitor.visit(*obj); }
+    PyObject::visit_graph(visitor);
+    if (m_self) { visitor.visit(*m_self); }
+    if (m_closure) { visitor.visit(*m_closure); }
+    if (m_module_ref) { visitor.visit(*m_module_ref); }
+    for (auto *obj : m_captures) { visitor.visit(*obj); }
 }
 
 PyType *PyNativeFunction::static_type() const { return types::native_function(); }
