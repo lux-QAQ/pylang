@@ -158,6 +158,7 @@ set(RUNTIME_SOURCE_FILES
   runtime/AttributeError.cpp
   runtime/builtinTypeInit.cpp
   runtime/BaseException.cpp
+  runtime/ClassBuilder.cpp
   runtime/Exception.cpp
   runtime/GeneratorInterface.cpp
   runtime/IndexError.cpp

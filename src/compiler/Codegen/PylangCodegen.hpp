@@ -82,12 +82,14 @@ class PylangCodegen : public ast::CodeGenerator
 		const VisibilityMap &visibility,
 		std::string module_name);
 
-	// ---- ast::CodeGenerator 接口 ----
+	//  ast::CodeGenerator 接口
 #define __AST_NODE_TYPE(NodeType) ast::Value *visit(const ast::NodeType *node) override;
 	AST_NODE_TYPES
 #undef __AST_NODE_TYPE
 
-	// ---- 核心生成方法 ----
+
+	llvm::Value *emit_not_implemented(const char *feature);
+	//  核心生成方法
 
 	/// 对 AST 节点调用 codegen 并提取 llvm::Value*
 	llvm::Value *generate(const ast::ASTNode *node);
@@ -101,7 +103,7 @@ class PylangCodegen : public ast::CodeGenerator
 	/// 创建 main(): int main() { rt_init(); PyInit_<mod>(); rt_shutdown(); }
 	llvm::Function *create_main_function(llvm::Function *module_init);
 
-	// ---- 变量操作 ----
+	//  变量操作
 
 	/// 加载变量（根据 Visibility 决定路径）
 	llvm::Value *load_variable(const std::string &name);
@@ -112,17 +114,35 @@ class PylangCodegen : public ast::CodeGenerator
 	/// 删除变量（根据 Visibility 决定路径）
 	void delete_variable(const std::string &name);
 
-	// ---- 赋值目标 ----
+	//  赋值目标
 
 	/// 对赋值目标（Name/Tuple/List/Subscript/Attribute）生成存储 IR
 	void generate_store_target(const ast::ASTNode *target, llvm::Value *value);
 
-	// ---- 辅助工具 ----
+	//  辅助工具
 
 	/// 创建 LLVMValue 并注册到 m_values（GC 管理生命周期）
 	LLVMValue *make_value(llvm::Value *val, const std::string &name = "");
 
-	// ---- 成员 ----
+	/// 编译函数/lambda 体并返回 make_function 的结果
+	/// @param func_name    函数名（lambda 用 "<lambda>"）
+	/// @param args_node    参数节点
+	/// @param body         函数体
+	/// @param decorators   装饰器列表（lambda 为空）
+	/// @param source_loc   源码位置
+	llvm::Value *compile_function_body(const std::string &func_name,
+		const ast::Arguments *args_node,
+		const std::vector<std::shared_ptr<ast::ASTNode>> &body,
+		const std::vector<std::shared_ptr<ast::ASTNode>> &decorators,
+		SourceLocation source_loc);
+
+
+	/// 编译类体函数
+	llvm::Value *compile_class_body(const std::string &class_name,
+		const std::vector<std::shared_ptr<ast::ASTNode>> &body,
+		SourceLocation source_loc);
+
+	//  成员
 
 	llvm::LLVMContext &m_ctx;
 	std::unique_ptr<llvm::Module> m_module;
@@ -133,4 +153,4 @@ class PylangCodegen : public ast::CodeGenerator
 	Mangler &m_mangler;
 };
 
-} // namespace pylang
+}// namespace pylang

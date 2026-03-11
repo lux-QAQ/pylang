@@ -20,9 +20,8 @@ PylangCodegen::PylangCodegen(llvm::LLVMContext &ctx,
 	const VisibilityMap &visibility,
 	std::string module_name)
 	: m_ctx(ctx), m_module(std::move(module)), m_builder(ctx),
-	  m_emitter(m_builder, linker, m_module.get()),
-	  m_codegen_ctx(m_builder, visibility), m_module_name(std::move(module_name)),
-	  m_mangler(Mangler::default_mangler())
+	  m_emitter(m_builder, linker, m_module.get()), m_codegen_ctx(m_builder, visibility),
+	  m_module_name(std::move(module_name)), m_mangler(Mangler::default_mangler())
 {}
 
 Result<PylangCodegen::CompileResult> PylangCodegen::compile(ast::Module *module_node,
@@ -39,7 +38,8 @@ Result<PylangCodegen::CompileResult> PylangCodegen::compile(ast::Module *module_
 	auto llvm_module = std::make_unique<llvm::Module>(module_name, ctx);
 
 	// Step 3: 创建 codegen 实例
-	PylangCodegen codegen(ctx, linker, std::move(llvm_module), visibility, std::string(module_name));
+	PylangCodegen codegen(
+		ctx, linker, std::move(llvm_module), visibility, std::string(module_name));
 
 	// Step 4: 创建模块初始化函数
 	auto *init_func = codegen.create_module_init_function();
@@ -80,8 +80,8 @@ Result<PylangCodegen::CompileResult> PylangCodegen::compile(ast::Module *module_
 	std::string verify_err;
 	llvm::raw_string_ostream verify_os(verify_err);
 	if (llvm::verifyModule(*codegen.m_module, &verify_os)) {
-		return MAKE_ERROR(ErrorKind::CodegenInternalError,
-			"LLVM Module verification failed: {}", verify_err);
+		return MAKE_ERROR(
+			ErrorKind::CodegenInternalError, "LLVM Module verification failed: {}", verify_err);
 	}
 
 	log::codegen()->info("Module '{}' compiled successfully", module_name);
@@ -92,6 +92,21 @@ Result<PylangCodegen::CompileResult> PylangCodegen::compile(ast::Module *module_
 // 辅助方法
 // =============================================================================
 
+/// 为未实现节点生成 abort 调用
+llvm::Value *PylangCodegen::emit_not_implemented(const char *feature)
+{
+	log::codegen()->warn("{} not yet implemented — will abort at runtime", feature);
+	auto *msg = m_emitter.create_string(
+		std::string("NotImplementedError: ") + feature + " is not supported in AOT mode");
+	m_emitter.call_raise(msg);
+	m_builder.CreateUnreachable();
+
+	// 创建一个新的 BB 让后续代码有插入点（不可达但避免 LLVM 报错）
+	auto *dead_bb =
+		llvm::BasicBlock::Create(m_ctx, "unreachable", m_codegen_ctx.current_function());
+	m_builder.SetInsertPoint(dead_bb);
+	return m_emitter.get_none();
+}
 llvm::Value *PylangCodegen::generate(const ast::ASTNode *node)
 {
 	auto *result = node->codegen(this);
@@ -160,9 +175,23 @@ LLVMValue *PylangCodegen::make_value(llvm::Value *val, const std::string &name)
 
 llvm::Value *PylangCodegen::load_variable(const std::string &name)
 {
-	auto vis = m_codegen_ctx.get_visibility(name);
-	auto visibility = vis.value_or(Visibility::IMPLICIT_GLOBAL);
+	// auto vis = m_codegen_ctx.get_visibility(name);
+	// auto visibility = vis.value_or(Visibility::IMPLICIT_GLOBAL);
+	auto visibility_opt = m_codegen_ctx.get_visibility(name);
 
+	// var_scope 为空时（内层函数未解析 visibility）
+	if (!visibility_opt) {
+		if (auto *alloca = m_codegen_ctx.find_local(name)) {
+			return m_builder.CreateLoad(m_emitter.pyobject_ptr_type(), alloca, name);
+		}
+		if (m_codegen_ctx.current_scope().class_namespace) {
+			return m_emitter.call_dict_getitem_str(
+				m_codegen_ctx.current_scope().class_namespace, name);
+		}
+		return m_emitter.call_load_global(m_codegen_ctx.module_object(), name);
+	}
+
+	auto visibility = *visibility_opt;
 	switch (visibility) {
 	case Visibility::LOCAL: {
 		auto *alloca = m_codegen_ctx.find_local(name);
@@ -178,7 +207,8 @@ llvm::Value *PylangCodegen::load_variable(const std::string &name)
 			log::codegen()->error("CELL variable '{}' not found", name);
 			return m_emitter.get_none();
 		}
-		auto *cell = m_builder.CreateLoad(m_emitter.pyobject_ptr_type(), cell_alloca, name + ".cell");
+		auto *cell =
+			m_builder.CreateLoad(m_emitter.pyobject_ptr_type(), cell_alloca, name + ".cell");
 		return m_emitter.call_cell_get(cell);
 	}
 	case Visibility::FREE: {
@@ -196,7 +226,15 @@ llvm::Value *PylangCodegen::load_variable(const std::string &name)
 		auto *mod = m_codegen_ctx.module_object();
 		return m_emitter.call_load_global(mod, name);
 	}
-	case Visibility::NAME:
+	case Visibility::NAME: {
+		// 类作用域: 从 namespace dict 读取
+		if (m_codegen_ctx.current_scope().class_namespace) {
+			return m_emitter.call_dict_getitem_str(
+				m_codegen_ctx.current_scope().class_namespace, name);
+		}
+		// 模块作用域: 等同 GLOBAL
+		return m_emitter.call_load_global(m_codegen_ctx.module_object(), name);
+	}
 	case Visibility::HIDDEN: {
 		// Phase 2: 简化处理，当作全局
 		auto *mod = m_codegen_ctx.module_object();
@@ -208,9 +246,25 @@ llvm::Value *PylangCodegen::load_variable(const std::string &name)
 
 void PylangCodegen::store_variable(const std::string &name, llvm::Value *value)
 {
-	auto vis = m_codegen_ctx.get_visibility(name);
-	auto visibility = vis.value_or(Visibility::IMPLICIT_GLOBAL);
+	// auto vis = m_codegen_ctx.get_visibility(name);
+	// auto visibility = vis.value_or(Visibility::IMPLICIT_GLOBAL);
+	auto visibility_opt = m_codegen_ctx.get_visibility(name);
 
+	if (!visibility_opt) {
+		if (auto *alloca = m_codegen_ctx.find_local(name)) {
+			m_builder.CreateStore(value, alloca);
+			return;
+		}
+		if (m_codegen_ctx.current_scope().class_namespace) {
+			m_emitter.call_dict_setitem_str(
+				m_codegen_ctx.current_scope().class_namespace, name, value);
+			return;
+		}
+		m_emitter.call_store_global(m_codegen_ctx.module_object(), name, value);
+		return;
+	}
+
+	auto visibility = *visibility_opt;
 	switch (visibility) {
 	case Visibility::LOCAL: {
 		auto *alloca = m_codegen_ctx.find_local(name);
@@ -227,7 +281,8 @@ void PylangCodegen::store_variable(const std::string &name, llvm::Value *value)
 			log::codegen()->error("CELL variable '{}' not found for store", name);
 			return;
 		}
-		auto *cell = m_builder.CreateLoad(m_emitter.pyobject_ptr_type(), cell_alloca, name + ".cell");
+		auto *cell =
+			m_builder.CreateLoad(m_emitter.pyobject_ptr_type(), cell_alloca, name + ".cell");
 		m_emitter.call_cell_set(cell, value);
 		break;
 	}
@@ -248,7 +303,17 @@ void PylangCodegen::store_variable(const std::string &name, llvm::Value *value)
 		m_emitter.call_store_global(mod, name, value);
 		break;
 	}
-	case Visibility::NAME:
+	case Visibility::NAME: {
+		// 类作用域: 写入 namespace dict
+		if (m_codegen_ctx.current_scope().class_namespace) {
+			m_emitter.call_dict_setitem_str(
+				m_codegen_ctx.current_scope().class_namespace, name, value);
+			return;
+		}
+		// 模块作用域: 等同 GLOBAL
+		m_emitter.call_store_global(m_codegen_ctx.module_object(), name, value);
+		return;
+	}
 	case Visibility::HIDDEN: {
 		auto *mod = m_codegen_ctx.module_object();
 		m_emitter.call_store_global(mod, name, value);
@@ -339,8 +404,8 @@ void PylangCodegen::generate_store_target(const ast::ASTNode *target, llvm::Valu
 		break;
 	}
 	default:
-		log::codegen()->error("Unsupported store target: {}",
-			ast::node_type_to_string(target->node_type()));
+		log::codegen()->error(
+			"Unsupported store target: {}", ast::node_type_to_string(target->node_type()));
 		break;
 	}
 }
@@ -354,48 +419,47 @@ ast::Value *PylangCodegen::visit(const ast::Constant *node)
 	auto *val = node->value();
 	llvm::Value *result = nullptr;
 
-	std::visit(
-		overloaded{
-			[&](const py::Number &num) {
-				std::visit(
-					overloaded{
-						[&](double d) { result = m_emitter.create_float(d); },
-						[&](const py::BigIntType &big) {
-							if (big.fits_slong_p()) {
-								result = m_emitter.create_integer(big.get_si());
-							} else {
-								// 大整数: 通过字符串创建
-								auto s = big.get_str();
-								auto *str = m_emitter.create_string(s);
-								// TODO: Phase 3+ 处理大整数
-								result = str;
-							}
-						},
-					},
-					num.value);
-			},
-			[&](const py::String &str) { result = m_emitter.create_string(str.s); },
-			[&](const py::Bytes &bytes) {
-				std::string_view data(
-					reinterpret_cast<const char *>(bytes.b.data()), bytes.b.size());
-				result = m_emitter.create_bytes(data);
-			},
-			[&](const py::Ellipsis &) { result = m_emitter.get_ellipsis(); },
-			[&](const py::NoneType &) { result = m_emitter.get_none(); },
-			[&](const py::NameConstant &nc) {
-				std::visit(
-					overloaded{
-						[&](bool b) { result = b ? m_emitter.get_true() : m_emitter.get_false(); },
-						[&](const py::NoneType &) { result = m_emitter.get_none(); },
-					},
-					nc.value);
-			},
-			[&](const py::Tuple &) {
-				// 常量 tuple: Phase 3+
-				result = m_emitter.get_none();
-			},
-			[&](const py::PyObject *) { result = m_emitter.get_none(); },
-		},
+	std::visit(overloaded{
+				   [&](const py::Number &num) {
+					   std::visit(overloaded{
+									  [&](double d) { result = m_emitter.create_float(d); },
+									  [&](const py::BigIntType &big) {
+										  if (big.fits_slong_p()) {
+											  result = m_emitter.create_integer(big.get_si());
+										  } else {
+											  // 大整数: 通过字符串创建
+											  auto s = big.get_str();
+											  auto *str = m_emitter.create_string(s);
+											  // TODO: Phase 3+ 处理大整数
+											  result = str;
+										  }
+									  },
+								  },
+						   num.value);
+				   },
+				   [&](const py::String &str) { result = m_emitter.create_string(str.s); },
+				   [&](const py::Bytes &bytes) {
+					   std::string_view data(
+						   reinterpret_cast<const char *>(bytes.b.data()), bytes.b.size());
+					   result = m_emitter.create_bytes(data);
+				   },
+				   [&](const py::Ellipsis &) { result = m_emitter.get_ellipsis(); },
+				   [&](const py::NoneType &) { result = m_emitter.get_none(); },
+				   [&](const py::NameConstant &nc) {
+					   std::visit(overloaded{
+									  [&](bool b) {
+										  result = b ? m_emitter.get_true() : m_emitter.get_false();
+									  },
+									  [&](const py::NoneType &) { result = m_emitter.get_none(); },
+								  },
+						   nc.value);
+				   },
+				   [&](const py::Tuple &) {
+					   // 常量 tuple: Phase 3+
+					   result = m_emitter.get_none();
+				   },
+				   [&](const py::PyObject *) { result = m_emitter.get_none(); },
+			   },
 		*val);
 
 	return make_value(result);
@@ -422,18 +486,42 @@ ast::Value *PylangCodegen::visit(const ast::BinaryExpr *node)
 
 	llvm::Value *result = nullptr;
 	switch (node->op_type()) {
-	case ast::BinaryOpType::PLUS: result = m_emitter.call_binary_add(lhs, rhs); break;
-	case ast::BinaryOpType::MINUS: result = m_emitter.call_binary_sub(lhs, rhs); break;
-	case ast::BinaryOpType::MULTIPLY: result = m_emitter.call_binary_mul(lhs, rhs); break;
-	case ast::BinaryOpType::SLASH: result = m_emitter.call_binary_truediv(lhs, rhs); break;
-	case ast::BinaryOpType::FLOORDIV: result = m_emitter.call_binary_floordiv(lhs, rhs); break;
-	case ast::BinaryOpType::MODULO: result = m_emitter.call_binary_mod(lhs, rhs); break;
-	case ast::BinaryOpType::EXP: result = m_emitter.call_binary_pow(lhs, rhs); break;
-	case ast::BinaryOpType::LEFTSHIFT: result = m_emitter.call_binary_lshift(lhs, rhs); break;
-	case ast::BinaryOpType::RIGHTSHIFT: result = m_emitter.call_binary_rshift(lhs, rhs); break;
-	case ast::BinaryOpType::AND: result = m_emitter.call_binary_and(lhs, rhs); break;
-	case ast::BinaryOpType::OR: result = m_emitter.call_binary_or(lhs, rhs); break;
-	case ast::BinaryOpType::XOR: result = m_emitter.call_binary_xor(lhs, rhs); break;
+	case ast::BinaryOpType::PLUS:
+		result = m_emitter.call_binary_add(lhs, rhs);
+		break;
+	case ast::BinaryOpType::MINUS:
+		result = m_emitter.call_binary_sub(lhs, rhs);
+		break;
+	case ast::BinaryOpType::MULTIPLY:
+		result = m_emitter.call_binary_mul(lhs, rhs);
+		break;
+	case ast::BinaryOpType::SLASH:
+		result = m_emitter.call_binary_truediv(lhs, rhs);
+		break;
+	case ast::BinaryOpType::FLOORDIV:
+		result = m_emitter.call_binary_floordiv(lhs, rhs);
+		break;
+	case ast::BinaryOpType::MODULO:
+		result = m_emitter.call_binary_mod(lhs, rhs);
+		break;
+	case ast::BinaryOpType::EXP:
+		result = m_emitter.call_binary_pow(lhs, rhs);
+		break;
+	case ast::BinaryOpType::LEFTSHIFT:
+		result = m_emitter.call_binary_lshift(lhs, rhs);
+		break;
+	case ast::BinaryOpType::RIGHTSHIFT:
+		result = m_emitter.call_binary_rshift(lhs, rhs);
+		break;
+	case ast::BinaryOpType::AND:
+		result = m_emitter.call_binary_and(lhs, rhs);
+		break;
+	case ast::BinaryOpType::OR:
+		result = m_emitter.call_binary_or(lhs, rhs);
+		break;
+	case ast::BinaryOpType::XOR:
+		result = m_emitter.call_binary_xor(lhs, rhs);
+		break;
 	case ast::BinaryOpType::MATMUL:
 		// Phase 3+
 		log::codegen()->warn("matmul not implemented");
@@ -450,85 +538,157 @@ ast::Value *PylangCodegen::visit(const ast::UnaryExpr *node)
 
 	llvm::Value *result = nullptr;
 	switch (node->op_type()) {
-	case ast::UnaryOpType::SUB: result = m_emitter.call_unary_neg(operand); break;
-	case ast::UnaryOpType::ADD: result = m_emitter.call_unary_pos(operand); break;
-	case ast::UnaryOpType::NOT: result = m_emitter.call_unary_not(operand); break;
-	case ast::UnaryOpType::INVERT: result = m_emitter.call_unary_invert(operand); break;
+	case ast::UnaryOpType::SUB:
+		result = m_emitter.call_unary_neg(operand);
+		break;
+	case ast::UnaryOpType::ADD:
+		result = m_emitter.call_unary_pos(operand);
+		break;
+	case ast::UnaryOpType::NOT:
+		result = m_emitter.call_unary_not(operand);
+		break;
+	case ast::UnaryOpType::INVERT:
+		result = m_emitter.call_unary_invert(operand);
+		break;
 	}
 	return make_value(result);
 }
 
 ast::Value *PylangCodegen::visit(const ast::Compare *node)
 {
+	// Python 3.9: a < f() < c
+	//   → tmp = f(); (a < tmp) and (tmp < c)
+	// 中间值只求值一次！
+
 	auto *lhs = generate(node->lhs().get());
 	if (!lhs) { return nullptr; }
 
 	const auto &ops = node->ops();
 	const auto &comparators = node->comparators();
 
-	// 单比较: a < b
+	if (ops.empty()) { return make_value(lhs); }
+
+	// 单比较: a < b （最常见情况，无需临时变量）
 	if (ops.size() == 1) {
 		auto *rhs = generate(comparators[0].get());
 		if (!rhs) { return nullptr; }
 
 		llvm::Value *result = nullptr;
 		switch (ops[0]) {
-		case ast::Compare::OpType::Eq: result = m_emitter.call_compare_eq(lhs, rhs); break;
-		case ast::Compare::OpType::NotEq: result = m_emitter.call_compare_ne(lhs, rhs); break;
-		case ast::Compare::OpType::Lt: result = m_emitter.call_compare_lt(lhs, rhs); break;
-		case ast::Compare::OpType::LtE: result = m_emitter.call_compare_le(lhs, rhs); break;
-		case ast::Compare::OpType::Gt: result = m_emitter.call_compare_gt(lhs, rhs); break;
-		case ast::Compare::OpType::GtE: result = m_emitter.call_compare_ge(lhs, rhs); break;
-		case ast::Compare::OpType::Is: result = m_emitter.call_compare_is(lhs, rhs); break;
-		case ast::Compare::OpType::IsNot: result = m_emitter.call_compare_is_not(lhs, rhs); break;
-		case ast::Compare::OpType::In: result = m_emitter.call_compare_in(lhs, rhs); break;
-		case ast::Compare::OpType::NotIn: result = m_emitter.call_compare_not_in(lhs, rhs); break;
+		case ast::Compare::OpType::Eq:
+			result = m_emitter.call_compare_eq(lhs, rhs);
+			break;
+		case ast::Compare::OpType::NotEq:
+			result = m_emitter.call_compare_ne(lhs, rhs);
+			break;
+		case ast::Compare::OpType::Lt:
+			result = m_emitter.call_compare_lt(lhs, rhs);
+			break;
+		case ast::Compare::OpType::LtE:
+			result = m_emitter.call_compare_le(lhs, rhs);
+			break;
+		case ast::Compare::OpType::Gt:
+			result = m_emitter.call_compare_gt(lhs, rhs);
+			break;
+		case ast::Compare::OpType::GtE:
+			result = m_emitter.call_compare_ge(lhs, rhs);
+			break;
+		case ast::Compare::OpType::Is:
+			result = m_emitter.call_compare_is(lhs, rhs);
+			break;
+		case ast::Compare::OpType::IsNot:
+			result = m_emitter.call_compare_is_not(lhs, rhs);
+			break;
+		case ast::Compare::OpType::In:
+			result = m_emitter.call_compare_in(lhs, rhs);
+			break;
+		case ast::Compare::OpType::NotIn:
+			result = m_emitter.call_compare_not_in(lhs, rhs);
+			break;
 		}
 		return make_value(result);
 	}
 
-	// 链式比较: a < b < c  →  (a < b) and (b < c)
+	// 链式比较: a < b < c < d
+	// 编译为: (a < b) and (b < c) and (c < d)
+	// 关键: b, c 只求值一次
 	auto *func = m_codegen_ctx.current_function();
-	auto *result_alloca =
-		m_codegen_ctx.create_local(".cmp_result", m_emitter.pyobject_ptr_type());
 
-	auto *prev = lhs;
-	llvm::BasicBlock *merge_bb = llvm::BasicBlock::Create(m_ctx, "cmp.merge", func);
+	// alloca 保存最终结果
+	auto *result_alloca = m_codegen_ctx.create_local(".cmp_result", m_emitter.pyobject_ptr_type());
+	m_builder.CreateStore(m_emitter.get_true(), result_alloca);
+
+	auto *merge_bb = llvm::BasicBlock::Create(m_ctx, "cmp.end", func);
+
+	llvm::Value *prev = lhs;
 
 	for (size_t i = 0; i < ops.size(); ++i) {
+		// 求值右操作数（只求值一次，保存到临时变量）
 		auto *rhs = generate(comparators[i].get());
 		if (!rhs) { return nullptr; }
 
-		llvm::Value *cmp = nullptr;
+		// 执行比较
+		llvm::Value *cmp_result = nullptr;
 		switch (ops[i]) {
-		case ast::Compare::OpType::Eq: cmp = m_emitter.call_compare_eq(prev, rhs); break;
-		case ast::Compare::OpType::NotEq: cmp = m_emitter.call_compare_ne(prev, rhs); break;
-		case ast::Compare::OpType::Lt: cmp = m_emitter.call_compare_lt(prev, rhs); break;
-		case ast::Compare::OpType::LtE: cmp = m_emitter.call_compare_le(prev, rhs); break;
-		case ast::Compare::OpType::Gt: cmp = m_emitter.call_compare_gt(prev, rhs); break;
-		case ast::Compare::OpType::GtE: cmp = m_emitter.call_compare_ge(prev, rhs); break;
-		case ast::Compare::OpType::Is: cmp = m_emitter.call_compare_is(prev, rhs); break;
-		case ast::Compare::OpType::IsNot: cmp = m_emitter.call_compare_is_not(prev, rhs); break;
-		case ast::Compare::OpType::In: cmp = m_emitter.call_compare_in(prev, rhs); break;
-		case ast::Compare::OpType::NotIn: cmp = m_emitter.call_compare_not_in(prev, rhs); break;
+		case ast::Compare::OpType::Eq:
+			cmp_result = m_emitter.call_compare_eq(prev, rhs);
+			break;
+		case ast::Compare::OpType::NotEq:
+			cmp_result = m_emitter.call_compare_ne(prev, rhs);
+			break;
+		case ast::Compare::OpType::Lt:
+			cmp_result = m_emitter.call_compare_lt(prev, rhs);
+			break;
+		case ast::Compare::OpType::LtE:
+			cmp_result = m_emitter.call_compare_le(prev, rhs);
+			break;
+		case ast::Compare::OpType::Gt:
+			cmp_result = m_emitter.call_compare_gt(prev, rhs);
+			break;
+		case ast::Compare::OpType::GtE:
+			cmp_result = m_emitter.call_compare_ge(prev, rhs);
+			break;
+		case ast::Compare::OpType::Is:
+			cmp_result = m_emitter.call_compare_is(prev, rhs);
+			break;
+		case ast::Compare::OpType::IsNot:
+			cmp_result = m_emitter.call_compare_is_not(prev, rhs);
+			break;
+		case ast::Compare::OpType::In:
+			cmp_result = m_emitter.call_compare_in(prev, rhs);
+			break;
+		case ast::Compare::OpType::NotIn:
+			cmp_result = m_emitter.call_compare_not_in(prev, rhs);
+			break;
 		}
 
-		m_builder.CreateStore(cmp, result_alloca);
-
+		// 短路求值: 如果这个比较为 false，跳到结束
 		if (i < ops.size() - 1) {
-			auto *is_true = m_emitter.call_is_true(cmp);
+			auto *is_true = m_emitter.call_is_true(cmp_result);
 			auto *next_bb = llvm::BasicBlock::Create(m_ctx, "cmp.next", func);
-			m_builder.CreateCondBr(is_true, next_bb, merge_bb);
+
+			// 如果 false，存储 false 并跳到 merge
+			auto *false_bb = llvm::BasicBlock::Create(m_ctx, "cmp.false", func);
+			m_builder.CreateCondBr(is_true, next_bb, false_bb);
+
+			m_builder.SetInsertPoint(false_bb);
+			m_builder.CreateStore(cmp_result, result_alloca);
+			m_builder.CreateBr(merge_bb);
+
 			m_builder.SetInsertPoint(next_bb);
 		} else {
+			// 最后一个比较: 直接存储结果
+			m_builder.CreateStore(cmp_result, result_alloca);
 			m_builder.CreateBr(merge_bb);
 		}
+
+		// 下一轮的左操作数 = 这轮的右操作数（不重新求值！）
 		prev = rhs;
 	}
 
 	m_builder.SetInsertPoint(merge_bb);
-	auto *result = m_builder.CreateLoad(m_emitter.pyobject_ptr_type(), result_alloca, "cmp.result");
-	return make_value(result);
+	auto *final_result = m_builder.CreateLoad(m_emitter.pyobject_ptr_type(), result_alloca);
+	return make_value(final_result);
 }
 
 ast::Value *PylangCodegen::visit(const ast::BoolOp *node)
@@ -601,14 +761,16 @@ ast::Value *PylangCodegen::visit(const ast::Attribute *node)
 	if (!obj) { return nullptr; }
 
 	switch (node->context()) {
-	case ast::ContextType::LOAD: return make_value(m_emitter.call_getattr(obj, node->attr()));
+	case ast::ContextType::LOAD:
+		return make_value(m_emitter.call_getattr(obj, node->attr()));
 	case ast::ContextType::DELETE:
 		m_emitter.call_delattr(obj, node->attr());
 		return nullptr;
 	case ast::ContextType::STORE:
 		// 处理由 Assign 驱动
 		return make_value(obj);
-	default: return nullptr;
+	default:
+		return nullptr;
 	}
 }
 
@@ -623,11 +785,13 @@ ast::Value *PylangCodegen::visit(const ast::Subscript *node)
 		if (!key) { return nullptr; }
 
 		switch (node->context()) {
-		case ast::ContextType::LOAD: return make_value(m_emitter.call_getitem(obj, key));
+		case ast::ContextType::LOAD:
+			return make_value(m_emitter.call_getitem(obj, key));
 		case ast::ContextType::DELETE:
 			m_emitter.call_delitem(obj, key);
 			return nullptr;
-		default: return make_value(obj);
+		default:
+			return make_value(obj);
 		}
 	}
 
@@ -639,11 +803,13 @@ ast::Value *PylangCodegen::visit(const ast::Subscript *node)
 		auto *slice_obj = m_emitter.create_slice(lower, upper, step);
 
 		switch (node->context()) {
-		case ast::ContextType::LOAD: return make_value(m_emitter.call_getitem(obj, slice_obj));
+		case ast::ContextType::LOAD:
+			return make_value(m_emitter.call_getitem(obj, slice_obj));
 		case ast::ContextType::DELETE:
 			m_emitter.call_delitem(obj, slice_obj);
 			return nullptr;
-		default: return make_value(obj);
+		default:
+			return make_value(obj);
 		}
 	}
 
@@ -741,38 +907,99 @@ ast::Value *PylangCodegen::visit(const ast::Assign *node)
 
 ast::Value *PylangCodegen::visit(const ast::AugAssign *node)
 {
-	// a += b  →  a = a + b  (Phase 2 简化版)
-	auto *target_val = generate(node->target().get());
-	auto *rhs = generate(node->value().get());
-	if (!target_val || !rhs) { return nullptr; }
+    // Python 3.9 语义: x += y
+    //   1. LOAD x 的当前值
+    //   2. 计算 y
+    //   3. inplace op (先 __iadd__, 失败退回 __add__)
+    //   4. STORE 结果回 x
 
-	llvm::Value *result = nullptr;
-	switch (node->op()) {
-	case ast::BinaryOpType::PLUS: result = m_emitter.call_binary_add(target_val, rhs); break;
-	case ast::BinaryOpType::MINUS: result = m_emitter.call_binary_sub(target_val, rhs); break;
-	case ast::BinaryOpType::MULTIPLY: result = m_emitter.call_binary_mul(target_val, rhs); break;
-	case ast::BinaryOpType::SLASH:
-		result = m_emitter.call_binary_truediv(target_val, rhs);
-		break;
-	case ast::BinaryOpType::FLOORDIV:
-		result = m_emitter.call_binary_floordiv(target_val, rhs);
-		break;
-	case ast::BinaryOpType::MODULO: result = m_emitter.call_binary_mod(target_val, rhs); break;
-	case ast::BinaryOpType::EXP: result = m_emitter.call_binary_pow(target_val, rhs); break;
-	case ast::BinaryOpType::LEFTSHIFT:
-		result = m_emitter.call_binary_lshift(target_val, rhs);
-		break;
-	case ast::BinaryOpType::RIGHTSHIFT:
-		result = m_emitter.call_binary_rshift(target_val, rhs);
-		break;
-	case ast::BinaryOpType::AND: result = m_emitter.call_binary_and(target_val, rhs); break;
-	case ast::BinaryOpType::OR: result = m_emitter.call_binary_or(target_val, rhs); break;
-	case ast::BinaryOpType::XOR: result = m_emitter.call_binary_xor(target_val, rhs); break;
-	default: result = m_emitter.get_none(); break;
-	}
+    //  Step 1: LOAD 目标的当前值 
+    llvm::Value *target_val = nullptr;
+    const ast::Name *target_name = nullptr;
+    const ast::Attribute *target_attr = nullptr;
 
-	generate_store_target(node->target().get(), result);
-	return nullptr;
+    if (auto *name_node = dynamic_cast<const ast::Name *>(node->target().get())) {
+        target_name = name_node;
+        // ids() 返回 vector<string>，[0] 是变量名
+        target_val = load_variable(name_node->ids()[0]);
+    } else if (auto *attr_node = dynamic_cast<const ast::Attribute *>(node->target().get())) {
+        target_attr = attr_node;
+        // obj.attr += y → 先 getattr(obj, attr)
+        auto *obj = generate(attr_node->value().get());
+        if (!obj) { return nullptr; }
+        target_val = m_emitter.emit_runtime_call("getattr",
+            { obj, m_emitter.create_string(attr_node->attr()) });
+    } else {
+        // Subscript 等复杂目标暂不支持
+        log::codegen()->warn("AugAssign: unsupported target type (subscript etc.)");
+        return nullptr;
+    }
+
+    if (!target_val) { return nullptr; }
+
+    //  Step 2: 计算 RHS 
+    auto *rhs = generate(node->value().get());
+    if (!rhs) { return nullptr; }
+
+    //  Step 3: inplace 运算 
+    llvm::Value *result = nullptr;
+    switch (node->op()) {
+    case ast::BinaryOpType::PLUS:
+        result = m_emitter.emit_runtime_call("inplace_add", { target_val, rhs });
+        break;
+    case ast::BinaryOpType::MINUS:
+        result = m_emitter.emit_runtime_call("inplace_sub", { target_val, rhs });
+        break;
+    case ast::BinaryOpType::MULTIPLY:
+        result = m_emitter.emit_runtime_call("inplace_mul", { target_val, rhs });
+        break;
+    case ast::BinaryOpType::SLASH:
+        result = m_emitter.emit_runtime_call("inplace_truediv", { target_val, rhs });
+        break;
+    case ast::BinaryOpType::FLOORDIV:
+        result = m_emitter.emit_runtime_call("inplace_floordiv", { target_val, rhs });
+        break;
+    case ast::BinaryOpType::MODULO:
+        result = m_emitter.emit_runtime_call("inplace_mod", { target_val, rhs });
+        break;
+    case ast::BinaryOpType::EXP:
+        result = m_emitter.emit_runtime_call("inplace_pow", { target_val, rhs });
+        break;
+    case ast::BinaryOpType::LEFTSHIFT:
+        result = m_emitter.emit_runtime_call("inplace_lshift", { target_val, rhs });
+        break;
+    case ast::BinaryOpType::RIGHTSHIFT:
+        result = m_emitter.emit_runtime_call("inplace_rshift", { target_val, rhs });
+        break;
+    case ast::BinaryOpType::AND:
+        result = m_emitter.emit_runtime_call("inplace_and", { target_val, rhs });
+        break;
+    case ast::BinaryOpType::OR:
+        result = m_emitter.emit_runtime_call("inplace_or", { target_val, rhs });
+        break;
+    case ast::BinaryOpType::XOR:
+        result = m_emitter.emit_runtime_call("inplace_xor", { target_val, rhs });
+        break;
+    default:
+        log::codegen()->error("AugAssign: unsupported op: {}",
+            ast::stringify_binary_op(node->op()));
+        return nullptr;
+    }
+
+    if (!result) { return nullptr; }
+
+    //  Step 4: STORE 结果回目标 
+    if (target_name) {
+        store_variable(target_name->ids()[0], result);
+    } else if (target_attr) {
+        auto *obj = generate(target_attr->value().get());
+        if (obj) {
+            m_emitter.emit_runtime_call("setattr",
+                { obj, m_emitter.create_string(target_attr->attr()), result });
+        }
+    }
+
+    return nullptr;
 }
 
 ast::Value *PylangCodegen::visit(const ast::Return *node)
@@ -820,9 +1047,8 @@ ast::Value *PylangCodegen::visit(const ast::If *node)
 	auto *is_true = m_emitter.call_is_true(test);
 
 	auto *then_bb = llvm::BasicBlock::Create(m_ctx, "if.then", func);
-	auto *else_bb = node->orelse().empty()
-						? nullptr
-						: llvm::BasicBlock::Create(m_ctx, "if.else", func);
+	auto *else_bb =
+		node->orelse().empty() ? nullptr : llvm::BasicBlock::Create(m_ctx, "if.else", func);
 	auto *merge_bb = llvm::BasicBlock::Create(m_ctx, "if.merge", func);
 
 	m_builder.CreateCondBr(is_true, then_bb, else_bb ? else_bb : merge_bb);
@@ -849,9 +1075,8 @@ ast::Value *PylangCodegen::visit(const ast::While *node)
 
 	auto *cond_bb = llvm::BasicBlock::Create(m_ctx, "while.cond", func);
 	auto *body_bb = llvm::BasicBlock::Create(m_ctx, "while.body", func);
-	auto *else_bb = node->orelse().empty()
-						? nullptr
-						: llvm::BasicBlock::Create(m_ctx, "while.else", func);
+	auto *else_bb =
+		node->orelse().empty() ? nullptr : llvm::BasicBlock::Create(m_ctx, "while.else", func);
 	auto *merge_bb = llvm::BasicBlock::Create(m_ctx, "while.merge", func);
 
 	m_builder.CreateBr(cond_bb);
@@ -888,9 +1113,8 @@ ast::Value *PylangCodegen::visit(const ast::For *node)
 
 	auto *cond_bb = llvm::BasicBlock::Create(m_ctx, "for.cond", func);
 	auto *body_bb = llvm::BasicBlock::Create(m_ctx, "for.body", func);
-	auto *else_bb = node->orelse().empty()
-						? nullptr
-						: llvm::BasicBlock::Create(m_ctx, "for.else", func);
+	auto *else_bb =
+		node->orelse().empty() ? nullptr : llvm::BasicBlock::Create(m_ctx, "for.else", func);
 	auto *merge_bb = llvm::BasicBlock::Create(m_ctx, "for.merge", func);
 
 	m_builder.CreateBr(cond_bb);
@@ -947,98 +1171,160 @@ ast::Value *PylangCodegen::visit(const ast::Pass *node)
 // =============================================================================
 // visit() 实现 — 函数定义
 // =============================================================================
+// =============================================================================
+// 共享的函数编译逻辑（FunctionDefinition 和 Lambda 复用）
+// =============================================================================
+
+llvm::Value *PylangCodegen::compile_function_body(const std::string &func_name,
+	const ast::Arguments *args_node,
+	const std::vector<std::shared_ptr<ast::ASTNode>> &body,
+	const std::vector<std::shared_ptr<ast::ASTNode>> &decorators,
+	SourceLocation source_loc)
+{
+	auto *obj_ptr_ty = m_emitter.pyobject_ptr_type();
+
+	//  Step 1: 创建 LLVM 函数 
+	// 签名: PyObject*(PyObject* module, PyTuple* args, PyDict* kwargs)
+	//        ^^^^^^^^^^^^^^^^ 隐式首参数：所属模块
+	auto *func_type =
+		llvm::FunctionType::get(obj_ptr_ty, { obj_ptr_ty, obj_ptr_ty, obj_ptr_ty }, false);
+
+	auto mangled =
+		m_mangler.function_mangle(m_codegen_ctx.current_scope().name, func_name, source_loc);
+
+	auto *llvm_func =
+		llvm::Function::Create(func_type, llvm::Function::InternalLinkage, mangled, m_module.get());
+
+	llvm_func->getArg(0)->setName("module");
+	llvm_func->getArg(1)->setName("args");
+	llvm_func->getArg(2)->setName("kwargs");
+
+	//  Step 2: 保存当前状态 
+	auto *saved_bb = m_builder.GetInsertBlock();
+
+	auto *entry_bb = llvm::BasicBlock::Create(m_ctx, "entry", llvm_func);
+	m_builder.SetInsertPoint(entry_bb);
+
+	//  Step 3: 查找变量 scope 
+	auto it = m_codegen_ctx.visibility_map().find(mangled);
+	VariablesResolver::Scope *var_scope =
+		(it != m_codegen_ctx.visibility_map().end()) ? it->second.get() : nullptr;
+
+	//  Step 4: 进入 FUNCTION scope 
+	// module_obj = arg(0)：属于本函数的 LLVM Value，安全！
+	ScopeContext func_scope{};
+	func_scope.type = ScopeContext::Type::FUNCTION;
+	func_scope.name = func_name;
+	func_scope.mangled_name = mangled;
+	func_scope.llvm_func = llvm_func;
+	func_scope.module_obj = llvm_func->getArg(0);// ← 关键：module 来自本函数参数
+	func_scope.var_scope = var_scope;
+	func_scope.class_namespace = nullptr;
+	m_codegen_ctx.push_scope(std::move(func_scope));
+
+    //  Step 5: 提取函数参数并注册为 LOCAL 
+    auto *args_tuple = llvm_func->getArg(1);// arg(1) = args
+
+    if (args_node) {
+        int32_t param_idx = 0;
+        auto register_param = [&](const std::string &param_name) {
+            auto *val = m_emitter.emit_runtime_call(
+                "tuple_getitem", { args_tuple, m_builder.getInt32(param_idx) });
+            auto *alloca =
+                m_codegen_ctx.create_local(param_name, m_emitter.pyobject_ptr_type());
+            m_builder.CreateStore(val, alloca);
+            param_idx++;
+        };
+
+        // argument_names() 返回 posonlyargs + args 的名称
+        for (const auto &name : args_node->argument_names()) {
+            register_param(name);
+        }
+        // kwonly 参数也需要注册
+        for (const auto &name : args_node->kw_only_argument_names()) {
+            register_param(name);
+        }
+    }
+
+	//  Step 6: 编译函数体 
+	generate_body(body);
+
+	//  Step 7: 确保有返回指令 
+	if (!m_builder.GetInsertBlock()->getTerminator()) { m_builder.CreateRet(m_emitter.get_none()); }
+
+	//  Step 8: 离开 FUNCTION scope 
+	m_codegen_ctx.pop_scope();
+
+	//  Step 9: 恢复插入点到外层函数 
+	m_builder.SetInsertPoint(saved_bb);
+
+    //  Step 10: 编译默认值（在外层函数中求值）
+    llvm::Value *defaults = m_emitter.null_pyobject();
+    llvm::Value *kwdefaults = m_emitter.null_pyobject();
+
+    if (args_node && !args_node->defaults().empty()) {
+        std::vector<llvm::Value *> default_vals;
+        for (const auto &def : args_node->defaults()) {
+            auto *val = generate(def.get());
+            if (val) { default_vals.push_back(val); }
+        }
+        if (!default_vals.empty()) { defaults = m_emitter.create_tuple(default_vals); }
+    }
+
+    if (args_node && !args_node->kw_defaults().empty()) {
+        std::vector<llvm::Value *> kwdef_keys;
+        std::vector<llvm::Value *> kwdef_vals;
+        // 用 kw_only_argument_names() 获取名称列表
+        auto kw_names = args_node->kw_only_argument_names();
+        for (size_t i = 0; i < kw_names.size(); ++i) {
+            if (i < args_node->kw_defaults().size() && args_node->kw_defaults()[i]) {
+                auto *val = generate(args_node->kw_defaults()[i].get());
+                if (val) {
+                    kwdef_keys.push_back(m_emitter.create_string(kw_names[i]));
+                    kwdef_vals.push_back(val);
+                }
+            }
+        }
+        if (!kwdef_keys.empty()) { kwdefaults = m_emitter.create_dict(kwdef_keys, kwdef_vals); }
+    }
+
+	//  Step 11: 在外层函数中创建 Python 可调用对象 
+	// module_object() 返回外层 scope 的 module，是外层函数的 Value，安全
+	auto *closure = m_emitter.null_pyobject();
+
+	return m_emitter.call_make_function(
+		func_name, llvm_func, m_codegen_ctx.module_object(), defaults, kwdefaults, closure);
+}
 
 ast::Value *PylangCodegen::visit(const ast::FunctionDefinition *node)
 {
-	auto *func = m_codegen_ctx.current_function();
-	auto *ptr_ty = m_emitter.pyobject_ptr_type();
+    auto *func_val = compile_function_body(
+        node->name(),
+        node->args().get(),
+        node->body(),
+        node->decorator_list(),
+        node->source_location());
 
-	// 编译后的函数签名: ptr (ptr %args, ptr %kwargs)
-	auto *func_type = llvm::FunctionType::get(ptr_ty, { ptr_ty, ptr_ty }, false);
-	auto mangled_name =
-		m_mangler.function_mangle(m_module_name, node->name(), node->source_location());
-	auto *compiled_func = llvm::Function::Create(
-		func_type, llvm::Function::InternalLinkage, mangled_name, m_module.get());
+    if (!func_val) { return nullptr; }
 
-	// 保存当前插入点
-	auto *saved_bb = m_builder.GetInsertBlock();
-	auto saved_point = m_builder.GetInsertPoint();
+    // 应用装饰器（从内到外，即列表逆序）
+    // @dec1
+    // @dec2
+    // def f(): ...
+    // 等价于 f = dec1(dec2(f))
+    const auto &decorators = node->decorator_list();
+    for (auto it = decorators.rbegin(); it != decorators.rend(); ++it) {
+        auto *dec = generate(it->get());
+        if (!dec) { continue; }
 
-	// 创建函数体
-	auto *entry = llvm::BasicBlock::Create(m_ctx, "entry", compiled_func);
-	m_builder.SetInsertPoint(entry);
+        // 调用装饰器: func_val = dec(func_val)
+        auto *args = m_emitter.create_tuple({ func_val });
+        func_val = m_emitter.call_function(dec, args, m_emitter.null_pyobject());
+    }
 
-	// 进入函数 scope
-	auto var_mangled = m_mangler.function_mangle(
-		m_codegen_ctx.current_scope().mangled_name, node->name(), node->source_location());
-	auto vis_it = m_codegen_ctx.visibility_map().find(var_mangled);
-	VariablesResolver::Scope *var_scope =
-		(vis_it != m_codegen_ctx.visibility_map().end()) ? vis_it->second.get() : nullptr;
-
-	ScopeContext func_scope{};
-	func_scope.type = ScopeContext::Type::FUNCTION;
-	func_scope.name = node->name();
-	func_scope.mangled_name = var_mangled;
-	func_scope.llvm_func = compiled_func;
-	func_scope.module_obj = m_codegen_ctx.module_object();
-	func_scope.var_scope = var_scope;
-	m_codegen_ctx.push_scope(std::move(func_scope));
-
-	// 为所有 LOCAL 变量创建 alloca（含参数）
-	if (var_scope) {
-		for (auto &sym : var_scope->symbol_map.symbols) {
-			if (sym.visibility == Visibility::LOCAL) {
-				m_codegen_ctx.create_local(sym.name, ptr_ty);
-			}
-		}
-	}
-
-	// 参数绑定: 从 args tuple 中提取参数
-	// Phase 2 简化: 使用 rt_tuple_getitem 按位置提取
-	auto *args_param = compiled_func->getArg(0);
-	if (node->args()) {
-		auto &arg_list = node->args()->args();
-		for (size_t i = 0; i < arg_list.size(); ++i) {
-			auto &arg = arg_list[i];
-			auto *idx_val = m_builder.getInt32(static_cast<uint32_t>(i));
-			// 使用 getitem 提取参数
-			auto *arg_val =
-				m_emitter.call_getitem(args_param, m_emitter.create_integer(static_cast<int64_t>(i)));
-			store_variable(arg->name(), arg_val);
-		}
-	}
-
-	// 生成函数体
-	generate_body(node->body());
-
-	// 如果没有 return 语句，默认返回 None
-	if (!m_builder.GetInsertBlock()->getTerminator()) {
-		m_builder.CreateRet(m_emitter.get_none());
-	}
-
-	// 离开函数 scope
-	m_codegen_ctx.pop_scope();
-
-	// 恢复插入点
-	m_builder.SetInsertPoint(saved_bb, saved_point);
-
-	// 创建 Python 函数对象: rt_make_function(name, code_ptr, module, ...)
-	auto *mod = m_codegen_ctx.module_object();
-	auto *func_obj = m_emitter.call_make_function(node->name(), compiled_func, mod);
-
-	// 应用装饰器（从内到外）
-	llvm::Value *decorated = func_obj;
-	auto &decorators = node->decorator_list();
-	for (auto it = decorators.rbegin(); it != decorators.rend(); ++it) {
-		auto *dec = generate(it->get());
-		auto *args = m_emitter.create_tuple({ decorated });
-		decorated = m_emitter.call_function(dec, args);
-	}
-
-	// 存储到变量
-	store_variable(node->name(), decorated);
-
-	return nullptr;
+    // 将（可能被装饰后的）函数存入变量
+    store_variable(node->name(), func_val);
+    return nullptr;
 }
 
 // =============================================================================
@@ -1063,7 +1349,8 @@ ast::Value *PylangCodegen::visit(const ast::Import *node)
 ast::Value *PylangCodegen::visit(const ast::ImportFrom *node)
 {
 	// from module import name1, name2
-	auto *mod = m_emitter.call_import(node->module(), nullptr, nullptr, static_cast<int>(node->level()));
+	auto *mod =
+		m_emitter.call_import(node->module(), nullptr, nullptr, static_cast<int>(node->level()));
 
 	for (auto &alias : node->names()) {
 		auto *attr = m_emitter.call_getattr(mod, alias.name);
@@ -1077,14 +1364,33 @@ ast::Value *PylangCodegen::visit(const ast::ImportFrom *node)
 // visit() 实现 — 异常相关
 // =============================================================================
 
+// ast::Value *PylangCodegen::visit(const ast::Raise *node)
+// {
+// 	if (node->exception()) {
+// 		auto *exc = generate(node->exception().get());
+// 		m_emitter.call_raise(exc);
+// 	}
+// 	// bare raise: Phase 4+
+// 	m_builder.CreateUnreachable();
+// 	return nullptr;
+// }
 ast::Value *PylangCodegen::visit(const ast::Raise *node)
 {
-	if (node->exception()) {
+	if (node->exception()) {// 不是 value()
 		auto *exc = generate(node->exception().get());
+		if (!exc) { return nullptr; }
 		m_emitter.call_raise(exc);
+	} else {
+		// bare raise: 重新抛出当前异常
+		m_emitter.call_reraise(m_emitter.null_pyobject());
 	}
-	// bare raise: Phase 4+
+
 	m_builder.CreateUnreachable();
+
+	auto *dead_bb =
+		llvm::BasicBlock::Create(m_ctx, "after.raise", m_codegen_ctx.current_function());
+	m_builder.SetInsertPoint(dead_bb);
+
 	return nullptr;
 }
 
@@ -1133,50 +1439,205 @@ ast::Value *PylangCodegen::visit(const ast::NonLocal *node)
 	return nullptr;
 }
 
+
+// =============================================================================
+// 类体编译
+//
+// 生成函数: PyObject* ClassName.__body__(PyTuple* args, PyDict* kwargs)
+// 调用时: args[0] = namespace dict
+//
+// 类体中的变量存取路径:
+//   store_variable("x", val)
+//     → visibility = NAME
+//     → class_namespace != nullptr
+//     → call_dict_setitem_str(ns, "x", val)
+// =============================================================================
+
+llvm::Value *PylangCodegen::compile_class_body(const std::string &class_name,
+	const std::vector<std::shared_ptr<ast::ASTNode>> &body,
+	SourceLocation source_loc)
+{
+	auto *obj_ptr_ty = m_emitter.pyobject_ptr_type();
+
+	// 签名: PyObject*(PyObject* module, PyTuple* args, PyDict* kwargs)
+	auto *func_type =
+		llvm::FunctionType::get(obj_ptr_ty, { obj_ptr_ty, obj_ptr_ty, obj_ptr_ty }, false);
+
+	auto mangled =
+		m_mangler.function_mangle(m_codegen_ctx.current_scope().name, class_name, source_loc);
+
+	auto *llvm_func = llvm::Function::Create(
+		func_type, llvm::Function::InternalLinkage, mangled + ".__body__", m_module.get());
+
+	llvm_func->getArg(0)->setName("module");
+	llvm_func->getArg(1)->setName("args");
+	llvm_func->getArg(2)->setName("kwargs");
+
+	auto *saved_bb = m_builder.GetInsertBlock();
+
+	auto *entry_bb = llvm::BasicBlock::Create(m_ctx, "entry", llvm_func);
+	m_builder.SetInsertPoint(entry_bb);
+
+	// namespace dict = args[0]
+	auto *ns = m_emitter.emit_runtime_call(
+		"tuple_getitem", { llvm_func->getArg(1), m_builder.getInt32(0) });
+
+	auto it = m_codegen_ctx.visibility_map().find(mangled);
+	VariablesResolver::Scope *var_scope =
+		(it != m_codegen_ctx.visibility_map().end()) ? it->second.get() : nullptr;
+
+	ScopeContext class_scope{};
+	class_scope.type = ScopeContext::Type::CLASS;
+	class_scope.name = class_name;
+	class_scope.mangled_name = mangled;
+	class_scope.llvm_func = llvm_func;
+	class_scope.module_obj = llvm_func->getArg(0);// ← module 来自本函数参数
+	class_scope.var_scope = var_scope;
+	class_scope.class_namespace = ns;
+	m_codegen_ctx.push_scope(std::move(class_scope));
+
+	generate_body(body);
+
+	if (!m_builder.GetInsertBlock()->getTerminator()) { m_builder.CreateRet(m_emitter.get_none()); }
+
+	m_codegen_ctx.pop_scope();
+	m_builder.SetInsertPoint(saved_bb);
+
+	return m_emitter.call_make_function(class_name,
+		llvm_func,
+		m_codegen_ctx.module_object(),// ← 外层 module，安全
+		m_emitter.null_pyobject(),
+		m_emitter.null_pyobject(),
+		m_emitter.null_pyobject());
+}
+// =============================================================================
+// visit(ClassDefinition)
+//
+// Python:
+//   @decorator
+//   class Foo(Bar, metaclass=Meta):
+//       x = 1
+//       def method(self): ...
+//
+// IR 调用序列:
+//   %bases  = rt_build_tuple(...)
+//   %kwargs = rt_build_dict(...)         ; metaclass=Meta
+//   %body   = rt_make_function("Foo", @Foo.__body__, ...)
+//   %cls    = rt_build_class_aot(%body, "Foo", %bases, %kwargs)
+//   rt_store_global(%mod, "Foo", %cls)
+//
+// rt_build_class_aot 内部:
+//   → py::build_class_aot (ClassBuilder.cpp)
+//     → calculate_metaclass       ← C3 metaclass 冲突检测
+//     → __prepare__               ← 创建 namespace
+//     → body_fn(PyTuple(ns))      ← 执行类体
+//     → metaclass(name,bases,ns)  ← PyType::__new__ → mro_() → ready()
+//     → __classcell__ 处理        ← super() 支持
+// =============================================================================
+
+ast::Value *PylangCodegen::visit(const ast::ClassDefinition *node)
+{
+	//  Step 1: 编译基类表达式
+	std::vector<llvm::Value *> base_values;
+	for (const auto &base : node->bases()) {
+		auto *val = generate(base.get());
+		if (val) { base_values.push_back(val); }
+	}
+	auto *bases_tuple = m_emitter.create_tuple(base_values);
+
+	//  Step 2: 编译 keyword 参数（metaclass= 等）
+	llvm::Value *kwargs = m_emitter.null_pyobject();
+	if (!node->keywords().empty()) {
+		std::vector<llvm::Value *> kw_keys;
+		std::vector<llvm::Value *> kw_vals;
+		for (const auto &kw : node->keywords()) {
+			// kw 是 shared_ptr<ast::Keyword>，不需要 static_cast
+			// arg() 返回 std::optional<std::string>，nullopt 表示 **dict 展开
+			if (!kw->arg().has_value()) {
+				log::codegen()->warn("**kwargs unpacking in class bases not yet supported");
+				continue;
+			}
+			auto *val = generate(kw->value().get());
+			if (val) {
+				kw_keys.push_back(m_emitter.create_string(kw->arg().value()));
+				kw_vals.push_back(val);
+			}
+		}
+		if (!kw_keys.empty()) { kwargs = m_emitter.create_dict(kw_keys, kw_vals); }
+	}
+
+	//  Step 3: 编译类体函数
+	auto *body_fn = compile_class_body(node->name(), node->body(), node->source_location());
+	if (!body_fn) {
+		log::codegen()->error("Failed to compile class body for '{}'", node->name());
+		return nullptr;
+	}
+
+	//  Step 4: 调用 rt_build_class_aot
+	auto *cls = m_emitter.call_build_class_aot(body_fn, node->name(), bases_tuple, kwargs);
+
+	//  Step 5: 应用装饰器（从内到外）
+	for (auto it = node->decorator_list().rbegin(); it != node->decorator_list().rend(); ++it) {
+		auto *decorator = generate(it->get());
+		if (decorator) {
+			auto *args = m_emitter.create_tuple({ cls });
+			cls = m_emitter.call_function(decorator, args);
+		}
+	}
+
+	//  Step 6: 存储到当前作用域
+	store_variable(node->name(), cls);
+	return nullptr;
+}
 // =============================================================================
 // visit() 实现 — 未实现的节点 (Phase 3+)
 // =============================================================================
-
-// Phase 3.3: 类定义
-ast::Value *PylangCodegen::visit(const ast::ClassDefinition *node)
-{
-	log::codegen()->warn("ClassDefinition not implemented in Phase 2");
-	(void)node;
-	return nullptr;
-}
-
 // Phase 3+: 以下节点在 Phase 2 中不生成代码
 ast::Value *PylangCodegen::visit(const ast::Try *node)
 {
-	log::codegen()->warn("Try/Except not implemented in Phase 2");
 	(void)node;
+	emit_not_implemented("try/except");
 	return nullptr;
 }
 
 ast::Value *PylangCodegen::visit(const ast::ExceptHandler *node)
 {
 	(void)node;
+	emit_not_implemented("try/except");
 	return nullptr;
 }
 
 ast::Value *PylangCodegen::visit(const ast::With *node)
 {
-	log::codegen()->warn("With not implemented in Phase 2");
 	(void)node;
+	emit_not_implemented("with");
 	return nullptr;
 }
 
 ast::Value *PylangCodegen::visit(const ast::WithItem *node)
 {
 	(void)node;
+	emit_not_implemented("with item");
 	return nullptr;
 }
 
 ast::Value *PylangCodegen::visit(const ast::Lambda *node)
 {
-	log::codegen()->warn("Lambda not implemented in Phase 2");
-	(void)node;
-	return make_value(m_emitter.get_none());
+	// Lambda 等价于匿名函数:  lambda x: x+1  →  def <lambda>(x): return x+1
+
+	// 构造单语句 body: [Return(node->body())]
+	// 注意: Lambda 的 body 是一个表达式节点，不是 Return 节点
+	auto return_node = std::make_shared<ast::Return>(node->body(), node->source_location());
+	std::vector<std::shared_ptr<ast::ASTNode>> body = { return_node };
+
+	// 空装饰器列表
+	std::vector<std::shared_ptr<ast::ASTNode>> no_decorators;
+
+	auto *func_result = compile_function_body(
+		"<lambda>", node->args().get(), body, no_decorators, node->source_location());
+
+	if (!func_result) { return make_value(m_emitter.get_none()); }
+	return make_value(func_result);
 }
 
 ast::Value *PylangCodegen::visit(const ast::AsyncFunctionDefinition *node)
@@ -1286,4 +1747,4 @@ ast::Value *PylangCodegen::visit(const ast::Arguments *node)
 	return nullptr;
 }
 
-} // namespace pylang
+}// namespace pylang

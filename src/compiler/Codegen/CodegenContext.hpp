@@ -66,6 +66,11 @@ struct ScopeContext
 
 	/// VariablesResolver 的 Scope（用于查询变量 Visibility）
 	VariablesResolver::Scope *var_scope = nullptr;
+
+	/// CLASS scope 专用: namespace dict 的 LLVM Value*
+	/// 类体中 NAME visibility 的变量通过 dict_setitem_str/dict_getitem_str 存取
+	/// 非 CLASS scope 为 nullptr
+	llvm::Value *class_namespace = nullptr;
 };
 
 // =============================================================================
@@ -78,7 +83,7 @@ class CodegenContext
 		: m_builder(builder), m_visibility(visibility)
 	{}
 
-	// ---- 作用域管理 ----
+	//  作用域管理 
 
 	/// 进入新作用域
 	void push_scope(ScopeContext scope) { m_scopes.push_back(std::move(scope)); }
@@ -117,7 +122,7 @@ class CodegenContext
 
 	bool in_module_scope() const { return m_scopes.size() == 1; }
 
-	// ---- 变量可见性查询 ----
+	//  变量可见性查询 
 
 	/// 查找变量的 Visibility（从 VariablesResolver 的结果）
 	std::optional<Visibility> get_visibility(const std::string &var_name) const
@@ -131,7 +136,7 @@ class CodegenContext
 		return std::nullopt;
 	}
 
-	// ---- 局部变量管理 ----
+	//  局部变量管理 
 
 	/// 为局部变量创建 alloca（在函数入口 block 中）
 	llvm::AllocaInst *create_local(const std::string &name, llvm::Type *type)
@@ -192,14 +197,14 @@ class CodegenContext
 		return nullptr;
 	}
 
-	// ---- 循环管理 ----
+	//  循环管理 
 
 	void push_loop(LoopContext loop) { m_loops.push_back(loop); }
 	void pop_loop() { m_loops.pop_back(); }
 
 	const LoopContext *current_loop() const { return m_loops.empty() ? nullptr : &m_loops.back(); }
 
-	// ---- 模块对象 ----
+	//  模块对象 
 
 	llvm::Value *module_object() const
 	{

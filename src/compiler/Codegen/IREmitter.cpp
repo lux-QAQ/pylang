@@ -37,7 +37,8 @@ llvm::Constant *IREmitter::create_global_string(std::string_view str)
 
 llvm::Constant *IREmitter::null_pyobject() const
 {
-	return llvm::ConstantPointerNull::get(llvm::cast<llvm::PointerType>(pyobject_ptr_type()));
+    return llvm::ConstantPointerNull::get(
+        llvm::PointerType::getUnqual(m_builder.getContext()));
 }
 
 // =============================================================================
@@ -147,6 +148,30 @@ DEFINE_BINARY_OP(or, binary_or)
 DEFINE_BINARY_OP(xor, binary_xor)
 
 #undef DEFINE_BINARY_OP
+
+// =============================================================================
+// Tier 1: 增量赋值（inplace）运算
+// =============================================================================
+#define DEFINE_INPLACE_OP(name, func_name)                                          \
+	llvm::Value *IREmitter::call_inplace_##name(llvm::Value *lhs, llvm::Value *rhs) \
+	{                                                                               \
+		return emit_runtime_call(#func_name, { lhs, rhs });                         \
+	}
+
+DEFINE_INPLACE_OP(add, inplace_add)
+DEFINE_INPLACE_OP(sub, inplace_sub)
+DEFINE_INPLACE_OP(mul, inplace_mul)
+DEFINE_INPLACE_OP(truediv, inplace_truediv)
+DEFINE_INPLACE_OP(floordiv, inplace_floordiv)
+DEFINE_INPLACE_OP(mod, inplace_mod)
+DEFINE_INPLACE_OP(pow, inplace_pow)
+DEFINE_INPLACE_OP(lshift, inplace_lshift)
+DEFINE_INPLACE_OP(rshift, inplace_rshift)
+DEFINE_INPLACE_OP(and, inplace_and)
+DEFINE_INPLACE_OP(or, inplace_or)
+DEFINE_INPLACE_OP(xor, inplace_xor)
+
+#undef DEFINE_INPLACE_OP
 
 // =============================================================================
 // Tier 1: 一元运算
@@ -558,6 +583,28 @@ llvm::Value *IREmitter::call_get_closure(llvm::Value *func)
 llvm::Value *IREmitter::call_load_build_class()
 {
 	return emit_runtime_call("load_build_class", {});
+}
+
+llvm::Value *IREmitter::call_build_class_aot(llvm::Value *body_fn,
+    std::string_view class_name,
+    llvm::Value *bases_tuple,
+    llvm::Value *kwargs)
+{
+    auto *name_str = create_global_string(class_name);
+    return emit_runtime_call("build_class_aot", { body_fn, name_str, bases_tuple, kwargs });
+}
+
+void IREmitter::call_dict_setitem_str(
+    llvm::Value *dict, std::string_view key, llvm::Value *value)
+{
+    auto *key_str = create_global_string(key);
+    emit_runtime_call("dict_setitem_str", { dict, key_str, value });
+}
+
+llvm::Value *IREmitter::call_dict_getitem_str(llvm::Value *dict, std::string_view key)
+{
+    auto *key_str = create_global_string(key);
+    return emit_runtime_call("dict_getitem_str", { dict, key_str });
 }
 
 // =============================================================================

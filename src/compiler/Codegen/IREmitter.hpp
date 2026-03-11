@@ -74,6 +74,20 @@ class IREmitter
 	llvm::Value *call_binary_and(llvm::Value *lhs, llvm::Value *rhs);
 	llvm::Value *call_binary_or(llvm::Value *lhs, llvm::Value *rhs);
 	llvm::Value *call_binary_xor(llvm::Value *lhs, llvm::Value *rhs);
+	// ========== Tier 1: 增量赋值（inplace）运算 ==========
+	llvm::Value *call_inplace_add(llvm::Value *lhs, llvm::Value *rhs);
+	llvm::Value *call_inplace_sub(llvm::Value *lhs, llvm::Value *rhs);
+	llvm::Value *call_inplace_mul(llvm::Value *lhs, llvm::Value *rhs);
+	llvm::Value *call_inplace_truediv(llvm::Value *lhs, llvm::Value *rhs);
+	llvm::Value *call_inplace_floordiv(llvm::Value *lhs, llvm::Value *rhs);
+	llvm::Value *call_inplace_mod(llvm::Value *lhs, llvm::Value *rhs);
+	llvm::Value *call_inplace_pow(llvm::Value *lhs, llvm::Value *rhs);
+	llvm::Value *call_inplace_lshift(llvm::Value *lhs, llvm::Value *rhs);
+	llvm::Value *call_inplace_rshift(llvm::Value *lhs, llvm::Value *rhs);
+	llvm::Value *call_inplace_and(llvm::Value *lhs, llvm::Value *rhs);
+	llvm::Value *call_inplace_or(llvm::Value *lhs, llvm::Value *rhs);
+	llvm::Value *call_inplace_xor(llvm::Value *lhs, llvm::Value *rhs);
+
 
 	// ========== Tier 1: 一元运算 ==========
 	llvm::Value *call_unary_neg(llvm::Value *obj);
@@ -131,7 +145,7 @@ class IREmitter
 
 	// ========== Tier 4: 方法调用 ==========
 	llvm::Value *call_load_method(llvm::Value *obj, std::string_view method_name);
-	
+
 	// ========== Phase 4+: 快速调用 ==========
 	/// 直接传 C 数组调用，避免 PyTuple 堆分配
 	llvm::Value *call_function_fast(llvm::Value *callable, llvm::ArrayRef<llvm::Value *> args);
@@ -147,56 +161,66 @@ class IREmitter
 	void call_raise(llvm::Value *exception);
 	llvm::Value *call_load_assertion_error();
 
-    // ========== Tier 4: 闭包操作 (Phase 3.2) ==========
-    llvm::Value *call_create_cell(llvm::Value *value);
-    llvm::Value *call_cell_get(llvm::Value *cell);
-    void call_cell_set(llvm::Value *cell, llvm::Value *value);
+	// ========== Tier 4: 闭包操作 (Phase 3.2) ==========
+	llvm::Value *call_create_cell(llvm::Value *value);
+	llvm::Value *call_cell_get(llvm::Value *cell);
+	void call_cell_set(llvm::Value *cell, llvm::Value *value);
 
-    // ========== Tier 4: 函数创建 (Phase 3.2) ==========
-    /// 从 AOT 编译后的原生函数指针创建 Python 可调用对象
-    ///
-    /// @param name       函数名
-    /// @param code_ptr   编译后的 LLVM Function*（作为 ptr 传入）
-    /// @param module     所属模块
-    /// @param defaults   默认值 PyTuple*，或 null
-    /// @param kwdefaults 关键字默认值 PyDict*，或 null
-    /// @param closure    闭包 cell 元组 PyTuple*，或 null
-    llvm::Value *call_make_function(
-        std::string_view name,
-        llvm::Value *code_ptr,
-        llvm::Value *module,
-        llvm::Value *defaults = nullptr,
-        llvm::Value *kwdefaults = nullptr,
-        llvm::Value *closure = nullptr);
+	// ========== Tier 4: 函数创建 (Phase 3.2) ==========
+	/// 从 AOT 编译后的原生函数指针创建 Python 可调用对象
+	///
+	/// @param name       函数名
+	/// @param code_ptr   编译后的 LLVM Function*（作为 ptr 传入）
+	/// @param module     所属模块
+	/// @param defaults   默认值 PyTuple*，或 null
+	/// @param kwdefaults 关键字默认值 PyDict*，或 null
+	/// @param closure    闭包 cell 元组 PyTuple*，或 null
+	llvm::Value *call_make_function(std::string_view name,
+		llvm::Value *code_ptr,
+		llvm::Value *module,
+		llvm::Value *defaults = nullptr,
+		llvm::Value *kwdefaults = nullptr,
+		llvm::Value *closure = nullptr);
 
-    /// 获取函数的闭包 cell 元组
-    llvm::Value *call_get_closure(llvm::Value *func);
+	/// 获取函数的闭包 cell 元组
+	llvm::Value *call_get_closure(llvm::Value *func);
 
     // ========== Tier 5: 类创建 (Phase 3.3) ==========
     /// 加载 builtins.__build_class__
     llvm::Value *call_load_build_class();
 
-    // ========== Tier 6: 异常匹配 (Phase 3.3) ==========
+    /// AOT 类创建: rt_build_class_aot(body_fn, name, bases, kwargs)
+    llvm::Value *call_build_class_aot(llvm::Value *body_fn,
+        std::string_view class_name,
+        llvm::Value *bases_tuple,
+        llvm::Value *kwargs);
+
+    /// 向 dict 写入字符串键条目（类体 namespace）
+    void call_dict_setitem_str(llvm::Value *dict, std::string_view key, llvm::Value *value);
+
+    /// 从 dict 读取字符串键条目（类体 namespace）
+    llvm::Value *call_dict_getitem_str(llvm::Value *dict, std::string_view key);
+
+
+	// ========== Tier 6: 异常匹配 (Phase 3.3) ==========
 	llvm::Value *call_check_exception_match(llvm::Value *exc, llvm::Value *exc_type);
 	void call_reraise(llvm::Value *exc);
 
 	// ========== 生命周期 ==========
 	void emit_init();
 	void emit_shutdown();
-
-	// ========== 辅助方法 ==========
+	// ========== 辅助 ==========
 	llvm::Type *pyobject_ptr_type() const { return m_linker.pyobject_ptr_type(); }
 	llvm::LLVMContext &context() const { return m_builder.getContext(); }
-
-  private:
+	/// 创建 null PyObject* 常量
+	llvm::Constant *null_pyobject() const;
 	/// 通用调用生成器（核心方法）
 	llvm::Value *emit_runtime_call(std::string_view func_name, llvm::ArrayRef<llvm::Value *> args);
 
+  private:
 	/// 创建全局字符串常量（带缓存）
 	llvm::Constant *create_global_string(std::string_view str);
 
-	/// 创建 null PyObject* 常量
-	llvm::Constant *null_pyobject() const;
 
 	llvm::IRBuilder<> &m_builder;
 	RuntimeLinker &m_linker;

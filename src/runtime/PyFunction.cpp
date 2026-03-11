@@ -63,65 +63,69 @@ PyFunction::PyFunction(std::vector<Value> defaults,
 // =============================================================================
 
 /// AOT 编译后的函数指针类型（无闭包）
-using AOTFuncPtr = py::PyObject *(*)(py::PyTuple *, py::PyDict *);
+/// 签名: PyObject*(PyObject* module, PyTuple* args, PyDict* kwargs)
+using AOTFuncPtr = py::PyObject *(*)(py::PyObject *, py::PyTuple *, py::PyDict *);
 
 /// AOT 编译后的函数指针类型（有闭包）
-using AOTClosureFuncPtr = py::PyObject *(*)(py::PyObject *, py::PyTuple *, py::PyDict *);
+/// 签名: PyObject*(PyObject* module, PyObject* closure, PyTuple* args, PyDict* kwargs)
+using AOTClosureFuncPtr = py::PyObject *(*)(py::PyObject *, py::PyObject *, py::PyTuple *, py::PyDict *);
+
 
 PyResult<PyNativeFunction *> PyNativeFunction::create_aot(std::string name,
-	void *code_ptr,
-	PyObject *module,
-	PyObject *defaults,
-	PyObject *kwdefaults,
-	PyObject *closure)
+    void *code_ptr,
+    PyObject *module,
+    PyObject *defaults,
+    PyObject *kwdefaults,
+    PyObject *closure)
 {
-	PyNativeFunction *result = nullptr;
+    PyNativeFunction *result = nullptr;
 
-	if (closure) {
-		//  闭包函数 
-		// 编译后签名: PyObject*(PyObject* closure, PyTuple* args, PyDict* kwargs)
-		// 通过 lambda 捕获 closure 指针，保持 FreeFunctionType（不用 MethodType hack）
-		auto fn = reinterpret_cast<AOTClosureFuncPtr>(code_ptr);
-		PyObject *captured_closure = closure;
+    if (closure) {
+        //  闭包函数 
+        // 编译后签名: PyObject*(PyObject* module, PyObject* closure, PyTuple* args, PyDict* kwargs)
+        auto fn = reinterpret_cast<AOTClosureFuncPtr>(code_ptr);
+        PyObject *captured_closure = closure;
+        PyObject *captured_module = module;
 
-		FreeFunctionType func = [fn, captured_closure](
-									PyTuple *args, PyDict *kwargs) -> PyResult<PyObject *> {
-			auto *r = fn(captured_closure, args, kwargs);
-			if (!r) { return Err(runtime_error("compiled closure returned null")); }
-			return Ok(r);
-		};
+        FreeFunctionType func = [fn, captured_module, captured_closure](
+                                    PyTuple *args, PyDict *kwargs) -> PyResult<PyObject *> {
+            auto *r = fn(captured_module, captured_closure, args, kwargs);
+            if (!r) { return Err(runtime_error("compiled closure returned null")); }
+            return Ok(r);
+        };
 
-		result = PYLANG_ALLOC(
-			PyNativeFunction, std::move(name), FunctionType{ std::move(func) }, nullptr);
-	} else {
-		//  普通函数 
-		// 编译后签名: PyObject*(PyTuple* args, PyDict* kwargs)
-		auto fn = reinterpret_cast<AOTFuncPtr>(code_ptr);
+        result = PYLANG_ALLOC(
+            PyNativeFunction, std::move(name), FunctionType{ std::move(func) }, nullptr);
+    } else {
+        //  普通函数 
+        // 编译后签名: PyObject*(PyObject* module, PyTuple* args, PyDict* kwargs)
+        auto fn = reinterpret_cast<AOTFuncPtr>(code_ptr);
+        PyObject *captured_module = module;
 
-		FreeFunctionType func = [fn](PyTuple *args, PyDict *kwargs) -> PyResult<PyObject *> {
-			auto *r = fn(args, kwargs);
-			if (!r) { return Err(runtime_error("compiled function returned null")); }
-			return Ok(r);
-		};
+        FreeFunctionType func = [fn, captured_module](
+                                    PyTuple *args, PyDict *kwargs) -> PyResult<PyObject *> {
+            auto *r = fn(captured_module, args, kwargs);
+            if (!r) { return Err(runtime_error("compiled function returned null")); }
+            return Ok(r);
+        };
 
-		result = PYLANG_ALLOC(
-			PyNativeFunction, std::move(name), FunctionType{ std::move(func) }, nullptr);
-	}
+        result = PYLANG_ALLOC(
+            PyNativeFunction, std::move(name), FunctionType{ std::move(func) }, nullptr);
+    }
 
-	if (!result) { return Err(memory_error(sizeof(PyNativeFunction))); }
+    if (!result) { return Err(memory_error(sizeof(PyNativeFunction))); }
 
-	// 存储元数据（Python 语义需要）
-	result->m_closure = closure ? static_cast<PyTuple *>(closure) : nullptr;
-	result->m_module_ref = module;
+    // 存储元数据（Python 语义需要）
+    result->m_closure = closure ? static_cast<PyTuple *>(closure) : nullptr;
+    result->m_module_ref = module;
 
-	// GC 追踪：lambda 捕获了这些指针，必须让 GC 知道
-	// 在AOT模式下是多余的,考虑删除
-	if (closure) { result->m_captures.push_back(closure); }
-	if (defaults) { result->m_captures.push_back(defaults); }
-	if (kwdefaults) { result->m_captures.push_back(kwdefaults); }
-	if (module) { result->m_captures.push_back(module); }
+    // GC 追踪：lambda 捕获了这些指针，必须让 GC 知道
+    if (closure) { result->m_captures.push_back(closure); }
+    if (defaults) { result->m_captures.push_back(defaults); }
+    if (kwdefaults) { result->m_captures.push_back(kwdefaults); }
+    if (module) { result->m_captures.push_back(module); }
 
-	return Ok(result);
+    return Ok(result);
 }
 
 

@@ -1,10 +1,13 @@
 #include "rt_common.hpp"
 
+#include "runtime/ClassBuilder.hpp"
 #include "runtime/ModuleRegistry.hpp"
+#include "runtime/NameError.hpp"
+#include "runtime/PyDict.hpp"
 #include "runtime/PyModule.hpp"
 #include "runtime/PyString.hpp"
+#include "runtime/PyTuple.hpp"
 #include "runtime/RuntimeError.hpp"
-#include "runtime/NameError.hpp"
 
 // =============================================================================
 // Tier 5: 类创建 (Phase 3.3)
@@ -47,4 +50,16 @@ py::PyObject *rt_load_build_class()
 	if (result.is_ok()) { return result.unwrap(); }
 
 	rt_raise(py::name_error("__build_class__ not found in builtins"));
+}
+
+PYLANG_EXPORT_CLASS("build_class_aot", "obj", "obj,str,obj,obj")
+py::PyObject *rt_build_class_aot(py::PyObject *body_fn,
+	const char *name,
+	py::PyObject *bases,
+	py::PyObject *kwargs)
+{
+	return rt_unwrap(py::build_class_aot(body_fn,
+		std::string(name),
+		static_cast<py::PyTuple *>(bases),
+		kwargs ? static_cast<py::PyDict *>(kwargs) : nullptr));
 }
