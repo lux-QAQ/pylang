@@ -74,6 +74,30 @@ struct ScopeContext
 };
 
 // =============================================================================
+// TryContext — try 块的异常处理上下文
+// =============================================================================
+struct TryContext
+{
+	/// landingpad BB — invoke 的 unwind 目标
+	llvm::BasicBlock *landingpad_bb;
+
+	/// finally BB — 正常路径也要跳到这里
+	llvm::BasicBlock *finally_bb;
+
+	/// 状态变量: 0=normal, 1=exception, 2=return, 3=break, 4=continue
+	llvm::AllocaInst *state_alloca;
+
+	/// 保存 return value（如果 try/except 中有 return）
+	llvm::AllocaInst *retval_alloca;
+
+	/// 保存 landingpad token（用于 resume）
+	llvm::AllocaInst *lp_alloca;
+
+	/// 保存捕获的 Python 异常对象
+	llvm::AllocaInst *exc_alloca;
+};
+
+// =============================================================================
 // CodegenContext — 作用域栈 + 辅助查询
 // =============================================================================
 class CodegenContext
@@ -83,7 +107,7 @@ class CodegenContext
 		: m_builder(builder), m_visibility(visibility)
 	{}
 
-	//  作用域管理 
+	//  作用域管理
 
 	/// 进入新作用域
 	void push_scope(ScopeContext scope) { m_scopes.push_back(std::move(scope)); }
@@ -101,7 +125,14 @@ class CodegenContext
 		ASSERT(!m_scopes.empty());
 		return m_scopes.back();
 	}
-
+	/// 查找最近的有 finally 的 try 上下文（向外搜索）
+	const TryContext *nearest_finally_try() const
+	{
+		for (auto it = m_tries.rbegin(); it != m_tries.rend(); ++it) {
+			if (it->finally_bb) { return &*it; }
+		}
+		return nullptr;
+	}
 	const ScopeContext &current_scope() const
 	{
 		ASSERT(!m_scopes.empty());
@@ -122,7 +153,7 @@ class CodegenContext
 
 	bool in_module_scope() const { return m_scopes.size() == 1; }
 
-	//  变量可见性查询 
+	//  变量可见性查询
 
 	/// 查找变量的 Visibility（从 VariablesResolver 的结果）
 	std::optional<Visibility> get_visibility(const std::string &var_name) const
@@ -136,21 +167,47 @@ class CodegenContext
 		return std::nullopt;
 	}
 
-	//  局部变量管理 
+	//  局部变量管理
 
 	/// 为局部变量创建 alloca（在函数入口 block 中）
-	llvm::AllocaInst *create_local(const std::string &name, llvm::Type *type)
-	{
-		auto &scope = current_scope();
-		ASSERT(scope.llvm_func);
+	// llvm::AllocaInst *create_local(const std::string &name, llvm::Type *type)
+	// {
+	// 	auto &scope = current_scope();
+	// 	ASSERT(scope.llvm_func);
 
-		// 在函数入口 block 创建 alloca (LLVM mem2reg 友好)
-		auto &entry_bb = scope.llvm_func->getEntryBlock();
-		llvm::IRBuilder<> entry_builder(&entry_bb, entry_bb.begin());
-		auto *alloca = entry_builder.CreateAlloca(type, nullptr, name);
-		scope.locals[name] = alloca;
-		return alloca;
-	}
+	// 	// 在函数入口 block 创建 alloca (LLVM mem2reg 友好)
+	// 	auto &entry_bb = scope.llvm_func->getEntryBlock();
+	// 	llvm::IRBuilder<> entry_builder(&entry_bb, entry_bb.begin());
+	// 	auto *alloca = entry_builder.CreateAlloca(type, nullptr, name);
+	// 	scope.locals[name] = alloca;
+	// 	return alloca;
+	// }
+
+    llvm::AllocaInst *create_local(const std::string &name, llvm::Type *type)
+    {
+        auto *func = current_function();
+        auto &entry_bb = func->getEntryBlock();
+
+        // 在 entry block 开头创建 alloca
+        llvm::IRBuilder<> entry_builder(&entry_bb, entry_bb.begin());
+        auto *alloca = entry_builder.CreateAlloca(type, nullptr, name);
+
+        // 初始化: 使用 null/zero
+        // 这比 get_none() 更正确：
+        // - get_none() 在当前插入点生成 call，跨 BB 会导致 "does not dominate"
+        // - null 初始化符合 Python 语义：未赋值变量为 null → runtime 抛 UnboundLocalError
+        // - get_none() 初始化会掩盖 UnboundLocalError（错误地返回 None）
+        if (type->isPointerTy()) {
+            entry_builder.CreateStore(
+                llvm::ConstantPointerNull::get(llvm::cast<llvm::PointerType>(type)), alloca);
+        } else if (type->isIntegerTy()) {
+            entry_builder.CreateStore(llvm::ConstantInt::get(type, 0), alloca);
+        }
+
+        // 修复: m_scope_stack → m_scopes
+        current_scope().locals[name] = alloca;
+        return alloca;
+    }
 
 	/// 查找局部变量的 alloca
 	llvm::AllocaInst *find_local(const std::string &name) const
@@ -197,14 +254,14 @@ class CodegenContext
 		return nullptr;
 	}
 
-	//  循环管理 
+	//  循环管理
 
 	void push_loop(LoopContext loop) { m_loops.push_back(loop); }
 	void pop_loop() { m_loops.pop_back(); }
 
 	const LoopContext *current_loop() const { return m_loops.empty() ? nullptr : &m_loops.back(); }
 
-	//  模块对象 
+	//  模块对象
 
 	llvm::Value *module_object() const
 	{
@@ -221,11 +278,25 @@ class CodegenContext
 	/// VisibilityMap 引用（供 PylangCodegen 传给嵌套函数编译）
 	const VisibilityMap &visibility_map() const { return m_visibility; }
 
+
+	//  Try 管理
+	void push_try(TryContext ctx) { m_tries.push_back(std::move(ctx)); }
+	void pop_try() { m_tries.pop_back(); }
+	const TryContext *current_try() const { return m_tries.empty() ? nullptr : &m_tries.back(); }
+	bool in_try_block() const { return !m_tries.empty(); }
+
+	/// 获取最内层 try 的 landingpad BB（供 invoke 使用）
+	llvm::BasicBlock *unwind_dest() const
+	{
+		return m_tries.empty() ? nullptr : m_tries.back().landingpad_bb;
+	}
+
   private:
 	llvm::IRBuilder<> &m_builder;
 	const VisibilityMap &m_visibility;
 	std::vector<ScopeContext> m_scopes;
 	std::vector<LoopContext> m_loops;
+	std::vector<TryContext> m_tries;
 };
 
 }// namespace pylang

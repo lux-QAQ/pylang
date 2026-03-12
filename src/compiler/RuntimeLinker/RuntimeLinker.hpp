@@ -3,6 +3,7 @@
 #include "compiler/Support/Error.hpp"
 #include "compiler/Support/LLVMUtils.hpp"
 #include "compiler/Support/Log.hpp"
+#include "RuntimeLinker_option.hpp"
 
 #include <llvm/IR/Function.h>
 #include <llvm/IR/Module.h>
@@ -20,15 +21,15 @@ namespace pylang {
 // =============================================================================
 struct RuntimeFunction
 {
-	std::string category;
-	std::string name;
-	std::string return_type;
-	std::string param_types;
+    std::string category;
+    std::string name;
+    std::string return_type;
+    std::string param_types;
 
-	llvm::Function *llvm_func = nullptr;
-	llvm::FunctionType *llvm_func_type = nullptr;
+    llvm::Function *llvm_func = nullptr;
+    llvm::FunctionType *llvm_func_type = nullptr;
 
-	[[nodiscard]] std::vector<std::string_view> params() const;
+    [[nodiscard]] std::vector<std::string_view> params() const;
 };
 
 // =============================================================================
@@ -37,40 +38,46 @@ struct RuntimeFunction
 class RuntimeLinker
 {
   public:
-	static Result<RuntimeLinker> create(LLVMModuleLoader &loader,
-		const std::filesystem::path &bitcode_path);
+    static Result<RuntimeLinker> create(LLVMModuleLoader &loader,
+        const std::filesystem::path &bitcode_path);
 
-	Result<const RuntimeFunction *> get_function(std::string_view name) const;
+    Result<const RuntimeFunction *> get_function(std::string_view name) const;
 
-	std::vector<const RuntimeFunction *> list_by_category(std::string_view category) const;
+    std::vector<const RuntimeFunction *> list_by_category(std::string_view category) const;
 
-	/// 在用户 Module 中声明函数（lazy）
-	/// 返回 nullptr 表示函数不存在（调用者应检查）
-	llvm::Function *declare_in(llvm::Module *user_module, std::string_view name);
+    /// 在用户 Module 中声明函数（lazy）
+    llvm::Function *declare_in(llvm::Module *user_module, std::string_view name);
 
-	/// 获取 PyObject* 的 LLVM 类型（opaque pointer）
-	llvm::Type *pyobject_ptr_type() const;
-
-	llvm::Module *runtime_module() const { return m_runtime_module; }
-
-	size_t function_count() const { return m_functions.size(); }
-
-	/// 诊断：列出所有已注册函数（按 category 分组）
-	void print_registry() const;
-
-	/// 将 runtime module 链接到用户 module（会克隆 runtime module）
+    llvm::Type *pyobject_ptr_type() const;
+    llvm::Module *runtime_module() const { return m_runtime_module; }
+    size_t function_count() const { return m_functions.size(); }
+    void print_registry() const;
     VoidResult link_into(llvm::Module *user_module);
 
+    // ========== 缓存管理 ==========
+    
+    /// 获取当前选项（可修改）
+    RuntimeLinkerOptions &options() { return m_options; }
+    
+    /// 清除特定模块的缓存（当 Module 析构时调用）
+    void forget_module(llvm::Module *module);
+
+    /// 清空所有缓存（测试 TearDown 时调用）
+    void clear_cache();
+
   private:
-	RuntimeLinker() = default;
+    RuntimeLinker() = default;
+    VoidResult scan_annotations();
+    Result<RuntimeFunction> parse_annotation(std::string_view annotation_str, llvm::Function *func);
 
-	VoidResult scan_annotations();
+    llvm::Module *m_runtime_module = nullptr;
+    std::unordered_map<std::string, RuntimeFunction> m_functions;
 
-	Result<RuntimeFunction> parse_annotation(std::string_view annotation_str, llvm::Function *func);
+    RuntimeLinkerOptions m_options;
 
-	llvm::Module *m_runtime_module = nullptr;
-	std::unordered_map<std::string, RuntimeFunction> m_functions;
-	std::unordered_map<std::string, llvm::Function *> m_declared;
-};
+    // 缓存: Module* -> (Logical Name -> FunctionDecl*)
+    // 使用 Module* 作为一级 Key 隔离不同模块，避免逻辑名冲突
+    std::unordered_map<llvm::Module *, std::unordered_map<std::string, llvm::Function *>> m_cache;
+};;
 
 }// namespace pylang

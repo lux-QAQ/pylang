@@ -88,6 +88,18 @@ class PylangCodegen : public ast::CodeGenerator
 #undef __AST_NODE_TYPE
 
 
+	/// 发射 runtime 调用，自动感知 try 上下文
+	/// 在 try 块内使用 invoke，否则使用 call
+	llvm::Value *emit_call(const std::string &name, llvm::ArrayRef<llvm::Value *> args);
+
+	/// 设置函数的 personality function（try 块需要）
+	void ensure_personality(llvm::Function *func);
+
+	/// 生成 finally 后的状态分派（return/break/continue/reraise/normal）
+	void emit_finally_dispatch(const TryContext &try_ctx,
+		llvm::BasicBlock *merge_bb,
+		llvm::BasicBlock *reraise_bb);
+
 	llvm::Value *emit_not_implemented(const char *feature);
 	//  核心生成方法
 
@@ -107,7 +119,11 @@ class PylangCodegen : public ast::CodeGenerator
 
 	/// 加载变量（根据 Visibility 决定路径）
 	llvm::Value *load_variable(const std::string &name);
-
+	void store_to_sequence_target(const std::vector<std::shared_ptr<ast::ASTNode>> &elements,
+		llvm::Value *value);
+	/// 将 value 存储到任意赋值目标（Name, Attribute, Subscript, Tuple 解包）
+	/// 用于 Assign, AugAssign, For, With 等需要存储到目标的场景
+	void store_to_target(const ast::ASTNode *target, llvm::Value *value);
 	/// 存储变量（根据 Visibility 决定路径）
 	void store_variable(const std::string &name, llvm::Value *value);
 

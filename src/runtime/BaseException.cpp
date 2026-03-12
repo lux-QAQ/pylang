@@ -149,22 +149,48 @@ std::function<std::unique_ptr<TypePrototype>()> BaseException::type_factory()
 	};
 }
 
+// bool check_exception_match(PyObject *exc, PyObject *exc_type)
+// {
+// 	if (auto *type_obj = as<PyType>(exc_type)) { return exc->type()->issubclass(type_obj); }
+
+// 	if (auto *tuple_obj = as<PyTuple>(exc_type)) {
+// 		for (const auto &el : tuple_obj->elements()) {
+// 			auto el_obj = PyObject::from(el);
+// 			if (el_obj.is_err()) continue;
+// 			auto *el_type = as<PyType>(el_obj.unwrap());
+// 			if (el_type && exc->type()->issubclass(el_type)) { return true; }
+// 		}
+// 		return false;
+// 	}
+
+// 	// 非法类型 — 调用者需要处理
+// 	return false;
+// }
+
 bool check_exception_match(PyObject *exc, PyObject *exc_type)
 {
-	if (auto *type_obj = as<PyType>(exc_type)) { return exc->type()->issubclass(type_obj); }
+    if (!exc || !exc_type) { return false; }
 
-	if (auto *tuple_obj = as<PyTuple>(exc_type)) {
-		for (const auto &el : tuple_obj->elements()) {
-			auto el_obj = PyObject::from(el);
-			if (el_obj.is_err()) continue;
-			auto *el_type = as<PyType>(el_obj.unwrap());
-			if (el_type && exc->type()->issubclass(el_type)) { return true; }
-		}
-		return false;
-	}
+    // exc_type 可能是 tuple of types: except (TypeError, ValueError)
+    if (auto *tuple = as<PyTuple>(exc_type)) {
+        for (const auto &elem : tuple->elements()) {
+            if (!std::holds_alternative<PyObject *>(elem)) { continue; }
+            auto *type_obj = std::get<PyObject *>(elem);
+            if (check_exception_match(exc, type_obj)) { return true; }
+        }
+        return false;
+    }
 
-	// 非法类型 — 调用者需要处理
-	return false;
+    // exc_type 是单个类型
+    auto *exc_actual_type = exc->type();
+    if (!exc_actual_type) { return false; }
+
+    // isinstance(exc, exc_type) — 检查 MRO
+    if (auto *target_type = as<PyType>(exc_type)) {
+        return exc_actual_type->issubclass(target_type);
+    }
+
+    return false;
 }
 
 }// namespace py

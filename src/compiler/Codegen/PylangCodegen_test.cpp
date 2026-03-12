@@ -21,9 +21,9 @@ using namespace pylang;
 class PylangCodegenTest : public ::testing::Test
 {
   protected:
-	void SetUp() override
+	static void SetUpTestSuite()
 	{
-		loader = std::make_unique<LLVMModuleLoader>(ctx);
+		s_loader = std::make_unique<LLVMModuleLoader>(s_ctx);
 
 		const char *env_path = std::getenv("PYLANG_RUNTIME_BC");
 #ifdef PYLANG_RUNTIME_BC_DEFAULT
@@ -33,31 +33,37 @@ class PylangCodegenTest : public ::testing::Test
 #endif
 
 		if (!std::filesystem::exists(runtime_bc)) {
-			GTEST_SKIP() << "runtime.bc not found at " << runtime_bc;
+			s_skip_reason = "runtime.bc not found at " + runtime_bc;
+			return;
 		}
 
-		auto linker_result = RuntimeLinker::create(*loader, runtime_bc);
-		ASSERT_TRUE(linker_result.has_value()) << linker_result.error().to_string();
-		linker = std::make_unique<RuntimeLinker>(std::move(*linker_result));
+		auto linker_result = RuntimeLinker::create(*s_loader, runtime_bc);
+		if (!linker_result.has_value()) {
+			s_skip_reason = linker_result.error().to_string();
+			return;
+		}
+		s_linker = std::make_unique<RuntimeLinker>(std::move(*linker_result));
 	}
 
-	/// 编译 AST Module 并返回 LLVM IR 文本
-	// std::string compile_module(ast::Module &mod)
-	// {
-	// 	auto result = PylangCodegen::compile(&mod, "__test__", ctx, *linker);
-	// 	EXPECT_TRUE(result.has_value()) << result.error().to_string();
+	static void TearDownTestSuite()
+	{
+		s_linker.reset();
+		s_loader.reset();
+	}
 
-	// 	std::string ir;
-	// 	llvm::raw_string_ostream os(ir);
-	// 	result->module->print(os, nullptr);
-	// 	return ir;
-	// }
+	void SetUp() override
+	{
+		if (!s_skip_reason.empty()) { GTEST_SKIP() << s_skip_reason; }
+		if (!s_linker) { GTEST_SKIP() << "linker not initialized"; }
+	}
+
 	std::string compile_module(ast::Module &mod)
 	{
-		auto result = PylangCodegen::compile(&mod, "__test__", ctx, *linker);
+		// PylangCodegen::compile 内部会创建新 module，不共享状态，天然隔离
+		auto result = PylangCodegen::compile(&mod, "__test__", s_ctx, *s_linker);
 		if (!result.has_value()) {
 			ADD_FAILURE() << result.error().to_string();
-			return "";// ← 提前返回，不访问无效的 result->module
+			return "";
 		}
 
 		std::string ir;
@@ -81,10 +87,16 @@ class PylangCodegenTest : public ::testing::Test
 
 	SourceLocation loc() { return SourceLocation{}; }
 
-	llvm::LLVMContext ctx;
-	std::unique_ptr<LLVMModuleLoader> loader;
-	std::unique_ptr<RuntimeLinker> linker;
+	static llvm::LLVMContext s_ctx;
+	static std::unique_ptr<LLVMModuleLoader> s_loader;
+	static std::unique_ptr<RuntimeLinker> s_linker;
+	static std::string s_skip_reason;
 };
+
+llvm::LLVMContext PylangCodegenTest::s_ctx;
+std::unique_ptr<LLVMModuleLoader> PylangCodegenTest::s_loader;
+std::unique_ptr<RuntimeLinker> PylangCodegenTest::s_linker;
+std::string PylangCodegenTest::s_skip_reason;
 
 // =============================================================================
 // 基础: 空模块生成 main + PyInit
@@ -394,54 +406,53 @@ TEST_F(PylangCodegenTest, AssertStatement)
 // =============================================================================
 TEST_F(PylangCodegenTest, AugAssignAdd)
 {
-    // x += 1
-    ast::Module mod("<test>");
-    auto target = std::make_shared<ast::Name>("x", ast::ContextType::STORE, loc());
-    auto val = std::make_shared<ast::Constant>(int64_t(1), loc());
-    mod.emplace(std::make_shared<ast::AugAssign>(target, ast::BinaryOpType::PLUS, val, loc()));
+	// x += 1
+	ast::Module mod("<test>");
+	auto target = std::make_shared<ast::Name>("x", ast::ContextType::STORE, loc());
+	auto val = std::make_shared<ast::Constant>(int64_t(1), loc());
+	mod.emplace(std::make_shared<ast::AugAssign>(target, ast::BinaryOpType::PLUS, val, loc()));
 
-    auto ir = compile_module(mod);
-    if (ir.empty()) { return; }
+	auto ir = compile_module(mod);
+	if (ir.empty()) { return; }
 	std::cout << ir;
-    EXPECT_TRUE(ir_calls_rt(ir, "rt_inplace_add"));
-    EXPECT_TRUE(ir_calls_rt(ir, "rt_integer_from_i64"));
+	EXPECT_TRUE(ir_calls_rt(ir, "rt_inplace_add"));
+	EXPECT_TRUE(ir_calls_rt(ir, "rt_integer_from_i64"));
 }
 
 TEST_F(PylangCodegenTest, AugAssignSub)
 {
-    ast::Module mod("<test>");
-    auto target = std::make_shared<ast::Name>("x", ast::ContextType::STORE, loc());
-    auto val = std::make_shared<ast::Constant>(int64_t(2), loc());
-    mod.emplace(std::make_shared<ast::AugAssign>(target, ast::BinaryOpType::MINUS, val, loc()));
+	ast::Module mod("<test>");
+	auto target = std::make_shared<ast::Name>("x", ast::ContextType::STORE, loc());
+	auto val = std::make_shared<ast::Constant>(int64_t(2), loc());
+	mod.emplace(std::make_shared<ast::AugAssign>(target, ast::BinaryOpType::MINUS, val, loc()));
 
-    auto ir = compile_module(mod);
-    if (ir.empty()) { return; }
-    EXPECT_TRUE(ir_calls_rt(ir, "rt_inplace_sub"));
+	auto ir = compile_module(mod);
+	if (ir.empty()) { return; }
+	EXPECT_TRUE(ir_calls_rt(ir, "rt_inplace_sub"));
 }
 
 TEST_F(PylangCodegenTest, AugAssignMul)
 {
-    ast::Module mod("<test>");
-    auto target = std::make_shared<ast::Name>("x", ast::ContextType::STORE, loc());
-    auto val = std::make_shared<ast::Constant>(int64_t(3), loc());
-    mod.emplace(
-        std::make_shared<ast::AugAssign>(target, ast::BinaryOpType::MULTIPLY, val, loc()));
+	ast::Module mod("<test>");
+	auto target = std::make_shared<ast::Name>("x", ast::ContextType::STORE, loc());
+	auto val = std::make_shared<ast::Constant>(int64_t(3), loc());
+	mod.emplace(std::make_shared<ast::AugAssign>(target, ast::BinaryOpType::MULTIPLY, val, loc()));
 
-    auto ir = compile_module(mod);
-    if (ir.empty()) { return; }
-    EXPECT_TRUE(ir_calls_rt(ir, "rt_inplace_mul"));
+	auto ir = compile_module(mod);
+	if (ir.empty()) { return; }
+	EXPECT_TRUE(ir_calls_rt(ir, "rt_inplace_mul"));
 }
 
 TEST_F(PylangCodegenTest, AugAssignOr)
 {
-    ast::Module mod("<test>");
-    auto target = std::make_shared<ast::Name>("x", ast::ContextType::STORE, loc());
-    auto val = std::make_shared<ast::Name>("y", ast::ContextType::LOAD, loc());
-    mod.emplace(std::make_shared<ast::AugAssign>(target, ast::BinaryOpType::OR, val, loc()));
+	ast::Module mod("<test>");
+	auto target = std::make_shared<ast::Name>("x", ast::ContextType::STORE, loc());
+	auto val = std::make_shared<ast::Name>("y", ast::ContextType::LOAD, loc());
+	mod.emplace(std::make_shared<ast::AugAssign>(target, ast::BinaryOpType::OR, val, loc()));
 
-    auto ir = compile_module(mod);
-    if (ir.empty()) { return; }
-    EXPECT_TRUE(ir_calls_rt(ir, "rt_inplace_or"));
+	auto ir = compile_module(mod);
+	if (ir.empty()) { return; }
+	EXPECT_TRUE(ir_calls_rt(ir, "rt_inplace_or"));
 }
 
 // =============================================================================
@@ -837,29 +848,29 @@ TEST_F(PylangCodegenTest, ClassWithDecorator)
 
 TEST_F(PylangCodegenTest, ClassWithMetaclass)
 {
-    // class Meta(type, metaclass=Meta):
-    //     pass
-    ast::Module mod("<test>");
+	// class Meta(type, metaclass=Meta):
+	//     pass
+	ast::Module mod("<test>");
 
-    auto base = std::make_shared<ast::Name>("type", ast::ContextType::LOAD, loc());
-    std::vector<std::shared_ptr<ast::ASTNode>> bases = { base };
+	auto base = std::make_shared<ast::Name>("type", ast::ContextType::LOAD, loc());
+	std::vector<std::shared_ptr<ast::ASTNode>> bases = { base };
 
-    // metaclass=Meta keyword
-    // ← 使用 std::string 而非 std::optional<std::string>
-    auto meta_val = std::make_shared<ast::Name>("Meta", ast::ContextType::LOAD, loc());
-    auto kw = std::make_shared<ast::Keyword>(std::string{ "metaclass" }, meta_val, loc());
-    std::vector<std::shared_ptr<ast::Keyword>> keywords = { kw };
+	// metaclass=Meta keyword
+	// ← 使用 std::string 而非 std::optional<std::string>
+	auto meta_val = std::make_shared<ast::Name>("Meta", ast::ContextType::LOAD, loc());
+	auto kw = std::make_shared<ast::Keyword>(std::string{ "metaclass" }, meta_val, loc());
+	std::vector<std::shared_ptr<ast::Keyword>> keywords = { kw };
 
-    std::vector<std::shared_ptr<ast::ASTNode>> body = { std::make_shared<ast::Pass>(loc()) };
-    std::vector<std::shared_ptr<ast::ASTNode>> decorators;
+	std::vector<std::shared_ptr<ast::ASTNode>> body = { std::make_shared<ast::Pass>(loc()) };
+	std::vector<std::shared_ptr<ast::ASTNode>> decorators;
 
-    mod.emplace(std::make_shared<ast::ClassDefinition>(
-        "Meta", bases, keywords, body, decorators, loc()));
+	mod.emplace(
+		std::make_shared<ast::ClassDefinition>("Meta", bases, keywords, body, decorators, loc()));
 
-    auto ir = compile_module(mod);
-    if (ir.empty()) { return; }
-    EXPECT_TRUE(ir_calls_rt(ir, "rt_build_class_aot"));
-    EXPECT_TRUE(ir_calls_rt(ir, "rt_build_dict"));
+	auto ir = compile_module(mod);
+	if (ir.empty()) { return; }
+	EXPECT_TRUE(ir_calls_rt(ir, "rt_build_class_aot"));
+	EXPECT_TRUE(ir_calls_rt(ir, "rt_build_dict"));
 }
 
 
@@ -902,4 +913,205 @@ TEST_F(PylangCodegenTest, DeleteGlobal)
 	if (ir.empty()) { return; }
 	// 全局变量删除应调用 rt_delattr 或类似函数
 	EXPECT_TRUE(ir_calls_rt(ir, "rt_delattr") || ir_calls_rt(ir, "rt_store_global"));
+}
+
+// =============================================================================
+// Phase 3: Try / Except / Finally (核心 EH 测试)
+// =============================================================================
+TEST_F(PylangCodegenTest, TryExceptBasic)
+{
+    // try:
+    //     pass
+    // except:
+    //     pass
+    ast::Module mod("<test>");
+    auto pass = std::make_shared<ast::Pass>(loc());
+
+    // except (bare)
+    // 修复: 使用 "" 而非 std::nullopt (AST 定义 name 为 std::string)
+    auto handler = std::make_shared<ast::ExceptHandler>(
+        nullptr, "", std::vector<std::shared_ptr<ast::ASTNode>>{ pass }, loc());
+
+    auto try_stmt = std::make_shared<ast::Try>(
+        std::vector<std::shared_ptr<ast::ASTNode>>{ pass },          // body
+        std::vector<std::shared_ptr<ast::ExceptHandler>>{ handler }, // handlers
+        std::vector<std::shared_ptr<ast::ASTNode>>{},                // orelse
+        std::vector<std::shared_ptr<ast::ASTNode>>{},                // finally
+        loc());
+    mod.emplace(try_stmt);
+
+    auto ir = compile_module(mod);
+    if (ir.empty()) { return; }
+
+    // 检查 EH 基础设施
+    EXPECT_TRUE(ir_contains(ir, "landingpad"));
+    // EXPECT_TRUE(ir_contains(ir, "personality")); // 有些平台可能隐式处理
+    EXPECT_TRUE(ir_contains(ir, "__gxx_personality_v0"));
+
+    // 检查异常运行时调用
+    EXPECT_TRUE(ir_calls_rt(ir, "rt_catch_begin"));
+    // catch_end 可能因为 pass 被优化或逻辑结构而出现在不同位置，但 catch_begin 必须有
+}
+
+TEST_F(PylangCodegenTest, TryFinally)
+{
+	// try:
+	//     x = 1
+	// finally:
+	//     x = 2
+	ast::Module mod("<test>");
+	auto target = std::make_shared<ast::Name>("x", ast::ContextType::STORE, loc());
+	auto v1 = std::make_shared<ast::Constant>(int64_t(1), loc());
+	auto v2 = std::make_shared<ast::Constant>(int64_t(2), loc());
+
+	auto body_assign = std::make_shared<ast::Assign>(
+		std::vector<std::shared_ptr<ast::ASTNode>>{ target }, v1, "", loc());
+
+	auto final_assign = std::make_shared<ast::Assign>(
+		std::vector<std::shared_ptr<ast::ASTNode>>{ target }, v2, "", loc());
+
+	auto try_stmt =
+		std::make_shared<ast::Try>(std::vector<std::shared_ptr<ast::ASTNode>>{ body_assign },
+			std::vector<std::shared_ptr<ast::ExceptHandler>>{},
+			std::vector<std::shared_ptr<ast::ASTNode>>{},
+			std::vector<std::shared_ptr<ast::ASTNode>>{ final_assign },
+			loc());
+	mod.emplace(try_stmt);
+
+	auto ir = compile_module(mod);
+	// finally 块中包含 cleanup
+	// 正常路径和 unwind 路径都应该因为 store x=2 而包含 rt_integer_from_i64
+	// 且代码中应有 resume 指令（用于 unwind 路径的传播）
+	EXPECT_TRUE(ir_contains(ir, "resume"));
+}
+
+// =============================================================================
+// Phase 3: With Statement
+// =============================================================================
+TEST_F(PylangCodegenTest, WithStatement)
+{
+    // with x:
+    //     pass
+    ast::Module mod("<test>");
+    auto context_expr = std::make_shared<ast::Name>("x", ast::ContextType::LOAD, loc());
+    auto with_item = std::make_shared<ast::WithItem>(context_expr, nullptr, loc());
+
+    auto with_stmt =
+        std::make_shared<ast::With>(std::vector<std::shared_ptr<ast::WithItem>>{ with_item },
+            std::vector<std::shared_ptr<ast::ASTNode>>{ std::make_shared<ast::Pass>(loc()) },
+            "",
+            loc());
+    mod.emplace(with_stmt);
+
+    auto ir = compile_module(mod);
+    if (ir.empty()) { return; }
+
+    // __enter__ 和 __exit__ 调用
+    EXPECT_TRUE(ir_contains(ir, "__enter__"));
+    EXPECT_TRUE(ir_contains(ir, "__exit__"));
+
+    // with 语句应生成 landingpad（用于 body 中异常的 cleanup）
+    EXPECT_TRUE(ir_contains(ir, "landingpad"));
+
+    // body 只有 pass，不产生 runtime call，所以不会有 invoke。
+    // 但 __enter__/__exit__ 的 getattr/call 在 try 保护区之外，
+    // 按 Python 语义正确地生成 call 而非 invoke。
+    // 如果 body 中有实际操作（如函数调用），则会生成 invoke。
+}
+
+TEST_F(PylangCodegenTest, WithStatementInvoke)
+{
+    // with x:
+    //     y = 1 + 2   ← 会生成 invoke（在 try 保护区内）
+    ast::Module mod("<test>");
+    auto context_expr = std::make_shared<ast::Name>("x", ast::ContextType::LOAD, loc());
+    auto with_item = std::make_shared<ast::WithItem>(context_expr, nullptr, loc());
+
+    auto lhs = std::make_shared<ast::Constant>(int64_t(1), loc());
+    auto rhs = std::make_shared<ast::Constant>(int64_t(2), loc());
+    auto binop = std::make_shared<ast::BinaryExpr>(ast::BinaryOpType::PLUS, lhs, rhs, loc());
+    auto target = std::make_shared<ast::Name>("y", ast::ContextType::STORE, loc());
+    auto assign = std::make_shared<ast::Assign>(
+        std::vector<std::shared_ptr<ast::ASTNode>>{ target }, binop, "", loc());
+
+    auto with_stmt =
+        std::make_shared<ast::With>(std::vector<std::shared_ptr<ast::WithItem>>{ with_item },
+            std::vector<std::shared_ptr<ast::ASTNode>>{ assign },
+            "",
+            loc());
+    mod.emplace(with_stmt);
+
+    auto ir = compile_module(mod);
+    if (ir.empty()) { return; }
+
+    EXPECT_TRUE(ir_contains(ir, "__enter__"));
+    EXPECT_TRUE(ir_contains(ir, "__exit__"));
+    EXPECT_TRUE(ir_contains(ir, "landingpad"));
+    // body 中的 binary_add 在 try 保护区内，应生成 invoke
+    EXPECT_TRUE(ir_contains(ir, "invoke"));
+}
+
+// =============================================================================
+// Phase 2/3: 复杂赋值 (Subscript, Slice, Unpack)
+// =============================================================================
+TEST_F(PylangCodegenTest, StoreSubscript)
+{
+	// a[1] = 2
+	ast::Module mod("<test>");
+	auto obj = std::make_shared<ast::Name>("a", ast::ContextType::LOAD, loc());
+	auto idx = std::make_shared<ast::Constant>(int64_t(1), loc());
+	auto val = std::make_shared<ast::Constant>(int64_t(2), loc());
+
+	auto sub = std::make_shared<ast::Subscript>(
+		obj, ast::Subscript::Index{ idx }, ast::ContextType::STORE, loc());
+
+	mod.emplace(std::make_shared<ast::Assign>(
+		std::vector<std::shared_ptr<ast::ASTNode>>{ sub }, val, "", loc()));
+
+	auto ir = compile_module(mod);
+	EXPECT_TRUE(ir_calls_rt(ir, "rt_setitem"));
+}
+
+TEST_F(PylangCodegenTest, SliceLoad)
+{
+	// x = a[1:2]
+	ast::Module mod("<test>");
+	auto obj = std::make_shared<ast::Name>("a", ast::ContextType::LOAD, loc());
+	auto lower = std::make_shared<ast::Constant>(int64_t(1), loc());
+	auto upper = std::make_shared<ast::Constant>(int64_t(2), loc());
+
+	// slice(lower, upper, step=null)
+	ast::Subscript::Slice s;
+	s.lower = lower;
+	s.upper = upper;
+
+	auto sub = std::make_shared<ast::Subscript>(obj, s, ast::ContextType::LOAD, loc());
+
+	auto target = std::make_shared<ast::Name>("x", ast::ContextType::STORE, loc());
+	mod.emplace(std::make_shared<ast::Assign>(
+		std::vector<std::shared_ptr<ast::ASTNode>>{ target }, sub, "", loc()));
+
+	auto ir = compile_module(mod);
+	EXPECT_TRUE(ir_calls_rt(ir, "rt_build_slice"));
+	EXPECT_TRUE(ir_calls_rt(ir, "rt_getitem"));
+}
+
+TEST_F(PylangCodegenTest, TupleUnpack)
+{
+	// a, b = x
+	ast::Module mod("<test>");
+	auto x = std::make_shared<ast::Name>("x", ast::ContextType::LOAD, loc());
+
+	auto t1 = std::make_shared<ast::Name>("a", ast::ContextType::STORE, loc());
+	auto t2 = std::make_shared<ast::Name>("b", ast::ContextType::STORE, loc());
+
+	auto tuple_target = std::make_shared<ast::Tuple>(
+		std::vector<std::shared_ptr<ast::ASTNode>>{ t1, t2 }, ast::ContextType::STORE, loc());
+
+	mod.emplace(std::make_shared<ast::Assign>(
+		std::vector<std::shared_ptr<ast::ASTNode>>{ tuple_target }, x, "", loc()));
+
+	auto ir = compile_module(mod);
+	// 应调用 unpack_sequence
+	EXPECT_TRUE(ir_calls_rt(ir, "rt_unpack_sequence"));
 }

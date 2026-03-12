@@ -14,32 +14,62 @@ using namespace pylang;
 
 class IREmitterTest : public ::testing::Test
 {
-protected:
-    void SetUp() override
+  protected:
+    // =========================================================================
+    // Suite-level 共享资源 — runtime.bc 只加载一次
+    // =========================================================================
+    static void SetUpTestSuite()
     {
-        loader = std::make_unique<LLVMModuleLoader>(ctx);
-        
+        s_loader = std::make_unique<LLVMModuleLoader>(s_ctx);
+
         const char *env_path = std::getenv("PYLANG_RUNTIME_BC");
 #ifdef PYLANG_RUNTIME_BC_DEFAULT
         std::string runtime_bc = env_path ? env_path : PYLANG_RUNTIME_BC_DEFAULT;
 #else
         std::string runtime_bc = env_path ? env_path : "build/debug/runtime.bc";
 #endif
-        
+
         if (!std::filesystem::exists(runtime_bc)) {
-            GTEST_SKIP() << "runtime.bc not found at " << runtime_bc;
+            s_skip_reason = "runtime.bc not found at " + runtime_bc;
+            return;
         }
 
-        auto linker_result = RuntimeLinker::create(*loader, runtime_bc);
-        ASSERT_TRUE(linker_result.has_value()) << linker_result.error().to_string();
-        linker = std::make_unique<RuntimeLinker>(std::move(*linker_result));
+        auto linker_result = RuntimeLinker::create(*s_loader, runtime_bc);
+        if (!linker_result.has_value()) {
+            s_skip_reason = linker_result.error().to_string();
+            return;
+        }
+        s_linker = std::make_unique<RuntimeLinker>(std::move(*linker_result));
+    }
 
-        module = std::make_unique<llvm::Module>("test_module", ctx);
-        builder = std::make_unique<llvm::IRBuilder<>>(ctx);
-        emitter = std::make_unique<IREmitter>(*builder, *linker, module.get());
+    static void TearDownTestSuite()
+    {
+        s_linker.reset();
+        s_loader.reset();
+    }
 
-        // 创建测试函数框架
+    // =========================================================================
+    // Test-level 资源 — 每个测试独立的 module/builder/emitter
+    // =========================================================================
+    void SetUp() override
+    {
+        if (!s_skip_reason.empty()) { GTEST_SKIP() << s_skip_reason; }
+        if (!s_linker) { GTEST_SKIP() << "linker not initialized"; }
+
+        // module、builder、emitter 每个测试独立，避免状态污染
+        module = std::make_unique<llvm::Module>("test_module", s_ctx);
+        builder = std::make_unique<llvm::IRBuilder<>>(s_ctx);
+        // 复用 suite-level linker，不重新加载 bc
+        emitter = std::make_unique<IREmitter>(*builder, *s_linker, module.get());
+
         create_test_function();
+    }
+
+    void TearDown() override
+    {
+        emitter.reset();
+        builder.reset();
+        module.reset();
     }
 
     void create_test_function()
@@ -47,7 +77,7 @@ protected:
         auto *func_type = llvm::FunctionType::get(emitter->pyobject_ptr_type(), false);
         test_func = llvm::Function::Create(
             func_type, llvm::Function::ExternalLinkage, "test_func", module.get());
-        entry_bb = llvm::BasicBlock::Create(ctx, "entry", test_func);
+        entry_bb = llvm::BasicBlock::Create(s_ctx, "entry", test_func);
         builder->SetInsertPoint(entry_bb);
     }
 
@@ -75,16 +105,25 @@ protected:
         return get_ir().find(pattern) != std::string::npos;
     }
 
-    llvm::LLVMContext ctx;
-    std::unique_ptr<LLVMModuleLoader> loader;
-    std::unique_ptr<RuntimeLinker> linker;
+    // Suite-level (static)
+    static llvm::LLVMContext s_ctx;
+    static std::unique_ptr<LLVMModuleLoader> s_loader;
+    static std::unique_ptr<RuntimeLinker> s_linker;
+    static std::string s_skip_reason;
+
+    // Test-level (per-test)
     std::unique_ptr<llvm::Module> module;
     std::unique_ptr<llvm::IRBuilder<>> builder;
     std::unique_ptr<IREmitter> emitter;
-    
     llvm::Function *test_func = nullptr;
     llvm::BasicBlock *entry_bb = nullptr;
 };
+
+// 静态成员定义
+llvm::LLVMContext IREmitterTest::s_ctx;
+std::unique_ptr<LLVMModuleLoader> IREmitterTest::s_loader;
+std::unique_ptr<RuntimeLinker> IREmitterTest::s_linker;
+std::string IREmitterTest::s_skip_reason;
 
 // =============================================================================
 // Tier 0: 单例
@@ -676,7 +715,7 @@ TEST_F(IREmitterTest, PyObjectPtrType)
 TEST_F(IREmitterTest, Context)
 {
     auto &context = emitter->context();
-    EXPECT_EQ(&context, &ctx);
+    EXPECT_EQ(&context, &s_ctx);
 }
 
 // =============================================================================

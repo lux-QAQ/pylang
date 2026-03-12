@@ -42,6 +42,21 @@ void rt_unpack_sequence(py::PyObject *iterable, int32_t count, py::PyObject **ou
 	rt_unwrap_void(py::unpack_sequence(iterable, count, out));
 }
 
+/// a, *b, c = iterable
+/// before_count: 星号前的变量数量
+/// after_count:  星号后的变量数量
+/// out:          输出数组，大小 = before_count + 1(list) + after_count
+/// a, *b, c = iterable
+/// 纯委托给 runtime — export 层不实现语义
+PYLANG_EXPORT_SUBSCR("unpack_ex", "void", "obj,i32,i32,ptr")
+void rt_unpack_ex(py::PyObject *iterable,
+    int32_t before_count,
+    int32_t after_count,
+    py::PyObject **out)
+{
+    rt_unwrap_void(py::unpack_ex(iterable, before_count, after_count, out));
+}
+
 // =============================================================================
 // Tier 3: 下标操作
 // =============================================================================
@@ -86,8 +101,8 @@ void rt_list_extend(py::PyObject *list, py::PyObject *iterable)
 PYLANG_EXPORT_SUBSCR("dict_merge", "void", "obj,obj")
 void rt_dict_merge(py::PyObject *dict, py::PyObject *other)
 {
-    // {**a, **b} 语法 — 两者都已知是 dict，委托给 update
-    rt_unwrap_void(static_cast<py::PyDict *>(dict)->update(other));
+	// {**a, **b} 语法 — 两者都已知是 dict，委托给 update
+	rt_unwrap_void(static_cast<py::PyDict *>(dict)->update(other));
 }
 
 PYLANG_EXPORT_SUBSCR("dict_update", "void", "obj,obj")

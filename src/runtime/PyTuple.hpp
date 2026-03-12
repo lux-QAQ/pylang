@@ -114,4 +114,13 @@ class PyTupleIterator : public PyBaseObject
 /// 对应 Python 的 UNPACK_SEQUENCE 字节码语义
 PyResult<std::monostate> unpack_sequence(PyObject *iterable, int32_t count, PyObject **out);
 
+/// 带星号的扩展解包
+/// a, *b, c = iterable
+///   before_count: 星号前的变量数量
+///   after_count:  星号后的变量数量
+///   out 数组大小: before_count + 1(list) + after_count
+/// 对应 Python 的 UNPACK_EX 字节码语义
+PyResult<std::monostate>
+	unpack_ex(PyObject *iterable, int32_t before_count, int32_t after_count, PyObject **out);
+
 }// namespace py

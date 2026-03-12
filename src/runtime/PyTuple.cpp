@@ -433,4 +433,53 @@ PyResult<std::monostate> unpack_sequence(PyObject *iterable, int32_t count, PyOb
 	return Ok(std::monostate{});
 }
 
+PyResult<std::monostate>
+	unpack_ex(PyObject *iterable, int32_t before_count, int32_t after_count, PyObject **out)
+{
+	// --- Step 1: 获取迭代器 ---
+	auto iter_result = iterable->iter();
+	if (iter_result.is_err()) { return Err(iter_result.unwrap_err()); }
+	auto *iter = iter_result.unwrap();
+
+	// --- Step 2: 收集所有元素 ---
+	std::vector<PyObject *> elements;
+	while (true) {
+		auto next = iter->next();
+		if (next.is_err()) {
+			if (next.unwrap_err()->type()->issubclass(stop_iteration()->type())) { break; }
+			return Err(next.unwrap_err());
+		}
+		elements.push_back(next.unwrap());
+	}
+
+	// --- Step 3: 数量校验 ---
+	const int32_t total = static_cast<int32_t>(elements.size());
+	const int32_t min_required = before_count + after_count;
+	if (total < min_required) {
+		return Err(value_error(
+			"not enough values to unpack (expected at least {}, got {})", min_required, total));
+	}
+
+	// --- Step 4: 填充 before_count 个前置元素 ---
+	for (int32_t i = 0; i < before_count; ++i) { out[i] = elements[i]; }
+
+	// --- Step 5: 中间 list（星号变量）---
+	const int32_t middle_count = total - before_count - after_count;
+	std::vector<Value> middle_vals;
+	middle_vals.reserve(middle_count);
+	for (int32_t i = before_count; i < before_count + middle_count; ++i) {
+		middle_vals.push_back(elements[i]);
+	}
+	auto middle_list = PyList::create(middle_vals);
+	if (middle_list.is_err()) { return Err(middle_list.unwrap_err()); }
+	out[before_count] = middle_list.unwrap();
+
+	// --- Step 6: 填充 after_count 个后置元素 ---
+	for (int32_t i = 0; i < after_count; ++i) {
+		out[before_count + 1 + i] = elements[before_count + middle_count + i];
+	}
+
+	return Ok(std::monostate{});
+}
+
 }// namespace py

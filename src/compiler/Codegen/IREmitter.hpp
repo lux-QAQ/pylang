@@ -185,21 +185,21 @@ class IREmitter
 	/// 获取函数的闭包 cell 元组
 	llvm::Value *call_get_closure(llvm::Value *func);
 
-    // ========== Tier 5: 类创建 (Phase 3.3) ==========
-    /// 加载 builtins.__build_class__
-    llvm::Value *call_load_build_class();
+	// ========== Tier 5: 类创建 (Phase 3.3) ==========
+	/// 加载 builtins.__build_class__
+	llvm::Value *call_load_build_class();
 
-    /// AOT 类创建: rt_build_class_aot(body_fn, name, bases, kwargs)
-    llvm::Value *call_build_class_aot(llvm::Value *body_fn,
-        std::string_view class_name,
-        llvm::Value *bases_tuple,
-        llvm::Value *kwargs);
+	/// AOT 类创建: rt_build_class_aot(body_fn, name, bases, kwargs)
+	llvm::Value *call_build_class_aot(llvm::Value *body_fn,
+		std::string_view class_name,
+		llvm::Value *bases_tuple,
+		llvm::Value *kwargs);
 
-    /// 向 dict 写入字符串键条目（类体 namespace）
-    void call_dict_setitem_str(llvm::Value *dict, std::string_view key, llvm::Value *value);
+	/// 向 dict 写入字符串键条目（类体 namespace）
+	void call_dict_setitem_str(llvm::Value *dict, std::string_view key, llvm::Value *value);
 
-    /// 从 dict 读取字符串键条目（类体 namespace）
-    llvm::Value *call_dict_getitem_str(llvm::Value *dict, std::string_view key);
+	/// 从 dict 读取字符串键条目（类体 namespace）
+	llvm::Value *call_dict_getitem_str(llvm::Value *dict, std::string_view key);
 
 
 	// ========== Tier 6: 异常匹配 (Phase 3.3) ==========
@@ -214,8 +214,25 @@ class IREmitter
 	llvm::LLVMContext &context() const { return m_builder.getContext(); }
 	/// 创建 null PyObject* 常量
 	llvm::Constant *null_pyobject() const;
-	/// 通用调用生成器（核心方法）
-	llvm::Value *emit_runtime_call(std::string_view func_name, llvm::ArrayRef<llvm::Value *> args);
+
+
+	/// 核心调用发射 — 统一接口
+	/// 自动处理函数查找、invoke/call 选择
+	llvm::Value *emit_runtime_call(std::string_view func_name,
+		llvm::ArrayRef<llvm::Value *> args,
+		llvm::BasicBlock *unwind_dest = nullptr);
+
+	/// C++ EH 辅助
+	void declare_eh_intrinsics();
+	llvm::Function *get_personality_function();
+	llvm::Value *emit_landingpad(llvm::BasicBlock *lp_bb);
+
+	/// 获取 PylangException 的 typeinfo（用于 landingpad catch 子句）
+	llvm::Constant *get_pylang_exception_typeinfo();
+
+	/// 设置/清除当前 unwind 目标（try 块入口设置，出口恢复）
+	void set_unwind_dest(llvm::BasicBlock *bb) { m_unwind_dest = bb; }
+	llvm::BasicBlock *unwind_dest() const { return m_unwind_dest; }
 
   private:
 	/// 创建全局字符串常量（带缓存）
@@ -228,6 +245,9 @@ class IREmitter
 
 	// 字符串常量缓存
 	std::unordered_map<std::string, llvm::Constant *> m_string_cache;
+
+	// 当前 unwind 目标（try 块内非 null）
+	llvm::BasicBlock *m_unwind_dest = nullptr;
 };
 
 }// namespace pylang

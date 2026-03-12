@@ -272,35 +272,75 @@ std::vector<const RuntimeFunction *> RuntimeLinker::list_by_category(
 
 llvm::Function *RuntimeLinker::declare_in(llvm::Module *user_module, std::string_view name)
 {
-    // 缓存 key 包含 module 地址，防止跨 Module 复用声明
-    std::string cache_key =
-        std::to_string(reinterpret_cast<uintptr_t>(user_module)) + ":" + std::string(name);
+    std::string name_str(name);
 
-    auto it = m_declared.find(cache_key);
-    if (it != m_declared.end()) { return it->second; }
+    // Fast path: 缓存命中
+    if (m_options.enable_function_cache) {
+        auto mod_it = m_cache.find(user_module);
+        if (mod_it != m_cache.end()) {
+            auto func_it = mod_it->second.find(name_str);
+            if (func_it != mod_it->second.end()) {
+                // 可以在此加入 assert(func_it->second->getParent() == user_module) 
+                // 来检测悬垂指针，但这需要访问可能无效的内存，只能靠上层保证生命周期
+                return func_it->second;
+            }
+        }
+    }
 
+    // Slow path: 全流程查找与创建
+
+    // 1. 查找元数据
     auto result = get_function(name);
     if (!result) {
         log::linker()->error("Cannot declare unknown function: {}", name);
+        // 缓存失败结果为 nullptr？不，通常直接返回
         return nullptr;
     }
-
     const auto *rt_func = *result;
+    
+    // 2. 获取 mangled name
+    std::string mangled_name = rt_func->llvm_func->getName().str();
 
-    auto *decl = llvm::Function::Create(rt_func->llvm_func_type,
-        llvm::Function::ExternalLinkage,
-        rt_func->llvm_func->getName(),
-        user_module);
+    // 3. 检查 Module 符号表 (LLVM 自身缓存)
+    llvm::Function *decl = user_module->getFunction(mangled_name);
+    
+    if (!decl) {
+        // 4. 创建新声明
+        decl = llvm::Function::Create(rt_func->llvm_func_type,
+            llvm::Function::ExternalLinkage,
+            mangled_name,
+            user_module);
+        decl->copyAttributesFrom(rt_func->llvm_func);
 
-    decl->copyAttributesFrom(rt_func->llvm_func);
+        if (decl->hasPersonalityFn()) { decl->setPersonalityFn(nullptr); }
 
-    // extern 声明不能跨模块引用 personality function
-    if (decl->hasPersonalityFn()) { decl->setPersonalityFn(nullptr); }
+        log::linker()->debug("Declared {} in module {}", name, user_module->getName().str());
+    }
 
-    m_declared[cache_key] = decl;
-    log::linker()->debug("Declared {} in module {}", name, user_module->getName().str());
+    // 5. 更新缓存
+    if (m_options.enable_function_cache && decl) {
+        m_cache[user_module][name_str] = decl;
+    }
+
     return decl;
 }
+
+// =============================================================================
+// 缓存管理
+// =============================================================================
+
+void RuntimeLinker::forget_module(llvm::Module *module)
+{
+    if (m_options.enable_function_cache) {
+        m_cache.erase(module);
+    }
+}
+
+void RuntimeLinker::clear_cache()
+{
+    m_cache.clear();
+}
+
 // =============================================================================
 // RuntimeLinker::pyobject_ptr_type
 // =============================================================================
@@ -337,14 +377,17 @@ VoidResult RuntimeLinker::link_into(llvm::Module *user_module)
         return MAKE_ERROR(ErrorKind::InternalError, "Runtime module not loaded");
     }
 
-    // 克隆 runtime module（Linker 会修改源 module）
     auto cloned = llvm::CloneModule(*m_runtime_module);
-
     llvm::Linker linker(*user_module);
-    if (linker.linkInModule(std::move(cloned))) {
+
+    if (linker.linkInModule(std::move(cloned), llvm::Linker::OverrideFromSrc)) {
         return MAKE_ERROR(ErrorKind::LinkError, "Failed to link runtime module");
     }
 
+    // 链接后，所有声明变成了定义 (Declaration -> Definition)
+    // 指针地址未变，Value 类型从 Declaration 变为 Function (with body)，
+    // 缓存依然有效。
+    
     log::linker()->info("Successfully linked runtime module into {}", user_module->getName().str());
     return {};
 }
