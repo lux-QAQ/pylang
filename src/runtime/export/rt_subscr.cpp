@@ -29,6 +29,7 @@ py::PyObject *rt_iter_next(py::PyObject *iter, bool *has_value)
 		return nullptr;
 	}
 	rt_raise(result.unwrap_err());
+	return nullptr;// unreachable
 }
 
 // =============================================================================

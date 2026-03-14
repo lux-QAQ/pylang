@@ -158,6 +158,9 @@ class PylangCodegen : public ast::CodeGenerator
 		const std::vector<std::shared_ptr<ast::ASTNode>> &body,
 		SourceLocation source_loc);
 
+	// 追踪函数参数栈
+	std::vector<std::string> m_func_first_args;
+
 	//  成员
 
 	llvm::LLVMContext &m_ctx;

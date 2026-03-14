@@ -54,6 +54,29 @@ llvm::Value *IREmitter::emit_runtime_call(std::string_view name,
     }
 }
 
+// void IREmitter::declare_eh_intrinsics()
+// {
+//     auto *i32_ty = m_builder.getInt32Ty();
+
+//     if (!m_module->getFunction("__gxx_personality_v0")) {
+//         auto *personality_ty = llvm::FunctionType::get(i32_ty, /*isVarArg=*/true);
+//         llvm::Function::Create(
+//             personality_ty, llvm::Function::ExternalLinkage, "__gxx_personality_v0", m_module);
+//     }
+
+//     // PylangException typeinfo — 精确捕获
+//     // namespace py { struct PylangException; }
+//     // Itanium mangling: _ZTIN2py16PylangExceptionE
+//     if (!m_module->getGlobalVariable("_ZTIN2py16PylangExceptionE")) {
+//         new llvm::GlobalVariable(*m_module,
+//             m_builder.getPtrTy(),
+//             /*isConstant=*/true,
+//             llvm::GlobalValue::ExternalLinkage,
+//             /*Initializer=*/nullptr,
+//             "_ZTIN2py16PylangExceptionE");
+//     }
+// }
+
 void IREmitter::declare_eh_intrinsics()
 {
     auto *i32_ty = m_builder.getInt32Ty();
@@ -64,23 +87,23 @@ void IREmitter::declare_eh_intrinsics()
             personality_ty, llvm::Function::ExternalLinkage, "__gxx_personality_v0", m_module);
     }
 
-    // PylangException typeinfo — 精确捕获
-    // namespace py { struct PylangException; }
-    // Itanium mangling: _ZTIN2py16PylangExceptionE
-    if (!m_module->getGlobalVariable("_ZTIN2py16PylangExceptionE")) {
-        new llvm::GlobalVariable(*m_module,
-            m_builder.getPtrTy(),
-            /*isConstant=*/true,
-            llvm::GlobalValue::ExternalLinkage,
-            /*Initializer=*/nullptr,
-            "_ZTIN2py16PylangExceptionE");
-    }
+    // 不再伪造定义 _ZTIN2py16PylangExceptionE
+    // 真实 RTTI 会在 runtime.bc 中由编译器带入
 }
+
+// llvm::Constant *IREmitter::get_pylang_exception_typeinfo()
+// {
+//     declare_eh_intrinsics();
+//     return m_module->getGlobalVariable("_ZTIN2py16PylangExceptionE");
+// }
 
 llvm::Constant *IREmitter::get_pylang_exception_typeinfo()
 {
     declare_eh_intrinsics();
-    return m_module->getGlobalVariable("_ZTIN2py16PylangExceptionE");
+    // 返回 null 代表生成 `catch ptr null`（等同于 C++ 中 catch (...)）
+    // 避免伪造 TypeInfo 导致 llvm-link 时被重命名造成 undefined symbol。
+    // 在 exception 最终抛出和落地时，由 rt_catch_begin 负责具体的对象解包操作。
+    return llvm::ConstantPointerNull::get(m_builder.getPtrTy());
 }
 // =============================================================================
 // 辅助：全局字符串常量（带缓存）
@@ -447,22 +470,28 @@ llvm::Value *IREmitter::call_load_method(llvm::Value *obj, std::string_view meth
 // }
 
 llvm::Value *IREmitter::call_import(std::string_view name,
-	llvm::Value *globals,
-	llvm::Value *fromlist,
-	int level)
+    llvm::Value *globals,
+    llvm::Value *fromlist,
+    int level)
 {
-	auto *name_str = create_global_string(name);
+    auto *name_str = create_global_string(name);
 
-	// globals 默认传 null（AOT 场景下由运行时从当前模块取）
-	if (!globals) { globals = null_pyobject(); }
-	// fromlist 默认 null（等价于 import foo，不是 from foo import bar）
-	if (!fromlist) { fromlist = null_pyobject(); }
-	// locals 在 CPython 语义里和 globals 相同，传 null 即可
-	llvm::Value *locals = null_pyobject();
+    // globals 默认传 null（AOT 场景下由运行时从当前模块取）
+    if (!globals) { globals = null_pyobject(); }
+    // fromlist 默认 null（等价于 import foo，不是 from foo import bar）
+    if (!fromlist) { fromlist = null_pyobject(); }
+    // locals 在 CPython 语义里和 globals 相同，传 null 即可
+    llvm::Value *locals = null_pyobject();
 
-	auto *level_val = m_builder.getInt32(level);
+    auto *level_val = m_builder.getInt32(level);
 
-	return emit_runtime_call("import", { name_str, globals, fromlist, locals, level_val });
+    return emit_runtime_call("import", { name_str, globals, fromlist, locals, level_val });
+}
+
+llvm::Value *IREmitter::call_add_module(std::string_view name)
+{
+    auto *name_str = create_global_string(name);
+    return emit_runtime_call("add_module", { name_str });
 }
 
 // =============================================================================
@@ -473,6 +502,16 @@ void IREmitter::call_raise(llvm::Value *exception) { emit_runtime_call("raise", 
 llvm::Value *IREmitter::call_load_assertion_error()
 {
 	return emit_runtime_call("load_assertion_error", {});
+}
+
+llvm::Value *IREmitter::call_type_of(llvm::Value *obj)
+{
+    return emit_runtime_call("type_of", { obj });
+}
+
+llvm::Value *IREmitter::call_get_traceback(llvm::Value *exc)
+{
+    return emit_runtime_call("get_traceback", { exc });
 }
 
 // =============================================================================
@@ -693,6 +732,48 @@ llvm::Value *IREmitter::call_dict_getitem_str(llvm::Value *dict, std::string_vie
 {
 	auto *key_str = create_global_string(key);
 	return emit_runtime_call("dict_getitem_str", { dict, key_str });
+}
+
+void IREmitter::call_unpack_ex(llvm::Value *iterable, int32_t before, int32_t after, llvm::Value *out_array)
+{
+    auto *before_val = m_builder.getInt32(before);
+    auto *after_val = m_builder.getInt32(after);
+    emit_runtime_call("unpack_ex", { iterable, before_val, after_val, out_array });
+}
+
+llvm::Value *IREmitter::call_tuple_getitem(llvm::Value *tuple, llvm::Value *index)
+{
+    // index 必须是 i32
+    return emit_runtime_call("tuple_getitem", { tuple, index });
+}
+
+llvm::Value *IREmitter::call_tuple_len(llvm::Value *tuple)
+{
+    return emit_runtime_call("tuple_size", { tuple });
+}
+
+
+
+
+llvm::Value *IREmitter::call_catch_begin(llvm::Value *exc_ptr)
+{
+    return emit_runtime_call("catch_begin", { exc_ptr });
+}
+
+void IREmitter::call_catch_end()
+{
+    emit_runtime_call("catch_end", {});
+}
+
+void IREmitter::call_print_unhandled_exception(llvm::Value *exc)
+{
+    emit_runtime_call("print_unhandled_exception", { exc });
+}
+
+// [Add] Tier 3: 容器转换
+llvm::Value *IREmitter::call_list_to_tuple(llvm::Value *list)
+{
+    return emit_runtime_call("list_to_tuple", { list });
 }
 
 // =============================================================================

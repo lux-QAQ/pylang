@@ -596,6 +596,7 @@ class Argument final : public ASTNode
 	void print_this_node(const std::string &indent) const final;
 
 	const std::string &name() const { return m_arg; }
+	[[deprecated("Use name() instead")]]	const std::string &arg() const { return name(); }
 	const std::shared_ptr<ASTNode> &annotation() const { return m_annotation; }
 
 	Value *codegen(CodeGenerator *) const override;

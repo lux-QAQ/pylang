@@ -55,8 +55,8 @@ namespace {
 
 		if (found == LookupAttrResult::FOUND && method.is_ok()) {
 			// 构造参数 tuple: (rhs,)
-			// 使用变参模板版本 PyTuple::create(Args...)，避免 vector 构造歧义
-			auto args = PyTuple::create(const_cast<PyObject *>(rhs));
+			// 注意：Value 构造需要非 const 指针，但这里只读取不修改语义上是安全的
+			auto args = PyTuple::create({ const_cast<PyObject *>(rhs) });
 			if (args.is_err()) return Err(args.unwrap_err());
 
 			return method.unwrap()->call(args.unwrap(), nullptr);
@@ -212,8 +212,7 @@ namespace {
 				if (!as<PyInteger>(result.unwrap())) {
 					return Err(type_error(std::string(conversion_error_message)));
 				}
-				//return Ok(as<PyInteger>(result.unwrap())->as_i64());
-				return Ok(static_cast<int32_t>(as<PyInteger>(result.unwrap())->as_i64()));
+				return Ok(as<PyInteger>(result.unwrap())->as_i64());
 			} else if constexpr (std::is_same_v<typename ResultType::OkType, std::monostate>) {
 				auto result = callable->call(args.unwrap(), kwargs);
 				if (result.is_err()) {
@@ -767,22 +766,18 @@ PyResult<PyObject *> PyObject::call(PyTuple *args, PyDict *kwargs)
 }
 
 
+
+
 PyResult<PyObject *> PyObject::add(const PyObject *other) const
 {
 	if (type_prototype().__add__.has_value()) {
 		return call_slot(*type_prototype().__add__, this, other);
-	} else if (other->type_prototype().__add__.has_value()) {
-		// 注意：这是 __radd__ 的逻辑，如果 lhs 没有 __add__，尝试 rhs 的 __radd__
-		// 但目前的实现似乎是尝试 rhs 的 __add__ (可能不完全符合 Python 语义，但先保持原状)
+	} 
+	else if (other->type_prototype().__add__.has_value()) {
 		return call_slot(*other->type_prototype().__add__, other, this);
 	} else if (auto seq = const_cast<PyObject *>(this)->as_sequence(); seq.is_ok()) {
 		return seq.unwrap().concat(const_cast<PyObject *>(other));
 	}
-
-	// Fallback: 动态查找 __add__
-	auto result = binary_op_fallback(this, other, "__add__");
-	if (result.is_ok() && result.unwrap() != not_implemented()) { return result; }
-
 	return Err(type_error("unsupported operand type(s) for +: \'{}\' and \'{}\'",
 		type_prototype().__name__,
 		other->type_prototype().__name__));
@@ -793,11 +788,6 @@ PyResult<PyObject *> PyObject::subtract(const PyObject *other) const
 	if (type_prototype().__sub__.has_value()) {
 		return call_slot(*type_prototype().__sub__, this, other);
 	}
-
-	// Fallback: 动态查找 __sub__
-	auto result = binary_op_fallback(this, other, "__sub__");
-	if (result.is_ok() && result.unwrap() != not_implemented()) { return result; }
-
 	return Err(type_error("unsupported operand type(s) for -: \'{}\' and \'{}\'",
 		type_prototype().__name__,
 		other->type_prototype().__name__));
@@ -811,12 +801,6 @@ PyResult<PyObject *> PyObject::multiply(const PyObject *other) const
 			return result;
 		}
 	}
-	// Fallback: 动态查找 __mul__
-	{
-		auto result = binary_op_fallback(this, other, "__mul__");
-		if (result.is_ok() && result.unwrap() != not_implemented()) { return result; }
-	}
-
 	if (other->type_prototype().__mul__.has_value()) {
 		auto result = call_slot(*other->type_prototype().__mul__, other, this);
 		if (result.is_err() || (result.is_ok() && result.unwrap() != not_implemented())) {
@@ -845,13 +829,6 @@ PyResult<PyObject *> PyObject::pow(const PyObject *other, const PyObject *modulo
 	if (type_prototype().__pow__.has_value()) {
 		return call_slot(*type_prototype().__pow__, this, other, modulo);
 	}
-
-	// Fallback: 动态查找 __pow__ (仅当 modulo 为 None 时尝试简单 fallback)
-	if (modulo == py_none()) {
-		auto result = binary_op_fallback(this, other, "__pow__");
-		if (result.is_ok() && result.unwrap() != not_implemented()) { return result; }
-	}
-
 	return Err(type_error("unsupported operand type(s) for **: \'{}\' and \'{}\'",
 		type_prototype().__name__,
 		other->type_prototype().__name__));
@@ -862,10 +839,6 @@ PyResult<PyObject *> PyObject::truediv(PyObject *other)
 	if (type_prototype().__truediv__.has_value()) {
 		return call_slot(*type_prototype().__truediv__, this, other);
 	}
-	// Fallback: 动态查找 __truediv__
-	auto result = binary_op_fallback(this, other, "__truediv__");
-	if (result.is_ok() && result.unwrap() != not_implemented()) { return result; }
-
 	return Err(type_error("unsupported operand type(s) for //: \'{}\' and \'{}\'",
 		type_prototype().__name__,
 		other->type_prototype().__name__));
@@ -876,10 +849,6 @@ PyResult<PyObject *> PyObject::floordiv(PyObject *other)
 	if (type_prototype().__floordiv__.has_value()) {
 		return call_slot(*type_prototype().__floordiv__, this, other);
 	}
-	// Fallback: 动态查找 __floordiv__
-	auto result = binary_op_fallback(this, other, "__floordiv__");
-	if (result.is_ok() && result.unwrap() != not_implemented()) { return result; }
-
 	return Err(type_error("unsupported operand type(s) for //: \'{}\' and \'{}\'",
 		type_prototype().__name__,
 		other->type_prototype().__name__));
@@ -890,10 +859,6 @@ PyResult<PyObject *> PyObject::lshift(const PyObject *other) const
 	if (type_prototype().__lshift__.has_value()) {
 		return call_slot(*type_prototype().__lshift__, this, other);
 	}
-	// Fallback: 动态查找 __lshift__
-	auto result = binary_op_fallback(this, other, "__lshift__");
-	if (result.is_ok() && result.unwrap() != not_implemented()) { return result; }
-
 	return Err(type_error("unsupported operand type(s) for <<: \'{}\' and \'{}\'",
 		type_prototype().__name__,
 		other->type_prototype().__name__));
@@ -904,10 +869,6 @@ PyResult<PyObject *> PyObject::rshift(const PyObject *other) const
 	if (type_prototype().__rshift__.has_value()) {
 		return call_slot(*type_prototype().__rshift__, this, other);
 	}
-	// Fallback: 动态查找 __rshift__
-	auto result = binary_op_fallback(this, other, "__rshift__");
-	if (result.is_ok() && result.unwrap() != not_implemented()) { return result; }
-
 	return Err(type_error("unsupported operand type(s) for >>: \'{}\' and \'{}\'",
 		type_prototype().__name__,
 		other->type_prototype().__name__));
@@ -918,10 +879,6 @@ PyResult<PyObject *> PyObject::modulo(const PyObject *other) const
 	if (type_prototype().__mod__.has_value()) {
 		return call_slot(*type_prototype().__mod__, this, other);
 	}
-	// Fallback: 动态查找 __mod__
-	auto result = binary_op_fallback(this, other, "__mod__");
-	if (result.is_ok() && result.unwrap() != not_implemented()) { return result; }
-
 	return Err(type_error("unsupported operand type(s) for %: \'{}\' and \'{}\'",
 		type_prototype().__name__,
 		other->type_prototype().__name__));
@@ -932,10 +889,6 @@ PyResult<PyObject *> PyObject::divmod(PyObject *other)
 	if (type_prototype().__divmod__.has_value()) {
 		return call_slot(*type_prototype().__divmod__, this, other);
 	}
-	// Fallback: 动态查找 __divmod__
-	auto result = binary_op_fallback(this, other, "__divmod__");
-	if (result.is_ok() && result.unwrap() != not_implemented()) { return result; }
-
 	return Err(type_error("unsupported operand type(s) for divmod(): \'{}\' and \'{}\'",
 		type_prototype().__name__,
 		other->type_prototype().__name__));
@@ -948,10 +901,6 @@ PyResult<PyObject *> PyObject::and_(PyObject *other)
 	} else if (other->type_prototype().__and__.has_value()) {
 		return call_slot(*other->type_prototype().__and__, other, this);
 	}
-	// Fallback: 动态查找 __and__
-	auto result = binary_op_fallback(this, other, "__and__");
-	if (result.is_ok() && result.unwrap() != not_implemented()) { return result; }
-
 	return Err(type_error("unsupported operand type(s) for &: \'{}\' and \'{}\'",
 		type_prototype().__name__,
 		other->type_prototype().__name__));
@@ -964,10 +913,6 @@ PyResult<PyObject *> PyObject::or_(PyObject *other)
 	} else if (other->type_prototype().__or__.has_value()) {
 		return call_slot(*other->type_prototype().__or__, other, this);
 	}
-	// Fallback: 动态查找 __or__
-	auto result = binary_op_fallback(this, other, "__or__");
-	if (result.is_ok() && result.unwrap() != not_implemented()) { return result; }
-
 	return Err(type_error("unsupported operand type(s) for |: \'{}\' and \'{}\'",
 		type_prototype().__name__,
 		other->type_prototype().__name__));
@@ -980,10 +925,6 @@ PyResult<PyObject *> PyObject::xor_(PyObject *other)
 	} else if (other->type_prototype().__xor__.has_value()) {
 		return call_slot(*other->type_prototype().__xor__, other, this);
 	}
-	// Fallback: 动态查找 __xor__
-	auto result = binary_op_fallback(this, other, "__xor__");
-	if (result.is_ok() && result.unwrap() != not_implemented()) { return result; }
-
 	return Err(type_error("unsupported operand type(s) for ^: \'{}\' and \'{}\'",
 		type_prototype().__name__,
 		other->type_prototype().__name__));
@@ -1035,55 +976,21 @@ PyResult<std::monostate> PyObject::delete_item(PyObject *key)
 	return Err(type_error("'{}' object does not support item deletion", type_prototype().__name__));
 }
 
-// [Fix] 一元操作符 fallback
 PyResult<PyObject *> PyObject::abs() const
 {
 	if (type_prototype().__abs__.has_value()) { return call_slot(*type_prototype().__abs__, this); }
-
-	// Fallback
-	auto name = PyString::create("__abs__");
-	if (name.is_ok()) {
-		auto [method, found] = lookup_attribute(name.unwrap());
-		if (found == LookupAttrResult::FOUND && method.is_ok()) {
-			// [Fix] create({}) -> create() 调用无参版本
-			return method.unwrap()->call(PyTuple::create().unwrap(), nullptr);
-		}
-	}
-
 	return Err(type_error("bad operand type for abs(): '{}'", type_prototype().__name__));
 }
 
 PyResult<PyObject *> PyObject::neg() const
 {
 	if (type_prototype().__neg__.has_value()) { return call_slot(*type_prototype().__neg__, this); }
-
-	// Fallback
-	auto name = PyString::create("__neg__");
-	if (name.is_ok()) {
-		auto [method, found] = lookup_attribute(name.unwrap());
-		if (found == LookupAttrResult::FOUND && method.is_ok()) {
-			// [Fix] create({}) -> create() 调用无参版本
-			return method.unwrap()->call(PyTuple::create().unwrap(), nullptr);
-		}
-	}
-
 	return Err(type_error("bad operand type for unary -: '{}'", type_prototype().__name__));
 }
 
 PyResult<PyObject *> PyObject::pos() const
 {
 	if (type_prototype().__pos__.has_value()) { return call_slot(*type_prototype().__pos__, this); }
-
-	// Fallback
-	auto name = PyString::create("__pos__");
-	if (name.is_ok()) {
-		auto [method, found] = lookup_attribute(name.unwrap());
-		if (found == LookupAttrResult::FOUND && method.is_ok()) {
-			// [Fix] create({}) -> create() 调用无参版本
-			return method.unwrap()->call(PyTuple::create().unwrap(), nullptr);
-		}
-	}
-
 	return Err(type_error("bad operand type for unary +: '{}'", type_prototype().__name__));
 }
 
@@ -1092,17 +999,6 @@ PyResult<PyObject *> PyObject::invert() const
 	if (type_prototype().__invert__.has_value()) {
 		return call_slot(*type_prototype().__invert__, this);
 	}
-
-	// Fallback
-	auto name = PyString::create("__invert__");
-	if (name.is_ok()) {
-		auto [method, found] = lookup_attribute(name.unwrap());
-		if (found == LookupAttrResult::FOUND && method.is_ok()) {
-			// [Fix] create({}) -> create() 调用无参版本
-			return method.unwrap()->call(PyTuple::create().unwrap(), nullptr);
-		}
-	}
-
 	return Err(type_error("bad operand type for unary ~: '{}'", type_prototype().__name__));
 }
 
@@ -1176,8 +1072,7 @@ PyResult<PyObject *> PyObject::new_(PyTuple *args, PyDict *kwargs) const
 
 	// pop out type from args
 	std::vector<Value> new_args;
-	new_args.reserve(args->size() - 1); 
-	//new_args.resize(args->size() - 1);
+	new_args.resize(args->size() - 1);
 	new_args.insert(new_args.end(), args->elements().begin() + 1, args->elements().end());
 	auto args_ = PyTuple::create(new_args);
 	if (args_.is_err()) return args_;
@@ -1191,41 +1086,31 @@ PyResult<PyObject *> PyObject::new_(PyTuple *args, PyDict *kwargs) const
 
 PyResult<int32_t> PyObject::init(PyTuple *args, PyDict *kwargs)
 {
-    auto init_str_ = PyString::create("__init__");
-    if (init_str_.is_err()) { return Err(init_str_.unwrap_err()); }
-    auto *init_str = init_str_.unwrap();
+	// Python 3.9 语义: 优先在 MRO 字典中动态查找 __init__。
+	// 这确保了在 Python 层定义的 __init__ 总是优先于从 C++ 基类（如 object）继承过来的原生 slot
+	// 执行。
+	auto init_str_ = PyString::create("__init__");
+	if (init_str_.is_err()) { return Err(init_str_.unwrap_err()); }
+	auto *init_str = init_str_.unwrap();
 
-    // type()->lookup() 返回的是原始描述符（PyFunction），不是 bound method
-    // 因为 lookup 不触发 __get__
-    // 所以我们需要手动 prepend self
-    auto descriptor_ = type()->lookup(init_str);
-    if (descriptor_.has_value() && descriptor_->is_ok()) {
-        auto *init_fn = descriptor_->unwrap();
+	auto descriptor_ = type()->lookup(init_str);
+	if (descriptor_.has_value() && descriptor_->is_ok()) {
+		auto *descr = descriptor_->unwrap();
+		auto bound_ = descr->get(this, type());
+		if (bound_.is_err()) { return Err(bound_.unwrap_err()); }
+		auto res = bound_.unwrap()->call(args, kwargs);
+		if (res.is_err()) { return Err(res.unwrap_err()); }
+		return Ok(0);
+	}
 
-        // [Fix] 构造 init_args = (self, *args)
-        // lookup() 返回的是未绑定的函数，需要手动传 self
-        std::vector<Value> init_elements;
-        init_elements.reserve(1 + args->size());
-        init_elements.push_back(this);
-        init_elements.insert(init_elements.end(),
-                             args->elements().begin(),
-                             args->elements().end());
-        auto init_args = PyTuple::create(init_elements);
-        if (init_args.is_err()) { return Err(init_args.unwrap_err()); }
+	// 如果 MRO 字典中没找到（比如某些纯 C++ 内置类型未暴露字典），则回退原生的 C++ slot 逻辑
+	if (type_prototype().__init__.has_value()) {
+		if (std::holds_alternative<InitSlotFunctionType>(*type_prototype().__init__)) {
+			return std::get<InitSlotFunctionType>(*type_prototype().__init__)(this, args, kwargs);
+		}
+	}
 
-        auto result = init_fn->call(init_args.unwrap(), kwargs);
-        if (result.is_err()) { return Err(result.unwrap_err()); }
-        return Ok(0);
-    }
-
-    // 回退到 C++ slot
-    if (type_prototype().__init__.has_value()) {
-        return call_slot(*type_prototype().__init__,
-            "__init__() should return None",
-            this, args, kwargs);
-    }
-
-    return Ok(0);
+	return Ok(0);
 }
 
 PyResult<PyObject *> PyObject::getitem(PyObject *key)

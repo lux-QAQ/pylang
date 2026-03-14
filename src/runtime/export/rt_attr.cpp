@@ -33,6 +33,7 @@ py::PyObject *rt_load_global(py::PyObject *module, const char *name)
 	}
 
 	rt_raise(py::name_error("name '{}' is not defined", name));
+	return nullptr;// unreachable
 }
 
 // =============================================================================

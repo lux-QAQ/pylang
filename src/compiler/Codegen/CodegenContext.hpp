@@ -183,31 +183,31 @@ class CodegenContext
 	// 	return alloca;
 	// }
 
-    llvm::AllocaInst *create_local(const std::string &name, llvm::Type *type)
-    {
-        auto *func = current_function();
-        auto &entry_bb = func->getEntryBlock();
+	llvm::AllocaInst *create_local(const std::string &name, llvm::Type *type)
+	{
+		auto *func = current_function();
+		auto &entry_bb = func->getEntryBlock();
 
-        // 在 entry block 开头创建 alloca
-        llvm::IRBuilder<> entry_builder(&entry_bb, entry_bb.begin());
-        auto *alloca = entry_builder.CreateAlloca(type, nullptr, name);
+		// 在 entry block 开头创建 alloca
+		llvm::IRBuilder<> entry_builder(&entry_bb, entry_bb.begin());
+		auto *alloca = entry_builder.CreateAlloca(type, nullptr, name);
 
-        // 初始化: 使用 null/zero
-        // 这比 get_none() 更正确：
-        // - get_none() 在当前插入点生成 call，跨 BB 会导致 "does not dominate"
-        // - null 初始化符合 Python 语义：未赋值变量为 null → runtime 抛 UnboundLocalError
-        // - get_none() 初始化会掩盖 UnboundLocalError（错误地返回 None）
-        if (type->isPointerTy()) {
-            entry_builder.CreateStore(
-                llvm::ConstantPointerNull::get(llvm::cast<llvm::PointerType>(type)), alloca);
-        } else if (type->isIntegerTy()) {
-            entry_builder.CreateStore(llvm::ConstantInt::get(type, 0), alloca);
-        }
+		// 初始化: 使用 null/zero
+		// 这比 get_none() 更正确：
+		// - get_none() 在当前插入点生成 call，跨 BB 会导致 "does not dominate"
+		// - null 初始化符合 Python 语义：未赋值变量为 null → runtime 抛 UnboundLocalError
+		// - get_none() 初始化会掩盖 UnboundLocalError（错误地返回 None）
+		if (type->isPointerTy()) {
+			entry_builder.CreateStore(
+				llvm::ConstantPointerNull::get(llvm::cast<llvm::PointerType>(type)), alloca);
+		} else if (type->isIntegerTy()) {
+			entry_builder.CreateStore(llvm::ConstantInt::get(type, 0), alloca);
+		}
 
-        // 修复: m_scope_stack → m_scopes
-        current_scope().locals[name] = alloca;
-        return alloca;
-    }
+		// 修复: m_scope_stack → m_scopes
+		current_scope().locals[name] = alloca;
+		return alloca;
+	}
 
 	/// 查找局部变量的 alloca
 	llvm::AllocaInst *find_local(const std::string &name) const
@@ -290,6 +290,30 @@ class CodegenContext
 	{
 		return m_tries.empty() ? nullptr : m_tries.back().landingpad_bb;
 	}
+
+	/// 收集当前 scope 中所有 CELL 和 FREE 变量名
+	/// @param[out] cell_vars  当前函数中需要创建 cell 的变量
+	/// @param[out] free_vars  当前函数中需要从闭包提取的变量
+    void collect_cell_and_free_vars(VariablesResolver::Scope *scope,
+        std::vector<std::string> &cell_vars,
+        std::vector<std::string> &free_vars) const
+    {
+        if (!scope) { return; }
+
+        // 修复: SymbolMap 不是 std::map，需要迭代内部的 .symbols vector
+        // Symbol 结构: { std::string name; Visibility visibility; SourceLocation source_location; }
+        for (const auto &sym : scope->symbol_map.symbols) {
+            if (sym.visibility == Visibility::CELL) {
+                cell_vars.push_back(sym.name);
+            } else if (sym.visibility == Visibility::FREE) {
+                free_vars.push_back(sym.name);
+            }
+        }
+
+        // 排序确保闭包 tuple 索引确定性（AOT 模式下替代 CPython 的 co_freevars 数组）
+        std::sort(cell_vars.begin(), cell_vars.end());
+        std::sort(free_vars.begin(), free_vars.end());
+    }
 
   private:
 	llvm::IRBuilder<> &m_builder;

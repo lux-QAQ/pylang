@@ -48,7 +48,21 @@ Result<PylangCodegen::CompileResult> PylangCodegen::compile(ast::Module *module_
 	auto mangled = codegen.m_mangler.function_mangle(
 		std::string(module_name), "<module>", module_node->source_location());
 	auto it = visibility.find(mangled);
-	VariablesResolver::Scope *var_scope = (it != visibility.end()) ? it->second.get() : nullptr;
+	VariablesResolver::Scope *var_scope = nullptr;
+
+	if (it != visibility.end()) {
+		var_scope = it->second.get();
+	} else {
+		// 修复: VariablesResolver 用 AST 文件名 stem 作为根（如 "<closures>"），
+		// 而 PylangCodegen 用 module_name（如 "__test_closures__"）。
+		// 遍历 map 找 MODULE 类型的根 scope。
+		for (auto &[key, scope_ptr] : visibility) {
+			if (scope_ptr && scope_ptr->type == VariablesResolver::Scope::Type::MODULE) {
+				var_scope = scope_ptr.get();
+				break;
+			}
+		}
+	}
 
 	// Step 6: 进入模块 scope
 	ScopeContext module_scope{};
@@ -56,12 +70,13 @@ Result<PylangCodegen::CompileResult> PylangCodegen::compile(ast::Module *module_
 	module_scope.name = std::string(module_name);
 	module_scope.mangled_name = mangled;
 	module_scope.llvm_func = init_func;
+	module_scope.module_obj = nullptr;// 稍后由 rt_add_module 设置
 	module_scope.var_scope = var_scope;
 	codegen.m_codegen_ctx.push_scope(std::move(module_scope));
 
 	// Step 7: 生成模块初始化函数体
-	//   %module = call ptr @rt_import("__main__", ...)
-	auto *mod = codegen.m_emitter.call_import(module_name);
+	//   %module = call ptr @rt_add_module("__main__")
+	auto *mod = codegen.m_emitter.call_add_module(module_name);
 	codegen.m_codegen_ctx.current_scope().module_obj = mod;
 
 	// Step 8: 遍历 AST，生成 IR
@@ -129,6 +144,12 @@ llvm::Function *PylangCodegen::create_module_init_function()
 	auto name = "PyInit_" + m_module_name;
 	auto *func =
 		llvm::Function::Create(func_type, llvm::Function::ExternalLinkage, name, m_module.get());
+
+	// 关键修复: 添加 uwtable 属性，允许 C++ 异常穿过此函数传播到 main() 的 landingpad。
+	// 没有此属性时，Itanium C++ ABI 认为此函数"不可 unwind"，
+	// 任何 runtime 调用抛出的 PylangException 都会导致 std::terminate()。
+	func->addFnAttr(llvm::Attribute::UWTable);
+
 	auto *entry = llvm::BasicBlock::Create(m_ctx, "entry", func);
 	m_builder.SetInsertPoint(entry);
 	return func;
@@ -136,7 +157,6 @@ llvm::Function *PylangCodegen::create_module_init_function()
 
 llvm::Function *PylangCodegen::create_main_function(llvm::Function *module_init)
 {
-	// int main(i32 argc, ptr argv)
 	auto *i32_ty = llvm::Type::getInt32Ty(m_ctx);
 	auto *ptr_ty = llvm::PointerType::getUnqual(m_ctx);
 	auto *main_ty = llvm::FunctionType::get(i32_ty, { i32_ty, ptr_ty }, false);
@@ -149,14 +169,36 @@ llvm::Function *PylangCodegen::create_main_function(llvm::Function *module_init)
 	// call void @rt_init()
 	m_emitter.emit_init();
 
-	// call void @PyInit_<module>()
-	m_builder.CreateCall(module_init);
+	// 修复: 用 invoke 调用 PyInit，捕获未处理的 Python 异常
+	auto *normal_bb = llvm::BasicBlock::Create(m_ctx, "normal", main_func);
+	auto *unwind_bb = llvm::BasicBlock::Create(m_ctx, "unwind", main_func);
 
-	// call void @rt_shutdown()
+	// 设置 personality 函数
+	if (!main_func->hasPersonalityFn()) {
+		auto *personality = m_emitter.get_personality_function();
+		main_func->setPersonalityFn(personality);
+	}
+
+	m_builder.CreateInvoke(module_init, normal_bb, unwind_bb);
+
+	// 正常路径
+	m_builder.SetInsertPoint(normal_bb);
+	m_emitter.emit_shutdown();
+	m_builder.CreateRet(llvm::ConstantInt::get(i32_ty, 0));
+
+	// 异常路径: 打印未捕获异常并返回 1
+	m_builder.SetInsertPoint(unwind_bb);
+	auto *lp = m_builder.CreateLandingPad(llvm::StructType::get(m_ctx, { ptr_ty, i32_ty }), 0);
+	lp->addClause(llvm::ConstantPointerNull::get(llvm::PointerType::getUnqual(m_ctx)));
+
+	auto *exc_ptr = m_builder.CreateExtractValue(lp, 0);
+
+	auto *py_exc = m_emitter.call_catch_begin(exc_ptr);
+	m_emitter.call_print_unhandled_exception(py_exc);
+	m_emitter.call_catch_end();
 	m_emitter.emit_shutdown();
 
-	// ret i32 0
-	m_builder.CreateRet(llvm::ConstantInt::get(i32_ty, 0));
+	m_builder.CreateRet(llvm::ConstantInt::get(i32_ty, 1));
 
 	return main_func;
 }
@@ -727,6 +769,48 @@ ast::Value *PylangCodegen::visit(const ast::BoolOp *node)
 
 ast::Value *PylangCodegen::visit(const ast::Call *node)
 {
+	// 拦截无参 super() 并重写为 super(__class__, self)
+	// 这解决了 AOT 运行时缺少解释器栈帧(PyFrame)导致无法推断参数的问题。
+	if (auto *name_node = dynamic_cast<const ast::Name *>(node->function().get())) {
+		if (name_node->ids().size() == 1 && name_node->ids()[0] == "super" && node->args().empty()
+			&& node->keywords().empty()) {
+
+			// 检查上下文:
+			// 1. 我们必须在一个函数内部 (m_func_first_args 非空)
+			// 2. 函数必须有第一个参数 (self)
+			// 3. __class__ 必须在作用域内 (由 VariablesResolver 保证)
+			if (!m_func_first_args.empty() && !m_func_first_args.back().empty()) {
+				const std::string &self_name = m_func_first_args.back();
+
+				// 尝试加载 'super', '__class__', 和 'self'
+				// 注意: VariablesResolver 已处理 'super' 会隐式捕获 '__class__'
+
+				// 1. 加载 super 全局对象
+				llvm::Value *super_cls = load_variable("super");
+
+				// 2. 加载 __class__ (作为闭包/Cell变量)
+				llvm::Value *class_cell = load_variable("__class__");
+
+				// 3. 加载 self (作为局部变量)
+				llvm::Value *self_obj = load_variable(self_name);
+
+				if (super_cls && class_cell && self_obj) {
+					log::codegen()->debug("Rewriting super() to super(__class__, {})", self_name);
+
+					// 构造参数 tuple: (__class__, self)
+					auto *args_tuple = m_emitter.create_tuple({ class_cell, self_obj });
+
+					// 生成调用: super(__class__, self)
+					// 使用 implicit kwargs (None)
+					auto *res = m_emitter.call_function(super_cls, args_tuple, nullptr);
+					return make_value(res);
+				}
+			}
+		}
+	}
+
+	// === 原有的 Call 生成逻辑 ===
+
 	auto *func_val = generate(node->function().get());
 	if (!func_val) { return nullptr; }
 
@@ -751,25 +835,30 @@ ast::Value *PylangCodegen::visit(const ast::Call *node)
 		args_tuple = m_emitter.create_tuple(pos_args);
 	} else {
 		// 有 *args: 用临时 list 收集，最后转 tuple
+		// [Refactor] 使用 IREmitter 封装
 		// 1. 创建空 list
-		auto *tmp_list = emit_call("build_list",
-			{ m_builder.getInt32(0), llvm::ConstantPointerNull::get(m_builder.getPtrTy()) });
+		auto *tmp_list = m_emitter.create_list({});
 
 		// 2. 逐个 append 或 extend
 		for (const auto &arg : node->args()) {
 			if (auto *starred = dynamic_cast<const ast::Starred *>(arg.get())) {
 				// *iterable → extend
 				auto *iterable = generate(starred->value().get());
-				if (iterable) { emit_call("list_extend", { tmp_list, iterable }); }
+				if (iterable) {
+					// 使用 call_list_extend
+					m_emitter.call_list_extend(tmp_list, iterable);
+				}
 			} else {
-				// 普通参数 → append
 				auto *val = generate(arg.get());
-				if (val) { emit_call("list_append", { tmp_list, val }); }
+				if (val) {
+					// 使用 call_list_append
+					m_emitter.call_list_append(tmp_list, val);
+				}
 			}
 		}
-
-		// 3. list → tuple
-		args_tuple = emit_call("list_to_tuple", { tmp_list });
+		// rt_list_to_tuple 尚未在 IREmitter 中封装专用函数，暂时保持 emit_call
+		// 或者可以在 IREmitter 中添加 call_list_to_tuple
+		args_tuple = m_emitter.call_list_to_tuple(tmp_list);
 	}
 
 	// --- 收集关键字参数 ---
@@ -789,18 +878,24 @@ ast::Value *PylangCodegen::visit(const ast::Call *node)
 		}
 
 		if (!kw_node->arg().has_value()) {
-			// **d 展开 (arg is None)
-			m_emitter.emit_runtime_call("dict_merge", { kwargs_dict, kw_value });
+			// 使用 call_dict_merge
+			m_emitter.call_dict_merge(kwargs_dict, kw_value);
 		} else {
-			// 修复: 解引用 optional 获取 string
-			m_emitter.emit_runtime_call("dict_setitem_str",
-				{ kwargs_dict, m_emitter.create_string(*kw_node->arg()), kw_value });
+			// 修复 ABI 不匹配!
+			// 旧代码: m_emitter.emit_runtime_call("dict_setitem_str", { kwargs_dict,
+			// m_emitter.create_string(*kw_node->arg()), kw_value }); 错误原因: create_string 返回
+			// PyObject*，但 dict_setitem_str 签名要求 const char*。 结果: 运行时将 PyObject*
+			// 当作字符串指针读取，导致 Key 乱码。
+
+			m_emitter.call_dict_setitem_str(kwargs_dict, *kw_node->arg(), kw_value);
 		}
 	}
 
 	if (!has_kwargs) { kwargs_dict = m_emitter.null_pyobject(); }
 
-	auto *result = emit_call("call", { func_val, args_tuple, kwargs_dict });
+	// 使用 call_function
+	// 自动处理 unwind 路径
+	auto *result = m_emitter.call_function(func_val, args_tuple, kwargs_dict);
 	return make_value(result);
 }
 
@@ -1285,121 +1380,339 @@ ast::Value *PylangCodegen::visit(const ast::Pass *node)
 // =============================================================================
 // 共享的函数编译逻辑（FunctionDefinition 和 Lambda 复用）
 // =============================================================================
-
 llvm::Value *PylangCodegen::compile_function_body(const std::string &func_name,
-	const ast::Arguments *args_node,
-	const std::vector<std::shared_ptr<ast::ASTNode>> &body,
-	const std::vector<std::shared_ptr<ast::ASTNode>> &decorators,
-	SourceLocation source_loc)
+    const ast::Arguments *args_node,
+    const std::vector<std::shared_ptr<ast::ASTNode>> &body,
+    const std::vector<std::shared_ptr<ast::ASTNode>> &decorators,
+    SourceLocation source_loc)
 {
-	auto *obj_ptr_ty = m_emitter.pyobject_ptr_type();
+    // === Step 1: Mangle 名字 ===
+    auto &enclosing = m_codegen_ctx.current_scope();
+    auto mangled = m_mangler.function_mangle(enclosing.mangled_name, func_name, source_loc);
 
-	//  Step 1: 创建 LLVM 函数
-	// 签名: PyObject*(PyObject* module, PyTuple* args, PyDict* kwargs)
-	//        ^^^^^^^^^^^^^^^^ 隐式首参数：所属模块
-	auto *func_type =
-		llvm::FunctionType::get(obj_ptr_ty, { obj_ptr_ty, obj_ptr_ty, obj_ptr_ty }, false);
+    // 记录第一个参数名（用于 super() 支持）
+    std::string first_arg_name;
+    if (args_node) {
+        if (!args_node->posonlyargs().empty()) {
+            first_arg_name = args_node->posonlyargs().front()->name();
+        } else if (!args_node->args().empty()) {
+            first_arg_name = args_node->args().front()->name();
+        }
+    }
+    m_func_first_args.push_back(first_arg_name);
 
-	auto mangled =
-		m_mangler.function_mangle(m_codegen_ctx.current_scope().name, func_name, source_loc);
-
-	auto *llvm_func =
-		llvm::Function::Create(func_type, llvm::Function::InternalLinkage, mangled, m_module.get());
-
-	llvm_func->getArg(0)->setName("module");
-	llvm_func->getArg(1)->setName("args");
-	llvm_func->getArg(2)->setName("kwargs");
-
-	//  Step 2: 保存当前状态
-	auto *saved_bb = m_builder.GetInsertBlock();
-
-	auto *entry_bb = llvm::BasicBlock::Create(m_ctx, "entry", llvm_func);
-	m_builder.SetInsertPoint(entry_bb);
-
-	//  Step 3: 查找变量 scope
-	auto it = m_codegen_ctx.visibility_map().find(mangled);
-	VariablesResolver::Scope *var_scope =
-		(it != m_codegen_ctx.visibility_map().end()) ? it->second.get() : nullptr;
-
-	//  Step 4: 进入 FUNCTION scope
-	// module_obj = arg(0)：属于本函数的 LLVM Value，安全！
-	ScopeContext func_scope{};
-	func_scope.type = ScopeContext::Type::FUNCTION;
-	func_scope.name = func_name;
-	func_scope.mangled_name = mangled;
-	func_scope.llvm_func = llvm_func;
-	func_scope.module_obj = llvm_func->getArg(0);// ← 关键：module 来自本函数参数
-	func_scope.var_scope = var_scope;
-	func_scope.class_namespace = nullptr;
-	m_codegen_ctx.push_scope(std::move(func_scope));
-
-	//  Step 5: 提取函数参数并注册为 LOCAL
-	auto *args_tuple = llvm_func->getArg(1);// arg(1) = args
-
-	if (args_node) {
-		int32_t param_idx = 0;
-		auto register_param = [&](const std::string &param_name) {
-			auto *val = m_emitter.emit_runtime_call(
-				"tuple_getitem", { args_tuple, m_builder.getInt32(param_idx) });
-			auto *alloca = m_codegen_ctx.create_local(param_name, m_emitter.pyobject_ptr_type());
-			m_builder.CreateStore(val, alloca);
-			param_idx++;
-		};
-
-		// argument_names() 返回 posonlyargs + args 的名称
-		for (const auto &name : args_node->argument_names()) { register_param(name); }
-		// kwonly 参数也需要注册
-		for (const auto &name : args_node->kw_only_argument_names()) { register_param(name); }
-	}
-
-	//  Step 6: 编译函数体
-	generate_body(body);
-
-	//  Step 7: 确保有返回指令
-	if (!m_builder.GetInsertBlock()->getTerminator()) { m_builder.CreateRet(m_emitter.get_none()); }
-
-	//  Step 8: 离开 FUNCTION scope
-	m_codegen_ctx.pop_scope();
-
-	//  Step 9: 恢复插入点到外层函数
-	m_builder.SetInsertPoint(saved_bb);
-
-	//  Step 10: 编译默认值（在外层函数中求值）
-	llvm::Value *defaults = m_emitter.null_pyobject();
-	llvm::Value *kwdefaults = m_emitter.null_pyobject();
-
-	if (args_node && !args_node->defaults().empty()) {
-		std::vector<llvm::Value *> default_vals;
-		for (const auto &def : args_node->defaults()) {
-			auto *val = generate(def.get());
-			if (val) { default_vals.push_back(val); }
-		}
-		if (!default_vals.empty()) { defaults = m_emitter.create_tuple(default_vals); }
-	}
-
-	if (args_node && !args_node->kw_defaults().empty()) {
-		std::vector<llvm::Value *> kwdef_keys;
-		std::vector<llvm::Value *> kwdef_vals;
-		// 用 kw_only_argument_names() 获取名称列表
-		auto kw_names = args_node->kw_only_argument_names();
-		for (size_t i = 0; i < kw_names.size(); ++i) {
-			if (i < args_node->kw_defaults().size() && args_node->kw_defaults()[i]) {
-				auto *val = generate(args_node->kw_defaults()[i].get());
-				if (val) {
-					kwdef_keys.push_back(m_emitter.create_string(kw_names[i]));
-					kwdef_vals.push_back(val);
-				}
+    // Scope 查找
+	VariablesResolver::Scope *var_scope = nullptr;
+	auto *parent_var_scope = enclosing.var_scope;
+	if (parent_var_scope) {
+		for (auto &child_ref : parent_var_scope->children) {
+			auto &child = child_ref.get();
+			auto last_dot = child.namespace_.rfind('.');
+			std::string child_plain_name = (last_dot != std::string::npos)
+											   ? child.namespace_.substr(last_dot + 1)
+											   : child.namespace_;
+			if (child_plain_name == func_name) {
+				var_scope = &child;
+				break;
 			}
 		}
-		if (!kwdef_keys.empty()) { kwdefaults = m_emitter.create_dict(kwdef_keys, kwdef_vals); }
 	}
+    if (!var_scope) {
+        auto vis_it = m_codegen_ctx.visibility_map().find(mangled);
+        if (vis_it != m_codegen_ctx.visibility_map().end()) {
+            var_scope = vis_it->second.get();
+        }
+    }
+    if (!var_scope) {
+        log::codegen()->warn(
+            "compile_function_body: no var_scope found for '{}' (mangled: {})", func_name, mangled);
+    }
 
-	//  Step 11: 在外层函数中创建 Python 可调用对象
-	// module_object() 返回外层 scope 的 module，是外层函数的 Value，安全
-	auto *closure = m_emitter.null_pyobject();
+    // === Step 2: 收集 CELL 和 FREE 变量 ===
+    std::vector<std::string> cell_vars;
+    std::vector<std::string> free_vars;
+    m_codegen_ctx.collect_cell_and_free_vars(var_scope, cell_vars, free_vars);
 
-	return m_emitter.call_make_function(
-		func_name, llvm_func, m_codegen_ctx.module_object(), defaults, kwdefaults, closure);
+    // === Step 2.5: 在外围作用域中编译默认参数值 ===
+    // Python 3.9 语义：默认值在函数*定义*时求值，不是调用时。
+    // 所以在外围作用域生成 IR，然后通过 closure 传给函数体。
+    llvm::Value *defaults_tuple = nullptr;
+    size_t defaults_count = 0;
+    if (args_node && !args_node->defaults().empty()) {
+        std::vector<llvm::Value *> default_vals;
+        default_vals.reserve(args_node->defaults().size());
+        for (const auto &def : args_node->defaults()) {
+            auto *val = generate(def.get());
+            if (val) { default_vals.push_back(val); }
+        }
+        if (!default_vals.empty()) {
+            defaults_tuple = m_emitter.create_tuple(default_vals);
+            defaults_count = default_vals.size();
+        }
+    }
+
+    // 如果有默认值或有 free vars，需要 closure
+    bool has_closure = !free_vars.empty() || (defaults_tuple != nullptr);
+
+    // === Step 3: 创建 LLVM 函数 ===
+    auto *ptr_ty = m_emitter.pyobject_ptr_type();
+    std::vector<llvm::Type *> param_types;
+    param_types.push_back(ptr_ty);// %module
+    if (has_closure) {
+        param_types.push_back(ptr_ty);// %closure
+    }
+    param_types.push_back(ptr_ty);// %args
+    param_types.push_back(ptr_ty);// %kwargs
+
+    auto *func_ty = llvm::FunctionType::get(ptr_ty, param_types, false);
+    auto *func =
+        llvm::Function::Create(func_ty, llvm::Function::InternalLinkage, mangled, m_module.get());
+
+    ensure_personality(func);
+
+    auto arg_it = func->arg_begin();
+    arg_it->setName("module");
+    auto *module_arg = &*arg_it++;
+
+    llvm::Value *closure_arg = nullptr;
+    if (has_closure) {
+        arg_it->setName("closure");
+        closure_arg = &*arg_it++;
+    }
+
+    arg_it->setName("args");
+    auto *args_arg = &*arg_it++;
+    arg_it->setName("kwargs");
+    auto *kwargs_arg = &*arg_it++;  // ← 关键修复：捕获 kwargs 参数
+
+    // === Step 4: 保存当前插入点 ===
+    auto saved_ip = m_builder.saveIP();
+
+    auto *entry_bb = llvm::BasicBlock::Create(m_ctx, "entry", func);
+    m_builder.SetInsertPoint(entry_bb);
+
+    // === Step 5: 进入新作用域 ===
+    ScopeContext func_scope{};
+    func_scope.type = ScopeContext::Type::FUNCTION;
+    func_scope.name = func_name;
+    func_scope.mangled_name = mangled;
+    func_scope.llvm_func = func;
+    func_scope.module_obj = module_arg;
+    func_scope.var_scope = var_scope;
+    m_codegen_ctx.push_scope(std::move(func_scope));
+
+    // === Step 6: 为 CELL 变量创建 cell 对象 ===
+    for (const auto &cv : cell_vars) {
+        auto *cell = m_emitter.call_create_cell(nullptr);
+        auto *cell_alloca = m_codegen_ctx.create_local(cv + ".cell", ptr_ty);
+        m_builder.CreateStore(cell, cell_alloca);
+        m_codegen_ctx.register_cell(cv, cell_alloca);
+    }
+
+    // === Step 7: 从 closure tuple 提取 FREE 变量的 cell ===
+    for (size_t i = 0; i < free_vars.size(); ++i) {
+        auto *cell =
+            m_emitter.call_tuple_getitem(closure_arg, m_builder.getInt32(static_cast<int32_t>(i)));
+        auto *free_alloca = m_codegen_ctx.create_local(free_vars[i] + ".free", ptr_ty);
+        m_builder.CreateStore(cell, free_alloca);
+        m_codegen_ctx.register_free_var(free_vars[i], free_alloca);
+    }
+
+    // === Step 7.5: 从 closure 提取 defaults tuple ===
+    // defaults 放在 free vars 之后的位置
+    llvm::Value *defaults_in_body = nullptr;
+    if (defaults_tuple) {
+        int32_t defaults_idx = static_cast<int32_t>(free_vars.size());
+        defaults_in_body =
+            m_emitter.call_tuple_getitem(closure_arg, m_builder.getInt32(defaults_idx));
+    }
+
+    // === Step 8: 提取函数参数 — Python 3.9 参数绑定语义 ===
+    //
+    // Python 3.9 参数解析优先级:
+    //   1. 位置参数 args[index]
+    //   2. 关键字参数 kwargs[name]  (暂不支持，Phase 3+)
+    //   3. 默认值 defaults[index - defaults_start]
+    //   4. TypeError: missing required argument
+    //
+    // 默认值对齐规则 (Python 3.9):
+    //   def f(a, b, c=1, d=2):  # 4 params, 2 defaults
+    //   defaults 对齐到最后 N 个参数:
+    //     a → 无默认值 (index 0)
+    //     b → 无默认值 (index 1)
+    //     c → defaults[0] (index 2, defaults_start=2)
+    //     d → defaults[1] (index 3, defaults_start=2)
+    if (args_node) {
+        int32_t param_idx = 0;
+        int32_t total_params = static_cast<int32_t>(args_node->args().size());
+        int32_t n_defaults = static_cast<int32_t>(defaults_count);
+        int32_t defaults_start = total_params - n_defaults;
+
+        // 获取 args tuple 的 size (一次求值，供所有有默认值的参数复用)
+        llvm::Value *args_size = nullptr;
+        if (n_defaults > 0) {
+            args_size = m_emitter.call_tuple_len(args_arg);
+        }
+
+        for (const auto &arg : args_node->args()) {
+            const auto &arg_name = arg->name();
+            llvm::Value *val = nullptr;
+
+            if (param_idx >= defaults_start && defaults_in_body) {
+                // === 有默认值的参数：生成 bounds-check 分支 ===
+                //
+                //   if (param_idx < len(args)):
+                //       val = args[param_idx]
+                //   else:
+                //       val = defaults[param_idx - defaults_start]
+                //
+                auto *idx_val = m_builder.getInt32(param_idx);
+                auto *has_arg = m_builder.CreateICmpSGT(
+                    args_size, idx_val, arg_name + ".has_arg");
+
+                auto *from_args_bb = llvm::BasicBlock::Create(
+                    m_ctx, arg_name + ".from_args", func);
+                auto *from_default_bb = llvm::BasicBlock::Create(
+                    m_ctx, arg_name + ".from_default", func);
+                auto *bind_done_bb = llvm::BasicBlock::Create(
+                    m_ctx, arg_name + ".done", func);
+
+                m_builder.CreateCondBr(has_arg, from_args_bb, from_default_bb);
+
+                // --- 从 args 取值 ---
+                m_builder.SetInsertPoint(from_args_bb);
+                auto *val_from_args =
+                    m_emitter.call_tuple_getitem(args_arg, idx_val);
+                m_builder.CreateBr(bind_done_bb);
+                auto *from_args_exit = m_builder.GetInsertBlock();
+
+                // --- 使用默认值 ---
+                m_builder.SetInsertPoint(from_default_bb);
+                int32_t def_idx = param_idx - defaults_start;
+                auto *val_from_default = m_emitter.call_tuple_getitem(
+                    defaults_in_body, m_builder.getInt32(def_idx));
+                m_builder.CreateBr(bind_done_bb);
+                auto *from_default_exit = m_builder.GetInsertBlock();
+
+                // --- PHI 合并 ---
+                m_builder.SetInsertPoint(bind_done_bb);
+                auto *phi = m_builder.CreatePHI(ptr_ty, 2, arg_name + ".val");
+                phi->addIncoming(val_from_args, from_args_exit);
+                phi->addIncoming(val_from_default, from_default_exit);
+                val = phi;
+            } else {
+                // === 无默认值的参数：直接按索引取 ===
+                // 如果参数不足，tuple_getitem 会在运行时抛 IndexError
+                val = m_emitter.call_tuple_getitem(
+                    args_arg, m_builder.getInt32(param_idx));
+            }
+
+            // 存储到局部变量或 cell
+            auto vis = m_codegen_ctx.get_visibility(arg_name);
+            if (vis && *vis == Visibility::CELL) {
+                auto *cell_alloca = m_codegen_ctx.find_cell(arg_name);
+                if (cell_alloca) {
+                    auto *cell = m_builder.CreateLoad(ptr_ty, cell_alloca);
+                    m_emitter.call_cell_set(cell, val);
+                }
+            } else {
+                auto *alloca = m_codegen_ctx.create_local(arg_name, ptr_ty);
+                m_builder.CreateStore(val, alloca);
+            }
+
+            param_idx++;
+        }
+    }
+
+       // === Step 9: 生成函数体 ===
+    generate_body(body);
+
+    // === Step 10: 确保有终结器 ===
+    auto *current_bb = m_builder.GetInsertBlock();
+    if (!current_bb->getTerminator()) { m_builder.CreateRet(m_emitter.get_none()); }
+
+    // === Step 11: 离开作用域 ===
+    m_codegen_ctx.pop_scope();
+
+    // === Step 12: 恢复插入点 ===
+    m_builder.restoreIP(saved_ip);
+    m_func_first_args.pop_back();
+
+    // === Step 13: 构建 closure tuple ===
+    // 布局: [ cell_for_free_var_0, ..., cell_for_free_var_N-1, defaults_tuple? ]
+    // defaults_tuple 紧跟在所有 free var cell 之后
+    llvm::Value *closure_val = m_emitter.null_pyobject();
+    if (has_closure) {
+        std::vector<llvm::Value *> closure_elems;
+
+        // 13a. free vars — 从外围作用域取 cell
+        for (const auto &fv : free_vars) {
+            llvm::Value *cell = nullptr;
+            if (auto *cell_alloca = m_codegen_ctx.find_cell(fv)) {
+                cell = m_builder.CreateLoad(ptr_ty, cell_alloca);
+            } else if (auto *free_alloca = m_codegen_ctx.find_free_var(fv)) {
+                cell = m_builder.CreateLoad(ptr_ty, free_alloca);
+            } else {
+                log::codegen()->error("Cannot find cell/free for '{}'", fv);
+                cell = m_emitter.get_none();
+            }
+            closure_elems.push_back(cell);
+        }
+
+        // 13b. defaults tuple（如果有）
+        if (defaults_tuple) {
+            closure_elems.push_back(defaults_tuple);
+        }
+
+        closure_val = m_emitter.create_tuple(closure_elems);
+    }
+
+    // === Step 14: 编译 kwdefaults ===
+    // Python 3.9: keyword-only 参数的默认值存储为 dict
+    // def f(*, key=val):  →  kwdefaults = {"key": val}
+    llvm::Value *kwdefaults_val = nullptr;
+    if (args_node && !args_node->kw_defaults().empty()) {
+        std::vector<llvm::Value *> keys;
+        std::vector<llvm::Value *> vals;
+        for (size_t i = 0; i < args_node->kw_defaults().size(); ++i) {
+            auto &kw_def = args_node->kw_defaults()[i];
+            if (kw_def) {
+                auto *val = generate(kw_def.get());
+                if (val) {
+                    auto &kw_arg = args_node->kwonlyargs()[i];
+                    keys.push_back(m_emitter.create_string(kw_arg->name()));
+                    vals.push_back(val);
+                }
+            }
+        }
+        if (!keys.empty()) {
+            kwdefaults_val = m_emitter.create_dict(keys, vals);
+        }
+    }
+
+    // === Step 15: rt_make_function ===
+    // defaults_tuple 同时传给 make_function 用于内省（inspect.signature 等）
+    auto *mod = m_codegen_ctx.module_object();
+    auto *func_val = m_emitter.call_make_function(
+        func_name,
+        func,
+        mod,
+        defaults_tuple ? defaults_tuple : m_emitter.null_pyobject(),
+        kwdefaults_val ? kwdefaults_val : m_emitter.null_pyobject(),
+        closure_val);
+
+    // === Step 16: 装饰器 ===
+    // Python 3.9: 装饰器从内到外（逆序）应用
+    //   @d1 @d2 def f: ...  →  f = d1(d2(f))
+    llvm::Value *decorated = func_val;
+    for (auto it = decorators.rbegin(); it != decorators.rend(); ++it) {
+        auto *dec = generate(it->get());
+        if (!dec) { continue; }
+        auto *dec_args = m_emitter.create_tuple({ decorated });
+        decorated = m_emitter.call_function(dec, dec_args, nullptr);
+    }
+
+    return decorated;
 }
 
 ast::Value *PylangCodegen::visit(const ast::FunctionDefinition *node)
@@ -1407,27 +1720,16 @@ ast::Value *PylangCodegen::visit(const ast::FunctionDefinition *node)
 	auto *func_val = compile_function_body(node->name(),
 		node->args().get(),
 		node->body(),
-		node->decorator_list(),
+		node->decorator_list(),// ← Step 15 已经应用了装饰器！
 		node->source_location());
 
 	if (!func_val) { return nullptr; }
 
-	// 应用装饰器（从内到外，即列表逆序）
-	// @dec1
-	// @dec2
-	// def f(): ...
-	// 等价于 f = dec1(dec2(f))
-	const auto &decorators = node->decorator_list();
-	for (auto it = decorators.rbegin(); it != decorators.rend(); ++it) {
-		auto *dec = generate(it->get());
-		if (!dec) { continue; }
+	// 修复: 删除重复的装饰器应用！compile_function_body Step 15 已经处理了
+	// const auto &decorators = node->decorator_list();
+	// for (auto it = decorators.rbegin(); it != decorators.rend(); ++it) { ... }
 
-		// 调用装饰器: func_val = dec(func_val)
-		auto *args = m_emitter.create_tuple({ func_val });
-		func_val = m_emitter.call_function(dec, args, m_emitter.null_pyobject());
-	}
-
-	// 将（可能被装饰后的）函数存入变量
+	// 直接存储
 	store_variable(node->name(), func_val);
 	return nullptr;
 }
@@ -1490,8 +1792,8 @@ ast::Value *PylangCodegen::visit(const ast::Raise *node)
 				m_emitter.pyobject_ptr_type(), try_ctx->exc_alloca, "reraise.exc");
 			m_emitter.call_reraise(exc);
 		} else {
-			m_emitter.emit_runtime_call(
-				"reraise", { llvm::ConstantPointerNull::get(m_builder.getPtrTy()) });
+			// 使用 call_reraise(null)
+			m_emitter.call_reraise(nullptr);
 		}
 	}
 
@@ -1579,14 +1881,17 @@ llvm::Value *PylangCodegen::compile_class_body(const std::string &class_name,
 	auto *obj_ptr_ty = m_emitter.pyobject_ptr_type();
 
 	// 签名: PyObject*(PyObject* module, PyTuple* args, PyDict* kwargs)
+	// args[0] 是 namespace dict
 	auto *func_type =
 		llvm::FunctionType::get(obj_ptr_ty, { obj_ptr_ty, obj_ptr_ty, obj_ptr_ty }, false);
 
-	auto mangled =
-		m_mangler.function_mangle(m_codegen_ctx.current_scope().name, class_name, source_loc);
+	auto mangled = m_mangler.function_mangle(
+		m_codegen_ctx.current_scope().mangled_name, class_name, source_loc);
 
 	auto *llvm_func = llvm::Function::Create(
 		func_type, llvm::Function::InternalLinkage, mangled + ".__body__", m_module.get());
+
+	ensure_personality(llvm_func);// 确保支持异常 unwind
 
 	llvm_func->getArg(0)->setName("module");
 	llvm_func->getArg(1)->setName("args");
@@ -1598,33 +1903,113 @@ llvm::Value *PylangCodegen::compile_class_body(const std::string &class_name,
 	m_builder.SetInsertPoint(entry_bb);
 
 	// namespace dict = args[0]
-	auto *ns = m_emitter.emit_runtime_call(
-		"tuple_getitem", { llvm_func->getArg(1), m_builder.getInt32(0) });
+	auto *ns = m_emitter.call_tuple_getitem(llvm_func->getArg(1), m_builder.getInt32(0));
+	ns->setName("ns");
 
-	auto it = m_codegen_ctx.visibility_map().find(mangled);
-	VariablesResolver::Scope *var_scope =
-		(it != m_codegen_ctx.visibility_map().end()) ? it->second.get() : nullptr;
+	// =================================================================
+	// 查找 VariablesResolver 中的 CLASS scope
+	// =================================================================
+	VariablesResolver::Scope *var_scope = nullptr;
+	auto *parent_var_scope = m_codegen_ctx.current_scope().var_scope;
+
+	if (parent_var_scope) {
+		// 方法 1: 构造预期的 namespace_ 并在 visibility map 中匹配
+		std::string expected_ns = parent_var_scope->namespace_ + "." + class_name;
+		for (auto &[key, scope_ptr] : m_codegen_ctx.visibility_map()) {
+			if (scope_ptr && scope_ptr->type == VariablesResolver::Scope::Type::CLASS
+				&& scope_ptr->namespace_ == expected_ns) {
+				var_scope = scope_ptr.get();
+				break;
+			}
+		}
+	}
+
+	if (!var_scope) {
+		// 方法 2: 退回到 mangled name 精确匹配
+		auto it = m_codegen_ctx.visibility_map().find(mangled);
+		if (it != m_codegen_ctx.visibility_map().end()) { var_scope = it->second.get(); }
+	}
+
+	if (!var_scope) {
+		// 方法 3: 暴力搜索——namespace_ 以 "." + class_name 结尾的 CLASS scope
+		std::string suffix = "." + class_name;
+		for (auto &[key, scope_ptr] : m_codegen_ctx.visibility_map()) {
+			if (scope_ptr && scope_ptr->type == VariablesResolver::Scope::Type::CLASS
+				&& scope_ptr->namespace_.size() >= suffix.size()
+				&& scope_ptr->namespace_.compare(
+					   scope_ptr->namespace_.size() - suffix.size(), suffix.size(), suffix)
+					   == 0) {
+				var_scope = scope_ptr.get();
+				break;
+			}
+		}
+	}
+
+	if (!var_scope) {
+		log::codegen()->warn("compile_class_body: no var_scope found for class '{}'", class_name);
+	}
 
 	ScopeContext class_scope{};
 	class_scope.type = ScopeContext::Type::CLASS;
 	class_scope.name = class_name;
 	class_scope.mangled_name = mangled;
 	class_scope.llvm_func = llvm_func;
-	class_scope.module_obj = llvm_func->getArg(0);// ← module 来自本函数参数
+	class_scope.module_obj = llvm_func->getArg(0);
 	class_scope.var_scope = var_scope;
 	class_scope.class_namespace = ns;
 	m_codegen_ctx.push_scope(std::move(class_scope));
 
+	// =================================================================
+	// 初始化 Cell 变量 (特别是 __class__)
+	// 如果类使用了 super()，VariablesResolver 会将 __class__ 标记为 CELL
+	// =================================================================
+	if (var_scope) {
+		std::vector<std::string> cell_vars;
+		std::vector<std::string> free_vars;
+		m_codegen_ctx.collect_cell_and_free_vars(var_scope, cell_vars, free_vars);
+
+		for (const auto &cv : cell_vars) {
+			// 1. 调用 runtime 创建空 cell
+			auto *cell = m_emitter.call_create_cell(nullptr);
+			// 2. 在栈上分配空间存储 cell 指针
+			auto *cell_alloca = m_codegen_ctx.create_local(cv + ".cell", obj_ptr_ty);
+			m_builder.CreateStore(cell, cell_alloca);
+			// 3. 注册到 Context，供方法闭包捕获
+			m_codegen_ctx.register_cell(cv, cell_alloca);
+
+			log::codegen()->debug("Allocated cell for class variable: {}", cv);
+		}
+	}
+
+	// 生成类体代码
 	generate_body(body);
+
+	// =================================================================
+	// 将 __class__ cell 注入到 namespace 中
+	// 这允许 metaclass (type.__new__) 获取该 cell 并绑定类对象
+	// =================================================================
+	if (auto *cell_alloca = m_codegen_ctx.find_cell("__class__")) {
+		auto *cell_obj = m_builder.CreateLoad(obj_ptr_ty, cell_alloca, "__class__.cell.load");
+
+		// 使用 call_dict_setitem_str
+		// 之前手动 emit_runtime_call 传入了 PyString 对象(PyObject*)，
+		// 而 dict_setitem_str 运行时函数期望的是 C-Style 字符串(char*)。
+		// 这导致 Key 变成乱码，rt_build_class 无法找到 __classcell__，导致 cell 未初始化。
+		m_emitter.call_dict_setitem_str(ns, "__classcell__", cell_obj);
+
+		log::codegen()->debug("Injected __classcell__ into namespace for '{}'", class_name);
+	}
 
 	if (!m_builder.GetInsertBlock()->getTerminator()) { m_builder.CreateRet(m_emitter.get_none()); }
 
 	m_codegen_ctx.pop_scope();
 	m_builder.SetInsertPoint(saved_bb);
 
+	// 对于简单的类定义（非嵌套），通常不需要 closure。
+	// 如果将来支持嵌套类捕获外部变量，这里需要传入 closure tuple。
 	return m_emitter.call_make_function(class_name,
 		llvm_func,
-		m_codegen_ctx.module_object(),// ← 外层 module，安全
+		m_codegen_ctx.module_object(),
 		m_emitter.null_pyobject(),
 		m_emitter.null_pyobject(),
 		m_emitter.null_pyobject());
@@ -1686,20 +2071,22 @@ ast::Value *PylangCodegen::visit(const ast::ClassDefinition *node)
 
 		if (!kw_node->arg().has_value()) {
 			// **extra → 展开到 kwargs dict
-			m_emitter.emit_runtime_call("dict_merge", { kwargs_dict, kw_value });
+			// 使用封装函数
+			m_emitter.call_dict_merge(kwargs_dict, kw_value);
 		} else {
 			// metaclass=Meta 等命名关键字
-			// 修复: 解引用 optional
-			m_emitter.emit_runtime_call("dict_setitem_str",
-				{ kwargs_dict, m_emitter.create_string(*kw_node->arg()), kw_value });
+			// [CRITICAL FIX] 修复 ABI 不匹配!
+			// 之前: m_emitter.emit_runtime_call("dict_setitem_str", { kwargs, create_string(...),
+			// val }) create_string 返回 PyObject*，而 dict_setitem_str 期望 const char*
+			m_emitter.call_dict_setitem_str(kwargs_dict, *kw_node->arg(), kw_value);
 		}
 	}
 
 	if (!has_kwargs) { kwargs_dict = m_emitter.null_pyobject(); }
 
 	// --- Step 4: 调用 rt_build_class_aot ---
-	auto *cls = m_emitter.emit_runtime_call("build_class_aot",
-		{ body_fn, m_emitter.create_string(node->name()), bases_tuple, kwargs_dict });
+	// 使用封装函数，自动处理 name 字符串转换
+	auto *cls = m_emitter.call_build_class_aot(body_fn, node->name(), bases_tuple, kwargs_dict);
 
 	// --- Step 5: 应用装饰器 ---
 	const auto &decorators = node->decorator_list();
@@ -1708,8 +2095,8 @@ ast::Value *PylangCodegen::visit(const ast::ClassDefinition *node)
 		auto *dec = generate(it->get());
 		if (!dec) { continue; }
 		auto *dec_args = m_emitter.create_tuple({ decorated });
-		decorated =
-			m_emitter.emit_runtime_call("call", { dec, dec_args, m_emitter.null_pyobject() });
+		// 使用 call_function
+		decorated = m_emitter.call_function(dec, dec_args, nullptr);
 	}
 
 	// --- Step 6: 存储到变量 ---
@@ -1721,18 +2108,13 @@ ast::Value *PylangCodegen::visit(const ast::ClassDefinition *node)
 // =============================================================================
 
 
-// =============================================================================
-// 辅助: 异常感知的 runtime 调用
-// =============================================================================
-
-llvm::Value *PylangCodegen::emit_call(const std::string &name, llvm::ArrayRef<llvm::Value *> args)
-{
-	return m_emitter.emit_runtime_call(name, args, m_codegen_ctx.unwind_dest());
-}
-
 void PylangCodegen::ensure_personality(llvm::Function *func)
 {
 	if (!func->hasPersonalityFn()) { func->setPersonalityFn(m_emitter.get_personality_function()); }
+	// 确保有 uwtable —— 否则 .eh_frame 不生成，landingpad 无效
+	if (!func->hasFnAttribute(llvm::Attribute::UWTable)) {
+		func->addFnAttr(llvm::Attribute::UWTable);
+	}
 }
 
 // void PylangCodegen::emit_finally_dispatch(const TryContext &try_ctx,
@@ -1918,6 +2300,8 @@ ast::Value *PylangCodegen::visit(const ast::Try *node)
 	auto *reraise_bb = llvm::BasicBlock::Create(m_ctx, "try.reraise", func);
 	auto *merge_bb = llvm::BasicBlock::Create(m_ctx, "try.merge", func);
 
+	bool has_finally = (finally_bb != nullptr);
+
 	auto *after_try_normal = else_bb ? else_bb : (finally_bb ? finally_bb : merge_bb);
 	auto *after_handler = finally_bb ? finally_bb : merge_bb;
 	auto *after_else = finally_bb ? finally_bb : merge_bb;
@@ -1953,7 +2337,6 @@ ast::Value *PylangCodegen::visit(const ast::Try *node)
 	// --- Landingpad ---
 	m_builder.SetInsertPoint(landingpad_bb);
 	auto *lp = m_builder.CreateLandingPad(lp_ty, 1, "lp");
-	// lp->addClause(llvm::ConstantPointerNull::get(m_builder.getPtrTy()));// catch all
 	lp->addClause(m_emitter.get_pylang_exception_typeinfo());
 
 	// 保存 LP token (用于 resume)
@@ -1961,16 +2344,24 @@ ast::Value *PylangCodegen::visit(const ast::Try *node)
 
 	// 提取异常指针并调用 rt_catch_begin
 	auto *exc_ptr = m_builder.CreateExtractValue(lp, 0, "exc.ptr");
-	auto *py_exc = m_emitter.emit_runtime_call("catch_begin", { exc_ptr });
+	auto *py_exc = m_emitter.call_catch_begin(exc_ptr);
 	m_builder.CreateStore(py_exc, exc_alloca);
 	m_builder.CreateStore(m_builder.getInt32(1), state_alloca);
 
 	if (except_dispatch_bb) {
 		m_builder.CreateBr(except_dispatch_bb);
 	} else {
-		// 无 except handler: catch_end 然后去 finally
-		m_emitter.emit_runtime_call("catch_end", {});
-		m_builder.CreateBr(after_handler);
+		// 无 except handler: catch_end 然后去 finally 或 reraise
+		// m_emitter.call_catch_end();
+		m_emitter.call_catch_end();
+		if (has_finally) {
+			// state=1, finally dispatch 会走 reraise
+			m_builder.CreateBr(finally_bb);
+		} else {
+			// 无 finally 也无 handler: 直接 resume
+			auto *saved_lp = m_builder.CreateLoad(lp_ty, lp_alloca, "nohandler.saved.lp");
+			m_builder.CreateResume(saved_lp);
+		}
 	}
 
 	// --- Except dispatch ---
@@ -1997,8 +2388,7 @@ ast::Value *PylangCodegen::visit(const ast::Try *node)
 
 				m_builder.SetInsertPoint(current_check_bb);
 				auto *exc_type = generate(handler_node->type().get());
-				auto *match =
-					m_emitter.emit_runtime_call("check_exception_match", { exc, exc_type });
+				auto *match = m_emitter.call_check_exception_match(exc, exc_type);
 				m_builder.CreateCondBr(match, handler_body_bb, next_bb);
 
 				current_check_bb = next_bb;
@@ -2016,18 +2406,35 @@ ast::Value *PylangCodegen::visit(const ast::Try *node)
 
 			if (!m_builder.GetInsertBlock()->getTerminator()) {
 				// 异常已处理: catch_end + state=0
-				m_emitter.emit_runtime_call("catch_end", {});
+				m_emitter.call_catch_end();
 				m_builder.CreateStore(m_builder.getInt32(0), state_alloca);
 				m_builder.CreateBr(after_handler);
 			}
 		}
 
-		// 未匹配: catch_end 但 state 保持 1
+		// =============================================================
+		// 修复: except.nomatch — 没有 handler 匹配时必须重新抛出！
+		//
+		// 修复前: m_builder.CreateBr(after_handler)
+		//   → 无 finally 时 after_handler = merge_bb → 异常被吞掉！
+		//
+		// 修复后:
+		//   - 有 finally: 跳 finally_bb, state=1 → finally dispatch → reraise
+		//   - 无 finally: 直接 resume landingpad token
+		// =============================================================
 		if (current_check_bb) {
 			m_builder.SetInsertPoint(current_check_bb);
-			m_emitter.emit_runtime_call("catch_end", {});
-			// state 已经是 1
-			m_builder.CreateBr(after_handler);
+			m_emitter.call_catch_end();
+			// state 已经是 1（在 landingpad 中设置）
+
+			if (has_finally) {
+				// 有 finally: state 保持 1, finally dispatch 走 reraise 路径
+				m_builder.CreateBr(finally_bb);
+			} else {
+				// 无 finally: 直接 resume 原始 landingpad token 重新抛出
+				auto *saved_lp = m_builder.CreateLoad(lp_ty, lp_alloca, "nomatch.saved.lp");
+				m_builder.CreateResume(saved_lp);
+			}
 		}
 	}
 
@@ -2094,12 +2501,12 @@ void PylangCodegen::store_to_sequence_target(
 
 	if (starred_idx == -1) {
 		// 无星号：普通 unpack_sequence
-		// a, b, c = iterable
 		const int32_t count = static_cast<int32_t>(elements.size());
 		auto *arr_alloca = m_builder.CreateAlloca(
 			m_emitter.pyobject_ptr_type(), m_builder.getInt32(count), "unpack_buf");
-		m_emitter.emit_runtime_call(
-			"unpack_sequence", { value, m_builder.getInt32(count), arr_alloca });
+
+		// 使用 call_unpack_sequence
+		m_emitter.call_unpack_sequence(value, count, arr_alloca);
 
 		for (int32_t i = 0; i < count; ++i) {
 			auto *gep = m_builder.CreateConstGEP1_32(m_emitter.pyobject_ptr_type(), arr_alloca, i);
@@ -2120,11 +2527,12 @@ void PylangCodegen::store_to_sequence_target(
 		auto *arr_alloca = m_builder.CreateAlloca(
 			m_emitter.pyobject_ptr_type(), m_builder.getInt32(out_count), "unpack_ex_buf");
 
-		m_emitter.emit_runtime_call("unpack_ex",
-			{ value,
-				m_builder.getInt32(before_count),
-				m_builder.getInt32(after_count),
-				arr_alloca });
+		// m_emitter.emit_runtime_call("unpack_ex",
+		// 	{ value,
+		// 		m_builder.getInt32(before_count),
+		// 		m_builder.getInt32(after_count),
+		// 		arr_alloca });
+		m_emitter.call_unpack_ex(value, before_count, after_count, arr_alloca);
 
 		for (int32_t i = 0; i < out_count; ++i) {
 			auto *gep = m_builder.CreateConstGEP1_32(m_emitter.pyobject_ptr_type(), arr_alloca, i);
@@ -2150,8 +2558,10 @@ void PylangCodegen::store_to_target(const ast::ASTNode *target, llvm::Value *val
 		// obj.attr = value
 		auto *obj = generate(attr->value().get());
 		if (obj) {
-			m_emitter.emit_runtime_call(
-				"setattr", { obj, m_emitter.create_string(attr->attr()), value });
+			// 旧代码: m_emitter.emit_runtime_call("setattr", { obj, create_string(...), value })
+			// 错误: create_string 返回 PyObject*，rt_setattr 需要 const char*
+			// 结果: Segfault 或 Key 乱码
+			m_emitter.call_setattr(obj, attr->attr(), value);
 		}
 
 	} else if (auto *subscr = dynamic_cast<const ast::Subscript *>(target)) {
@@ -2169,14 +2579,15 @@ void PylangCodegen::store_to_target(const ast::ASTNode *target, llvm::Value *val
 			auto *start = sl.lower ? generate(sl.lower.get()) : m_emitter.get_none();
 			auto *stop = sl.upper ? generate(sl.upper.get()) : m_emitter.get_none();
 			auto *step = sl.step ? generate(sl.step.get()) : m_emitter.get_none();
-			key = m_emitter.emit_runtime_call("build_slice", { start, stop, step });
+			// 使用 create_slice 封装
+			key = m_emitter.create_slice(start, stop, step);
 		} else {
 			// ExtSlice: Phase 2 不支持
 			log::codegen()->warn("store_to_target: ExtSlice not supported in Phase 2");
 			return;
 		}
 
-		if (key) { m_emitter.emit_runtime_call("setitem", { obj, key, value }); }
+		if (key) { m_emitter.call_setitem(obj, key, value); }
 
 	} else if (auto *tuple = dynamic_cast<const ast::Tuple *>(target)) {
 		// (a, b, *c, d) = value
@@ -2239,8 +2650,10 @@ ast::Value *PylangCodegen::visit(const ast::With *node)
 		auto *mgr = generate(with_item->context_expr().get());
 		if (!mgr) { return nullptr; }
 
+		// 修复: 使用 call_getattr 代替 emit_call("getattr", ...)，确保传入 const char*
 		// exit = getattr(mgr, "__exit__")
-		auto *exit_fn = emit_call("getattr", { mgr, m_emitter.create_string("__exit__") });
+		auto *exit_fn = m_emitter.call_getattr(mgr, "__exit__");
+
 		auto *exit_alloca = m_codegen_ctx.create_local("__with_exit", obj_ptr_ty);
 		m_builder.CreateStore(exit_fn, exit_alloca);
 
@@ -2250,10 +2663,13 @@ ast::Value *PylangCodegen::visit(const ast::With *node)
 
 		cleanups.push_back({ exit_alloca, exc_happened });
 
+		// 修复: 使用 call_getattr
 		// enter = getattr(mgr, "__enter__"); value = call(enter)
-		auto *enter_fn = emit_call("getattr", { mgr, m_emitter.create_string("__enter__") });
+		auto *enter_fn = m_emitter.call_getattr(mgr, "__enter__");
+
 		auto *empty_args = m_emitter.create_tuple({});
-		auto *value = emit_call("call", { enter_fn, empty_args, m_emitter.null_pyobject() });
+		// 这里的 emit_call 是安全的，因为 call 函数期望的就是 PyObject* 参数
+		auto *value = m_emitter.call_function(enter_fn, empty_args, nullptr);
 
 		if (with_item->optional_vars()) {
 			store_to_target(with_item->optional_vars().get(), value);
@@ -2268,45 +2684,48 @@ ast::Value *PylangCodegen::visit(const ast::With *node)
 
 	auto *state_alloca = m_codegen_ctx.create_local("__with_state", i32_ty);
 	auto *retval_alloca = m_codegen_ctx.create_local("__with_retval", obj_ptr_ty);
+
+	// 在 entry block 创建 landingpad token alloca (防止在循环/分支中多次创建导致栈溢出)
 	auto *lp_alloca_raw = [&]() {
 		auto &entry = func->getEntryBlock();
 		llvm::IRBuilder<> eb(&entry, entry.begin());
 		return eb.CreateAlloca(lp_ty, nullptr, "__with_lp");
 	}();
+
 	auto *exc_alloca = m_codegen_ctx.create_local("__with_exc_obj", obj_ptr_ty);
 
-    m_builder.CreateStore(m_builder.getInt32(0), state_alloca);
-    m_builder.CreateBr(body_bb);
-    m_builder.SetInsertPoint(body_bb);
+	m_builder.CreateStore(m_builder.getInt32(0), state_alloca);
+	m_builder.CreateBr(body_bb);
+	m_builder.SetInsertPoint(body_bb);
 
-    TryContext try_ctx{};
-    try_ctx.landingpad_bb = landingpad_bb;
-    try_ctx.finally_bb = nullptr;// with 不用 finally dispatch
-    try_ctx.state_alloca = state_alloca;
-    try_ctx.retval_alloca = retval_alloca;
-    try_ctx.lp_alloca = lp_alloca_raw;
-    try_ctx.exc_alloca = exc_alloca;
-    m_codegen_ctx.push_try(try_ctx);
+	TryContext try_ctx{};
+	try_ctx.landingpad_bb = landingpad_bb;
+	try_ctx.finally_bb = nullptr;// with 不用 finally dispatch
+	try_ctx.state_alloca = state_alloca;
+	try_ctx.retval_alloca = retval_alloca;
+	try_ctx.lp_alloca = lp_alloca_raw;
+	try_ctx.exc_alloca = exc_alloca;
+	m_codegen_ctx.push_try(try_ctx);
 
-    // 关键：让 IREmitter 的所有 runtime call 在 body 内自动生成 invoke
-    auto *prev_unwind = m_emitter.unwind_dest();
-    m_emitter.set_unwind_dest(landingpad_bb);
+	// 关键：让 IREmitter 的所有 runtime call 在 body 内自动生成 invoke
+	auto *prev_unwind = m_emitter.unwind_dest();
+	m_emitter.set_unwind_dest(landingpad_bb);
 
-    generate_body(node->body());
+	generate_body(node->body());
 
-    m_emitter.set_unwind_dest(prev_unwind); // 恢复（支持嵌套）
-    m_codegen_ctx.pop_try();
+	m_emitter.set_unwind_dest(prev_unwind);// 恢复（支持嵌套）
+	m_codegen_ctx.pop_try();
 
 	if (!m_builder.GetInsertBlock()->getTerminator()) { m_builder.CreateBr(normal_exit_bb); }
 
 	// --- Landingpad: 异常发生 ---
 	m_builder.SetInsertPoint(landingpad_bb);
 	auto *lp = m_builder.CreateLandingPad(lp_ty, 1, "with.lp");
-	lp->addClause(llvm::ConstantPointerNull::get(m_builder.getPtrTy()));
+	lp->addClause(m_emitter.get_pylang_exception_typeinfo());// 使用正确的 typeinfo
 	m_builder.CreateStore(lp, lp_alloca_raw);
 
 	auto *exc_ptr = m_builder.CreateExtractValue(lp, 0, "with.exc.ptr");
-	auto *py_exc = m_emitter.emit_runtime_call("catch_begin", { exc_ptr });
+	auto *py_exc = m_emitter.call_catch_begin(exc_ptr);
 	m_builder.CreateStore(py_exc, exc_alloca);
 
 	// 逆序调用 __exit__(exc_type, exc_val, exc_tb)
@@ -2314,14 +2733,13 @@ ast::Value *PylangCodegen::visit(const ast::With *node)
 		m_builder.CreateStore(m_builder.getInt32(1), it->exc_happened_alloca);
 		auto *exit_fn = m_builder.CreateLoad(obj_ptr_ty, it->exit_alloca, "exit_fn");
 
-		// 新: __exit__(type(exc), exc, traceback)
-		auto *exc_type = m_emitter.emit_runtime_call("type_of", { py_exc });
-		auto *exc_tb = m_emitter.emit_runtime_call("get_traceback", { py_exc });
+		//  __exit__(type(exc), exc, traceback)
+		auto *exc_type = m_emitter.call_type_of(py_exc);
+		auto *exc_tb = m_emitter.call_get_traceback(py_exc);
 		auto *exit_args = m_emitter.create_tuple({ exc_type, py_exc, exc_tb });
-		auto *suppress =
-			m_emitter.emit_runtime_call("call", { exit_fn, exit_args, m_emitter.null_pyobject() });
+		auto *suppress = m_emitter.call_function(exit_fn, exit_args, nullptr);
 		// 如果 __exit__ 返回 truthy，抑制异常
-		auto *is_suppressed = m_emitter.emit_runtime_call("is_true", { suppress });
+		auto *is_suppressed = m_emitter.call_is_true(suppress);
 
 		auto *reraise_bb = llvm::BasicBlock::Create(m_ctx, "with.reraise", func);
 		auto *suppressed_bb = llvm::BasicBlock::Create(m_ctx, "with.suppressed", func);
@@ -2330,12 +2748,13 @@ ast::Value *PylangCodegen::visit(const ast::With *node)
 
 		// 抑制: catch_end + 继续
 		m_builder.SetInsertPoint(suppressed_bb);
-		m_emitter.emit_runtime_call("catch_end", {});
+		m_emitter.call_catch_end();
 		m_builder.CreateBr(merge_bb);
 
 		// 不抑制: catch_end + resume
 		m_builder.SetInsertPoint(reraise_bb);
-		m_emitter.emit_runtime_call("catch_end", {});
+
+		m_emitter.call_catch_end();
 		auto *saved_lp = m_builder.CreateLoad(lp_ty, lp_alloca_raw, "with.saved_lp");
 		m_builder.CreateResume(saved_lp);
 	}
@@ -2357,7 +2776,7 @@ ast::Value *PylangCodegen::visit(const ast::With *node)
 		auto *none2 = m_emitter.get_none();
 		auto *none3 = m_emitter.get_none();
 		auto *exit_args = m_emitter.create_tuple({ none1, none2, none3 });
-		m_emitter.emit_runtime_call("call", { exit_fn, exit_args, m_emitter.null_pyobject() });
+		m_emitter.call_function(exit_fn, exit_args, nullptr);
 		m_builder.CreateBr(skip_exit_bb);
 
 		m_builder.SetInsertPoint(skip_exit_bb);

@@ -115,6 +115,10 @@ class IREmitter
 
 	// ========== Tier 2: 解包 ==========
 	void call_unpack_sequence(llvm::Value *iterable, int32_t count, llvm::Value *out_array);
+	void call_unpack_ex(llvm::Value *iterable,
+		int32_t before,
+		int32_t after,
+		llvm::Value *out_array);
 
 	/// iter_next 返回下一个元素，has_value 是输出参数（i1*）
 	/// 如果迭代结束，has_value 设为 false，返回值为 nullptr
@@ -126,7 +130,10 @@ class IREmitter
 	void call_delitem(llvm::Value *obj, llvm::Value *key);
 
 	// ========== Tier 3: 容器方法 ==========
+	/// 获取 tuple 的元素数量，返回 i32
+	llvm::Value *call_tuple_len(llvm::Value *tuple);
 	void call_list_append(llvm::Value *list, llvm::Value *value);
+	llvm::Value *call_list_to_tuple(llvm::Value *list);
 	void call_set_add(llvm::Value *set, llvm::Value *value);
 	void call_list_extend(llvm::Value *list, llvm::Value *iterable);
 	void call_dict_merge(llvm::Value *dict, llvm::Value *other);
@@ -138,6 +145,7 @@ class IREmitter
 	void call_store_global(llvm::Value *module, std::string_view name, llvm::Value *value);
 	void call_setattr(llvm::Value *obj, std::string_view name, llvm::Value *value);
 	void call_delattr(llvm::Value *obj, std::string_view name);
+
 
 	// ========== Tier 0: 函数调用 ==========
 	llvm::Value *
@@ -157,14 +165,30 @@ class IREmitter
 		llvm::Value *fromlist = nullptr,
 		int level = 0);
 
+	llvm::Value *call_add_module(std::string_view name);
+
 	// ========== Tier 0: 异常处理 ==========
 	void call_raise(llvm::Value *exception);
 	llvm::Value *call_load_assertion_error();
+
+	// 底层异常处理 (ABI)
+	llvm::Value *call_catch_begin(llvm::Value *exc_ptr);
+	void call_catch_end();
+	void call_print_unhandled_exception(llvm::Value *exc);
+
+	// [Add] 异常信息提取
+	llvm::Value *call_type_of(llvm::Value *obj);
+	llvm::Value *call_get_traceback(llvm::Value *exc);
 
 	// ========== Tier 4: 闭包操作 (Phase 3.2) ==========
 	llvm::Value *call_create_cell(llvm::Value *value);
 	llvm::Value *call_cell_get(llvm::Value *cell);
 	void call_cell_set(llvm::Value *cell, llvm::Value *value);
+
+	// ========== Tier 4: tuple 特化访问 ==========
+	// 快速元组访问 (用于闭包、参数解包)
+	// [Fix] 参数类型改为 llvm::Value* 以匹配 m_builder.getInt32(...)
+	llvm::Value *call_tuple_getitem(llvm::Value *tuple, llvm::Value *index);
 
 	// ========== Tier 4: 函数创建 (Phase 3.2) ==========
 	/// 从 AOT 编译后的原生函数指针创建 Python 可调用对象
@@ -215,13 +239,6 @@ class IREmitter
 	/// 创建 null PyObject* 常量
 	llvm::Constant *null_pyobject() const;
 
-
-	/// 核心调用发射 — 统一接口
-	/// 自动处理函数查找、invoke/call 选择
-	llvm::Value *emit_runtime_call(std::string_view func_name,
-		llvm::ArrayRef<llvm::Value *> args,
-		llvm::BasicBlock *unwind_dest = nullptr);
-
 	/// C++ EH 辅助
 	void declare_eh_intrinsics();
 	llvm::Function *get_personality_function();
@@ -238,6 +255,12 @@ class IREmitter
 	/// 创建全局字符串常量（带缓存）
 	llvm::Constant *create_global_string(std::string_view str);
 
+	// [Move] 移至 private，禁止外部直接调用
+	/// 核心调用发射 — 统一接口
+	/// 自动处理函数查找、invoke/call 选择
+	llvm::Value *emit_runtime_call(std::string_view func_name,
+		llvm::ArrayRef<llvm::Value *> args,
+		llvm::BasicBlock *unwind_dest = nullptr);
 
 	llvm::IRBuilder<> &m_builder;
 	RuntimeLinker &m_linker;

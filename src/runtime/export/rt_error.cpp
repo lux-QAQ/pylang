@@ -71,17 +71,17 @@ PYLANG_EXPORT_ERROR("catch_rethrow", "void", "")
 PYLANG_EXPORT_ERROR("raise", "void", "obj")
 void rt_raise_obj(py::PyObject *exc)
 {
-    // 如果 exc 是类型（如 ValueError），实例化它
-    if (auto *type = py::as<py::PyType>(exc)) {
-        auto args = py::PyTuple::create();
-        if (args.is_err()) { rt_raise(args.unwrap_err()); }
-        auto instance = type->__call__(args.unwrap(), nullptr);
-        if (instance.is_err()) { rt_raise(instance.unwrap_err()); }
-        rt_raise(static_cast<py::BaseException *>(instance.unwrap()));
-    }
+	// 如果 exc 是类型（如 ValueError），实例化它
+	if (auto *type = py::as<py::PyType>(exc)) {
+		auto args = py::PyTuple::create();
+		if (args.is_err()) { rt_raise(args.unwrap_err()); }
+		auto instance = type->__call__(args.unwrap(), nullptr);
+		if (instance.is_err()) { rt_raise(instance.unwrap_err()); }
+		rt_raise(static_cast<py::BaseException *>(instance.unwrap()));
+	}
 
-    // 已经是实例
-    rt_raise(static_cast<py::BaseException *>(exc));
+	// 已经是实例
+	rt_raise(static_cast<py::BaseException *>(exc));
 }
 
 // =============================================================================
@@ -102,4 +102,14 @@ void rt_reraise(py::PyObject *exc)
 {
 	if (!exc) { rt_raise(py::runtime_error("No active exception to re-raise")); }
 	rt_raise(static_cast<py::BaseException *>(exc));
+}
+
+PYLANG_EXPORT_ATTR("print_unhandled_exception", "void", "obj")
+void rt_print_unhandled_exception(py::PyObject *exc)
+{
+	if (exc) {
+		spdlog::error("Unhandled exception: {}", exc->to_string());
+	} else {
+		spdlog::error("Unhandled unknown exception");
+	}
 }

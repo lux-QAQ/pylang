@@ -1571,40 +1571,112 @@ PyResult<const PyType *> PyType::calculate_metaclass(const PyType *type_,
 	return Ok(winner);
 }
 
+// PyResult<PyObject *> PyType::__call__(PyTuple *args, PyDict *kwargs) const
+// {
+// 	if (this == types::type()) {
+// 		if (args->size() == 1) {
+// 			auto obj = PyObject::from(args->elements()[0]);
+// 			if (obj.is_err()) return obj;
+// 			return Ok(obj.unwrap()->type());
+// 		}
+// 		if (args->size() != 3) {
+// 			return Err(type_error("type() takes 1 or 3 arguments, got {}", args->size()));
+// 		}
+// 	}
+
+// 	auto obj_ = new_(args, kwargs);
+// 	if (obj_.is_err()) { return obj_; }
+
+// 	// If __new__() does not return an instance of cls, then the new instance’s __init__()
+// 	// method will not be invoked.
+// 	if (auto *obj = obj_.unwrap(); obj->type() == this) {
+// 		// If __new__() is invoked during object construction and it returns an instance of cls,
+// 		// then the new instance’s __init__() method will be invoked like __init__(self[, ...]),
+// 		// where self is the new instance and the remaining arguments are the same as were
+// 		// passed to the object constructor.
+// 		if (const auto res = obj->init(args, kwargs); res.is_ok()) {
+// 			if (res.unwrap() < 0) {
+// 				// error
+// 				TODO();
+// 				return Err(nullptr);
+// 			}
+// 		} else {
+// 			return Err(res.unwrap_err());
+// 		}
+// 	}
+// 	return obj_;
+// }
+
+// PyResult<PyObject *> PyType::__call__(PyTuple *args, PyDict *kwargs) const
+// {
+//     // Python 3.9 语义: 如果调用的是内置的 type() 类，进行特殊处理
+//     if (this == types::type()) {
+//         // type(x) 应当返回 x 的类型
+//         if (args->size() == 1 && (!kwargs || kwargs->map().empty())) {
+//             auto obj = PyObject::from(args->elements()[0]);
+//             if (obj.is_err()) return obj;
+//             return Ok(obj.unwrap()->type());
+//         }
+//         // type() 只接受 1 个或 3 个参数
+//         if (args->size() != 3) {
+//             return Err(type_error("type() takes 1 or 3 arguments, got {}", args->size()));
+//         }
+//     }
+
+//     auto obj_res = new_(args, kwargs);
+//     if (obj_res.is_err()) { return obj_res; }
+//     auto *obj = obj_res.unwrap();
+    
+//     // 遵循 Python 3.9 语义：只有当 returned_object 确实是期望的 type 的实例（或其子类）时，才调用 __init__
+//     if (obj->type()->issubclass(const_cast<PyType *>(this))) {
+//         auto init_res = obj->init(args, kwargs);
+//         if (init_res.is_err()) { return Err(init_res.unwrap_err()); }
+//     }
+    
+//     return Ok(obj);
+// }
+
 PyResult<PyObject *> PyType::__call__(PyTuple *args, PyDict *kwargs) const
 {
-	if (this == types::type()) {
-		if (args->size() == 1) {
-			auto obj = PyObject::from(args->elements()[0]);
-			if (obj.is_err()) return obj;
-			return Ok(obj.unwrap()->type());
-		}
-		if (args->size() != 3) {
-			return Err(type_error("type() takes 1 or 3 arguments, got {}", args->size()));
-		}
-	}
+    // =====================================================================
+    // Python 3.9 语义: type.__call__(cls, *args, **kwargs)
+    // =====================================================================
 
-	auto obj_ = new_(args, kwargs);
-	if (obj_.is_err()) { return obj_; }
+    // 1. 特殊处理 type(x) 和 type(name, bases, dict)
+    if (this == types::type()) {
+        if (args->size() == 1 && (!kwargs || kwargs->map().empty())) {
+            auto obj = PyObject::from(args->elements()[0]);
+            if (obj.is_err()) return obj;
+            return Ok(static_cast<PyObject *>(obj.unwrap()->type()));
+        }
+        if (args->size() != 3) {
+            return Err(type_error("type() takes 1 or 3 arguments, got {}", args->size()));
+        }
+    }
 
-	// If __new__() does not return an instance of cls, then the new instance’s __init__()
-	// method will not be invoked.
-	if (auto *obj = obj_.unwrap(); obj->type() == this) {
-		// If __new__() is invoked during object construction and it returns an instance of cls,
-		// then the new instance’s __init__() method will be invoked like __init__(self[, ...]),
-		// where self is the new instance and the remaining arguments are the same as were
-		// passed to the object constructor.
-		if (const auto res = obj->init(args, kwargs); res.is_ok()) {
-			if (res.unwrap() < 0) {
-				// error
-				TODO();
-				return Err(nullptr);
-			}
-		} else {
-			return Err(res.unwrap_err());
-		}
-	}
-	return obj_;
+    // 2. 调用 cls.__new__(cls, *args, **kwargs)
+    // PyType::new_ (即 tp_new) 负责将 cls 传递给 slot。
+    // 如果是 PyType::__new__，它期望 strict 的 3 个参数 (name, bases, dict)。
+    auto obj_res = new_(args, kwargs);
+    if (obj_res.is_err()) { return obj_res; }
+    auto *obj = obj_res.unwrap();
+
+    // 3. 调用 type(obj).__init__(obj, *args, **kwargs)
+    // 仅当 obj 是 cls 的实例或子类实例时才调用
+    if (obj->type()->issubclass(const_cast<PyType *>(this))) {
+        // init() 内部会处理 method binding (手动 prepend self)，这里只需传原始 args
+        if (const auto res = obj->init(args, kwargs); res.is_ok()) {
+            if (res.unwrap() < 0) {
+                // __init__ 应该返回 None (0)
+                TODO();
+                return Err(nullptr);
+            }
+        } else {
+            return Err(res.unwrap_err());
+        }
+    }
+
+    return Ok(obj);
 }
 
 std::string PyType::to_string() const

@@ -24,4 +24,6 @@ PyResult<PyObject *> import_module_level_object(PyString *name,
 PyResult<PyModule *> import_frozen_module(PyString *name);
 
 PyResult<PyObject *> create_builtin(PyObject *spec);
+
+PyResult<PyModule *> import_add_module(PyString *name);
 }// namespace py

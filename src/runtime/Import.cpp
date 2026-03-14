@@ -29,14 +29,19 @@
 
 namespace py {
 
+
+
+	
 namespace {
 
+#ifndef PYLANG_AOT_MODE
 	// ---- 辅助: 获取当前 Interpreter ----
 	Interpreter &current_interpreter()
 	{
 		ASSERT(RuntimeContext::has_current() && RuntimeContext::current().has_interpreter());
 		return *RuntimeContext::current().interpreter();
 	}
+#endif
 
 	// adapted from CPython import.c resolve_name
 	PyResult<PyString *> resolve_name(PyString *name, PyDict *globals, uint32_t level)
@@ -133,46 +138,41 @@ namespace {
 	// ========================================================================
 	// import_get_module — 双路径查找 (RuntimeContext 版)
 	// ========================================================================
-	std::optional<PyModule *> import_get_module(PyString *name)
-	{
-		const auto &name_str = name->value();
+    std::optional<PyModule *> import_get_module(PyString *name)
+    {
+        const auto &name_str = name->value();
 
-		// 新路径: 先查 ModuleRegistry
-		if (auto *mod = ModuleRegistry::instance().find(name_str)) { return mod; }
+        // 新路径: 先查 ModuleRegistry
+        if (auto *mod = ModuleRegistry::instance().find(name_str)) { return mod; }
+#ifndef PYLANG_AOT_MODE
+        // 旧路径: 从 Interpreter.modules() 查找
+        if (RuntimeContext::has_current() && RuntimeContext::current().has_interpreter()) {
+            auto *available_modules = current_interpreter().modules();
+            if (available_modules) {
+                if (auto it = available_modules->map().find(name);
+                    it != available_modules->map().end()) {
+                    auto *mod = as<PyModule>(PyObject::from(it->second).unwrap());
+                    if (mod) { ModuleRegistry::instance().register_module(name_str, mod); }
+                    return mod;
+                }
+            }
+        }
+#endif
 
-		// 旧路径: 从 Interpreter.modules() 查找
-		if (RuntimeContext::has_current() && RuntimeContext::current().has_interpreter()) {
-			auto *available_modules = current_interpreter().modules();
-			if (available_modules) {
-				if (auto it = available_modules->map().find(name);
-					it != available_modules->map().end()) {
-					auto *mod = as<PyModule>(PyObject::from(it->second).unwrap());
-					if (mod) { ModuleRegistry::instance().register_module(name_str, mod); }
-					return mod;
-				}
-			}
-		}
-		return {};
-	}
+        return {};
+    }
 
-	PyResult<PyModule *> import_add_module(PyString *name)
-	{
-		auto m = import_get_module(name);
-		if (m.has_value()) return Ok(*m);
-		auto mod = PyModule::create(PyDict::create().unwrap(), name, PyString::create("").unwrap());
-		if (mod.is_ok()) {
-			ModuleRegistry::instance().register_module(name->value(), mod.unwrap());
-		}
-		return mod;
-	}
 
-	void remove_module(PyString *name)
-	{
-		if (RuntimeContext::has_current() && RuntimeContext::current().has_interpreter()) {
-			auto *available_modules = current_interpreter().modules();
-			if (available_modules) { available_modules->remove(name); }
-		}
-	}
+
+    void remove_module(PyString *name)
+    {
+#ifndef PYLANG_AOT_MODE
+        if (RuntimeContext::has_current() && RuntimeContext::current().has_interpreter()) {
+            auto *available_modules = current_interpreter().modules();
+            if (available_modules) { available_modules->remove(name); }
+        }
+#endif
+    }
 
 	PyResult<std::monostate> import_ensure_initialized(PyModule *module, PyString *name)
 	{
@@ -194,6 +194,10 @@ namespace {
 			}
 
 			if (initializing) {
+#ifdef PYLANG_AOT_MODE
+				return Err(
+					import_error("concurrent import initializing state not supported in AOT mode"));
+#else
 				auto _lock_unlock_module = PyString::create("_lock_unlock_module");
 				if (_lock_unlock_module.is_err()) return Err(_lock_unlock_module.unwrap_err());
 				auto args = PyTuple::create(name);
@@ -206,6 +210,7 @@ namespace {
 							});
 				if (value.is_err()) return Err(value.unwrap_err());
 				return Ok(std::monostate{});
+#endif
 			}
 		}
 		return Ok(std::monostate{});
@@ -213,6 +218,11 @@ namespace {
 
 	PyResult<PyModule *> import_find_and_load(PyString *name)
 	{
+#ifdef PYLANG_AOT_MODE
+		return Err(import_error(
+			"No module named '{}' (dynamic import_find_and_load not supported in AOT mode)",
+			name->value()));
+#else
 		auto find_and_load = PyString::create("_find_and_load");
 		if (find_and_load.is_err()) return Err(find_and_load.unwrap_err());
 		auto *importlib = current_interpreter().importlib();
@@ -229,6 +239,7 @@ namespace {
 			return Err(type_error("expected module to be of type module"));
 		}
 		return Ok(as<PyModule>(module.unwrap()));
+#endif
 	}
 
 	std::array frozen_modules = {
@@ -314,6 +325,9 @@ PyResult<PyObject *> import_module_level_object(PyString *name,
 	} else {
 		auto path = module.unwrap()->symbol_table()->map().find(String{ "__path__" });
 		if (path != module.unwrap()->symbol_table()->map().end()) {
+#ifdef PYLANG_AOT_MODE
+			return module;
+#else
 			auto &interp = current_interpreter();
 			return interp.importlib()
 				->get_method(PyString::create("_handle_fromlist").unwrap())
@@ -322,6 +336,7 @@ PyResult<PyObject *> import_module_level_object(PyString *name,
 						PyTuple::create(module.unwrap(), fromlist, interp.importfunc()).unwrap(),
 						nullptr);
 				});
+#endif
 		} else {
 			return module;
 		}
@@ -421,5 +436,16 @@ PyResult<PyObject *> create_builtin(PyObject *spec)
 
 	return Ok(py_none());
 }
+
+	PyResult<PyModule *> import_add_module(PyString *name)
+	{
+		auto m = import_get_module(name);
+		if (m.has_value()) return Ok(*m);
+		auto mod = PyModule::create(PyDict::create().unwrap(), name, PyString::create("").unwrap());
+		if (mod.is_ok()) {
+			ModuleRegistry::instance().register_module(name->value(), mod.unwrap());
+		}
+		return mod;
+	}
 
 }// namespace py
