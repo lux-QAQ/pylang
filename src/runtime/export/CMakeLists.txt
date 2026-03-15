@@ -101,6 +101,15 @@ set(BC_OBJ_DIR "${CMAKE_BINARY_DIR}/bitcode_obj")
 set(BC_DIR     "${CMAKE_BINARY_DIR}/bitcode")
 file(MAKE_DIRECTORY "${BC_OBJ_DIR}" "${BC_DIR}")
 
+# 根据构建类型选择优化等级
+if(CMAKE_BUILD_TYPE STREQUAL "Release")
+  set(BC_OPT_LEVEL "-O3")
+  message(STATUS "Bitcode: Release build — using -O3")
+else()
+  set(BC_OPT_LEVEL "-O1")
+  message(STATUS "Bitcode: ${CMAKE_BUILD_TYPE} build — using -O1")
+endif()
+
 set(ALL_BC_FILES "")
 
 foreach(src ${ALL_SOURCES})
@@ -117,7 +126,7 @@ foreach(src ${ALL_SOURCES})
       LLVM_COMPILER=clang
       LLVM_COMPILER_PATH=/usr/bin
       ${WLLVM_CXX}
-        -std=c++20 -O1 -g -c
+        -std=c++20 ${BC_OPT_LEVEL} -g -c
         -fno-discard-value-names
         ${BC_DEFS}
         ${BC_INC}

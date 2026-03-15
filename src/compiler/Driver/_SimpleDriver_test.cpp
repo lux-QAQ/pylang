@@ -48,6 +48,13 @@ class SimpleDriverTest : public ::testing::Test
 			"-lgmp",
 			"-licuuc",
 			"-licudata" };
+		if (std::system("ld.lld --version > /dev/null 2>&1") == 0) {
+			opts.linker_cmd = "clang++";// 使用 clang 驱动程序
+			opts.extra_link_flags.push_back("-fuse-ld=lld");
+		} else {
+			opts.linker_cmd = "c++";
+		}
+		spdlog::info("Using linker: {}", opts.linker_cmd);
 
 		auto driver = SimpleDriver::create(std::move(opts), s_ctx);
 		if (driver.has_value()) {
@@ -1256,7 +1263,7 @@ print("mask_shift", (mask >> 10) == ((1 << 90) - 1))
 
 TEST_F(SimpleDriverTest, Feature_LiteralsAndComplex)
 {
-    std::string code = R"(
+	std::string code = R"(
 # 1. 字面量格式
 # 0b1101 = 13, 0x1A = 26, 1.5e2 = 150.0
 # mix_list = [0b1101, 0x1A, 1.5e2]
@@ -1276,12 +1283,8 @@ squares = {x: x**2 for x in [1, 2, 3]}
 print("dict_comp", squares[2], squares[3])
 )";
 
-    run_aot_test(shared_driver(), "literals_complex", code,
-        {
-            "bytes_len 5",
-            "raw_check True",
-            "hex_check True",
-            "is_none True",
-            "dict_comp 4 9"
-        });
+	run_aot_test(shared_driver(),
+		"literals_complex",
+		code,
+		{ "bytes_len 5", "raw_check True", "hex_check True", "is_none True", "dict_comp 4 9" });
 }

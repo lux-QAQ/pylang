@@ -408,6 +408,9 @@ if(LLVM_FOUND)
     support
     transformutils # CloneModule
     linker # llvm::Linker
+    native
+    nativecodegen
+    target
   )
   target_link_libraries(pylang-support INTERFACE ${_pylang_support_llvm_libs})
 endif()
@@ -418,80 +421,149 @@ target_link_libraries(pylang-support INTERFACE cpptrace::cpptrace spdlog)
 # Compiler Frontend — RuntimeLinker
 # =========================================================================
 if(LLVM_FOUND)
+  find_program(LLD_PATH lld)
+  if(LLD_PATH)
+    add_compile_definitions(PYLANG_HAS_LLD=1)
+  endif()
+  # 收集编译器所有源文件（排除测试文件）
   file(GLOB_RECURSE COMPILER_SOURCE_FILES
     CONFIGURE_DEPENDS
     compiler/**/*.cpp
   )
-
   list(FILTER COMPILER_SOURCE_FILES EXCLUDE REGEX ".*_test\\.cpp$")
   list(FILTER COMPILER_SOURCE_FILES EXCLUDE REGEX ".*_tests\\.cpp$")
+  list(FILTER COMPILER_SOURCE_FILES EXCLUDE REGEX ".*_SimpleDriverExecEntry/.*")
 
   if(COMPILER_SOURCE_FILES)
     add_library(pylang-compiler OBJECT ${COMPILER_SOURCE_FILES})
     target_link_libraries(pylang-compiler PUBLIC pylang-support)
-
-    # 因为 llvm 就是以 llvm/ 开头，正常普通 Include 就行。
     target_include_directories(pylang-compiler PRIVATE ${LLVM_INCLUDE_DIRS})
-
   endif()
-  # =========================================================================
-  # Codegen
-  # =========================================================================
 
-  file(GLOB_RECURSE CODEGEN_SOURCE_FILES
-    CONFIGURE_DEPENDS
-    compiler/Codegen/*.cpp
-  )
-  list(FILTER CODEGEN_SOURCE_FILES EXCLUDE REGEX ".*_test\\.cpp$")
-
-  if(CODEGEN_SOURCE_FILES)
-    if(TARGET pylang-compiler)
-      target_sources(pylang-compiler PRIVATE ${CODEGEN_SOURCE_FILES})
-    else()
-      add_library(pylang-compiler OBJECT ${CODEGEN_SOURCE_FILES})
-      target_link_libraries(pylang-compiler PUBLIC pylang-support)
-    endif()
-  endif()
-  # =========================================================================
-  # Compiler Tests — 独立可执行文件
-  # =========================================================================
-  file(GLOB_RECURSE COMPILER_TEST_FILES
-    CONFIGURE_DEPENDS
-    compiler/**/*_test.cpp
-    compiler/**/*_tests.cpp
-  )
-
-  if(COMPILER_TEST_FILES)
-    add_executable(compiler_tests ${COMPILER_TEST_FILES})
-
-    target_include_directories(compiler_tests PRIVATE ${LLVM_INCLUDE_DIRS})
-
-    target_link_libraries(compiler_tests PRIVATE
+  # -------------------------------------------------------------------------
+  # 定义辅助宏，减少测试目标的配置重复
+  # -------------------------------------------------------------------------
+  macro(setup_compiler_test_target TARGET_NAME)
+    target_include_directories(${TARGET_NAME} PRIVATE ${LLVM_INCLUDE_DIRS})
+    target_link_libraries(${TARGET_NAME} PRIVATE
       pylang-support
+      pylang-compiler
       python-cpp
       gtest
       gtest_main
     )
-
-    target_compile_options(compiler_tests PRIVATE
-      -Wno-deprecated-declarations
-    )
-
-
-    # 正确的目标名 + 正确的 bc 路径
-    target_compile_definitions(compiler_tests PRIVATE
+    target_compile_definitions(${TARGET_NAME} PRIVATE
       PYLANG_RUNTIME_BC_DEFAULT="${CMAKE_BINARY_DIR}/runtime.bc"
     )
-
-    # 确保 runtime.bc 先于测试构建
     if(TARGET runtime_bc)
-      add_dependencies(compiler_tests runtime_bc)
+      add_dependencies(${TARGET_NAME} runtime_bc)
     endif()
+  endmacro()
 
-    if(TARGET pylang-compiler)
-      target_link_libraries(compiler_tests PRIVATE pylang-compiler)
-    endif()
+  # =========================================================================
+  # 1. 编译器单元测试 (Unit Tests) - 快速，基于内存的组件测试
+  # =========================================================================
+  add_executable(compiler_unit_tests
+    compiler/Codegen/IREmitter_test.cpp
+    compiler/RuntimeLinker/RuntimeLinker_test.cpp
+    compiler/Support/LLVMUtils_test.cpp
+    compiler/Support/StringUtils_test.cpp
+  )
+  setup_compiler_test_target(compiler_unit_tests)
+  gtest_discover_tests(compiler_unit_tests PROPERTIES LABELS "Unit")
 
-    gtest_discover_tests(compiler_tests)
+  # =========================================================================
+  # 2. 代码生成测试 (Codegen Tests) - 中等速度，验证 IR 结构
+  # =========================================================================
+  add_executable(compiler_codegen_tests
+    compiler/Codegen/PylangCodegen_test.cpp
+  )
+  setup_compiler_test_target(compiler_codegen_tests)
+  gtest_discover_tests(compiler_codegen_tests PROPERTIES LABELS "Codegen")
+
+  # =========================================================================
+  # 3. 集成测试 (Integration Tests) - 慢速，涉及 AOT 编译、系统链接和子进程运行
+  # =========================================================================
+  if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/compiler/Driver/_SimpleDriver_test.cpp")
+    add_executable(compiler_integration_tests
+      compiler/Driver/_SimpleDriver_test.cpp
+    )
+    setup_compiler_test_target(compiler_integration_tests)
+    # 集成测试设置较长的超时时间，并标记 Label
+    gtest_discover_tests(compiler_integration_tests 
+      PROPERTIES 
+        LABELS "Integration" 
+        TIMEOUT 300
+    )
   endif()
+
+endif()
+
+# =========================================================================
+# 编译器 CLI 入口 (pyc)
+# =========================================================================
+if(LLVM_FOUND)
+  
+  # 1. 定位资源
+  set(RUNTIME_BC_FILE "${CMAKE_BINARY_DIR}/runtime.bc")
+  set(EMBEDDED_HEADER "${CMAKE_CURRENT_BINARY_DIR}/generated/EmbeddedResources.hpp")
+  set(EMBED_SCRIPT "${CMAKE_SOURCE_DIR}/cmake/EmbedResources.cmake")
+
+  # 寻找静态库 (注意：确保这些库在你的系统上存在 .a 版本)
+  find_library(LIB_GMP_STATIC NAMES libgmp.a gmp) 
+  find_library(LIB_GMPXX_STATIC NAMES libgmpxx.a gmpxx)
+  find_library(LIB_ICUUC_STATIC NAMES libicuuc.a icuuc)
+  find_library(LIB_ICUDATA_STATIC NAMES libicudata.a icudata)
+  
+  # 获取 spdlog 静态文件路径
+  if(TARGET spdlog)
+    set(LIB_SPDLOG "$<TARGET_FILE:spdlog>")
+  else()
+    find_library(LIB_SPDLOG NAMES libspdlog.a spdlog)
+  endif()
+
+  # 2. 只有当必要的资源存在时才配置生成逻辑
+  # 注意：这里 DEPENDS 必须包含生成 runtime.bc 的 TARGET 名：runtime_bitcode
+  if(EXISTS "${EMBED_SCRIPT}")
+    add_custom_command(
+      OUTPUT ${EMBEDDED_HEADER}
+      COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/generated"
+      COMMAND ${CMAKE_COMMAND} 
+        -DOUTPUT_HEADER=${EMBEDDED_HEADER}
+        "-DFILES=RUNTIME_BC=${RUNTIME_BC_FILE};LIB_SPDLOG=${LIB_SPDLOG};LIB_GMP=${LIB_GMP_STATIC};LIB_GMPXX=${LIB_GMPXX_STATIC};LIB_ICUUC=${LIB_ICUUC_STATIC};LIB_ICUDATA=${LIB_ICUDATA_STATIC}"
+        -P ${EMBED_SCRIPT}
+      # [CRITICAL FIX]: 依赖目标 runtime_bitcode (来自 src/runtime/export/CMakeLists.txt)
+      DEPENDS runtime_bitcode spdlog ${LIB_GMP_STATIC} ${EMBED_SCRIPT}
+      COMMENT "Embedding runtime libraries and bitcode into pyc header..."
+      VERBATIM
+    )
+    
+    add_library(pyc_resources INTERFACE)
+    target_include_directories(pyc_resources INTERFACE ${CMAKE_CURRENT_BINARY_DIR}/generated)
+    target_compile_definitions(pyc_resources INTERFACE PYLANG_EMBEDDED_RES)
+    
+    add_custom_target(gen_pyc_embedded_header DEPENDS ${EMBEDDED_HEADER})
+  endif()
+
+  # 3. 构建 pyc
+  add_executable(pyc compiler/Driver/_SimpleDriverExecEntry/CompilerEntry.cpp)
+
+  target_link_libraries(pyc PRIVATE 
+    pylang-compiler python-cpp cxxopts cpptrace::cpptrace spdlog
+  )
+
+  # 确保头文件生成
+  if(TARGET gen_pyc_embedded_header)
+    add_dependencies(pyc gen_pyc_embedded_header)
+    target_link_libraries(pyc PRIVATE pyc_resources)
+  endif()
+
+  target_include_directories(pyc PRIVATE ${LLVM_INCLUDE_DIRS})
+  target_compile_definitions(pyc PRIVATE PYLANG_RUNTIME_BC_DEFAULT="${RUNTIME_BC_FILE}")
+
+  if(PYLANG_HAS_LLD)
+    target_compile_definitions(pyc PRIVATE PYLANG_HAS_LLD=1)
+  endif()
+  
+  install(TARGETS pyc DESTINATION bin)
 endif()

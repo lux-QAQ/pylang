@@ -1,4 +1,5 @@
 #include "RuntimeLinker.hpp"
+#include "compiler/Support/Log.hpp"
 #include "compiler/Support/gtest_wrapper.hpp"
 
 #include <llvm-20/llvm/IR/IRBuilder.h>

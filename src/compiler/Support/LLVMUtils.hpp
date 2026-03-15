@@ -38,6 +38,26 @@ class LLVMModuleLoader
   public:
 	explicit LLVMModuleLoader(llvm::LLVMContext &ctx) : m_context(ctx) {}
 
+
+    std::unique_ptr<llvm::Module> load_from_memory(std::string_view data,
+        std::string_view name = "<embedded_runtime>")
+    {
+        llvm::SMDiagnostic err;
+        auto memory_buffer =
+            llvm::MemoryBuffer::getMemBuffer(llvm::StringRef(data.data(), data.size()),
+                name,
+                false
+            );
+
+        // [FIX] 使用 m_context
+        auto mod = llvm::parseIR(*memory_buffer, err, m_context);
+        if (!mod) {
+            err.print("LLVMModuleLoader", llvm::errs());
+            return nullptr;
+        }
+        return mod;
+    }
+
 	Result<llvm::Module *> load_bitcode(const std::filesystem::path &path)
 	{
 		auto path_str = path.string();

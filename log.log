@@ -2,63 +2,197 @@
 [build] 正在启动生成
 [proc] 正在执行命令: /home/lux/soft/cmake/bin/cmake --build /home/lux/code/language/python-cpp/build/debug --config Debug --target all --
 [build] [0/2] Re-checking globbed directories...
-[build] ninja: no work to do.
-[driver] 生成完毕: 00:00:00.039
-[build] 生成已完成，退出代码为 0
-[proc] 正在执行命令: /home/lux/soft/cmake/bin/ctest -T test --output-on-failure -R ^SimpleDriverTest\.Feature_LiteralsAndComplex$
-[ctest] Cannot find file: /home/lux/code/language/python-cpp/build/debug/DartConfiguration.tcl
-[ctest] Cannot find file: /home/lux/code/language/python-cpp/build/debug/DartConfiguration.tcl
-[ctest] Test project /home/lux/code/language/python-cpp/build/debug
-[ctest]     Start 536: SimpleDriverTest.Feature_LiteralsAndComplex
-[ctest] 1/1 Test #536: SimpleDriverTest.Feature_LiteralsAndComplex ...***Failed    5.78 sec
-[ctest] Running main() from /home/lux/code/language/python-cpp/build/debug/.cache/CPM/googletest/1ace/googletest/src/gtest_main.cc
-[ctest] Note: Google Test filter = SimpleDriverTest.Feature_LiteralsAndComplex
-[ctest] [==========] Running 1 test from 1 test suite.
-[ctest] [----------] Global test environment set-up.
-[ctest] [----------] 1 test from SimpleDriverTest
-[ctest] [18:22:27.104] [compiler] [info] TargetMachine: x86_64-pc-linux-gnu (opt=O0)
-[ctest] [18:22:27.104] [compiler] [info] Using separated runtime compilation (cached object: /tmp/pylang_runtime_cache.o)
-[ctest] [18:22:27.104] [linker] [info] Loading runtime bitcode: /home/lux/code/language/python-cpp/build/debug/runtime.bc
-[ctest] [18:22:31.752] [linker] [info] Parsed 107 annotations, skipped 0
-[ctest] [18:22:31.752] [linker] [info] Loaded 107 runtime functions
-[ctest] [18:22:31.752] [compiler] [info] SimpleDriver created (opt: O0, separate_link: true)
-[ctest] [2026-03-14 18:22:31.752] [info] [timer] SimpleDriver::create: 4648.68ms
-[ctest] [2026-03-14 18:22:31.752] [info] [timer] SetUpTestSuite::create_shared_driver: 4648.74ms
-[ctest] [ RUN      ] SimpleDriverTest.Feature_LiteralsAndComplex
-[ctest] [18:22:31.766] [compiler] [info] Stage 1: Codegen for '__test_literals_complex__'
-[ctest] [2026-03-14 18:22:31.767] [info] [timer] stage_codegen: 1.01ms
-[ctest] [18:22:31.767] [compiler] [info] Stage 1: Codegen for '__test_literals_complex__'
-[ctest] [2026-03-14 18:22:31.768] [info] [timer] stage_codegen: 0.70ms
-[ctest] /home/lux/code/language/python-cpp/src/compiler/Driver/_SimpleDriver_test.cpp:116: Failure
-[ctest] Value of: result.has_value()
-[ctest]   Actual: false
-[ctest] Expected: true
-[ctest] [CodegenInternalError] LLVM Module verification failed: Referring to an instruction in another function!
-[ctest]   call void @_Z15rt_store_globalPN2py8PyObjectEPKcS1_(ptr %0, ptr @.str.10, ptr %4)
-[ctest] Referring to an instruction in another function!
-[ctest]   %6 = call ptr @_Z14rt_load_globalPN2py8PyObjectEPKc(ptr %0, ptr @.str.10)
-[ctest] Referring to an instruction in another function!
-[ctest]   %7 = call ptr @_Z14rt_load_globalPN2py8PyObjectEPKc(ptr %0, ptr @.str.10)
-[ctest]  (at /home/lux/code/language/python-cpp/src/compiler/Codegen/PylangCodegen.cpp:99:86)
-[ctest] 
-[ctest] [2026-03-14 18:22:31.768] [info] [timer] run_aot_test:literals_complex: 16.03ms
-[ctest] [  FAILED  ] SimpleDriverTest.Feature_LiteralsAndComplex (16 ms)
-[ctest] [----------] 1 test from SimpleDriverTest (16 ms total)
-[ctest] 
-[ctest] [----------] Global test environment tear-down
-[ctest] [==========] 1 test from 1 test suite ran. (5143 ms total)
-[ctest] [  PASSED  ] 0 tests.
-[ctest] [  FAILED  ] 1 test, listed below:
-[ctest] [  FAILED  ] SimpleDriverTest.Feature_LiteralsAndComplex
-[ctest] 
-[ctest]  1 FAILED TEST
-[ctest] 
-[ctest] 
-[ctest] 0% tests passed, 1 tests failed out of 1
-[ctest] 
-[ctest] Total Test time (real) =   5.78 sec
-[ctest] 
-[ctest] The following tests FAILED:
-[ctest] 	536 - SimpleDriverTest.Feature_LiteralsAndComplex (Failed)
-[proc] 命令“/home/lux/soft/cmake/bin/ctest -T test --output-on-failure -R ^SimpleDriverTest\.Feature_LiteralsAndComplex$”已退出，代码为 8
-[ctest] CTest 已完成，返回代码 8
+[build] [1/15] Building CXX object src/CMakeFiles/pylang-compiler.dir/compiler/RuntimeLinker/RuntimeLinker.cpp.o
+[build] FAILED: [code=1] src/CMakeFiles/pylang-compiler.dir/compiler/RuntimeLinker/RuntimeLinker.cpp.o 
+[build] /usr/bin/ccache /usr/lib/ccache/c++ -DCMAKE_BINARY_DIR=\"/home/lux/code/language/python-cpp/build/debug\" -DCPPTRACE_STATIC_DEFINE -DPYLANG_HAS_LLD=1 -DPYLANG_USE_ARENA -DSPDLOG_COMPILED_LIB -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -I/usr/lib/llvm-20/include -I/home/lux/code/language/python-cpp/src -isystem /home/lux/code/language/python-cpp/build/debug/.cache/CPM/cpptrace/2b0e/include -isystem /home/lux/code/language/python-cpp/build/debug/_deps/cpptrace-build/include -isystem /home/lux/code/language/python-cpp/build/debug/.cache/CPM/spdlog/be97/include -g -std=c++23 -fcolor-diagnostics -MD -MT src/CMakeFiles/pylang-compiler.dir/compiler/RuntimeLinker/RuntimeLinker.cpp.o -MF src/CMakeFiles/pylang-compiler.dir/compiler/RuntimeLinker/RuntimeLinker.cpp.o.d -o src/CMakeFiles/pylang-compiler.dir/compiler/RuntimeLinker/RuntimeLinker.cpp.o -c /home/lux/code/language/python-cpp/src/compiler/RuntimeLinker/RuntimeLinker.cpp
+[build] In file included from /home/lux/code/language/python-cpp/src/compiler/RuntimeLinker/RuntimeLinker.cpp:1:
+[build] In file included from /home/lux/code/language/python-cpp/src/compiler/RuntimeLinker/RuntimeLinker.hpp:5:
+[build] In file included from /home/lux/code/language/python-cpp/src/compiler/Support/LLVMUtils.hpp:5:
+[build] In file included from /Bitcode/BitcodeReader.h:21:
+[build] In file included from /Support/Error.h:19:
+[build] /Support/AlignOf.h:28:29: warning: 'aligned_union_t' is deprecated [-Wdeprecated-declarations]
+[build]    28 |   using AlignedUnion = std::aligned_union_t<1, T, Ts...>;
+[build]       |                             ^
+[build] /Support/AlignOf.h:28:29: note: in instantiation of template type alias 'aligned_union_t' requested here
+[build] /13/../../../../include/c++/13/type_traits:2601:27: note: 'aligned_union_t' has been explicitly marked deprecated here
+[build]  2601 |     using aligned_union_t _GLIBCXX23_DEPRECATED = typename aligned_union<_Len, _Types...>::type;
+[build]       |                           ^
+[build] /13/../../../../include/x86_64-linux-gnu/c++/13/bits/c++config.h:137:34: note: expanded from macro '_GLIBCXX23_DEPRECATED'
+[build]   137 | # define _GLIBCXX23_DEPRECATED [[__deprecated__]]
+[build]       |                                  ^
+[build] In file included from /home/lux/code/language/python-cpp/src/compiler/RuntimeLinker/RuntimeLinker.cpp:1:
+[build] In file included from /home/lux/code/language/python-cpp/src/compiler/RuntimeLinker/RuntimeLinker.hpp:5:
+[build] In file included from /home/lux/code/language/python-cpp/src/compiler/Support/LLVMUtils.hpp:5:
+[build] In file included from /Bitcode/BitcodeReader.h:21:
+[build] In file included from /Support/Error.h:19:
+[build] /Support/AlignOf.h:28:29: warning: 'aligned_union_t' is deprecated [-Wdeprecated-declarations]
+[build]    28 |   using AlignedUnion = std::aligned_union_t<1, T, Ts...>;
+[build]       |                             ^
+[build] /Support/AlignOf.h:28:29: note: in instantiation of template type alias 'aligned_union_t' requested here
+[build] /Support/ErrorOr.h:256:44: note: in instantiation of template class 'llvm::AlignedCharArrayUnion<std::error_code>' requested here
+[build]   256 |     AlignedCharArrayUnion<std::error_code> ErrorStorage;
+[build]       |                                            ^
+[build] /13/../../../../include/c++/13/type_traits:2601:27: note: 'aligned_union_t' has been explicitly marked deprecated here
+[build]  2601 |     using aligned_union_t _GLIBCXX23_DEPRECATED = typename aligned_union<_Len, _Types...>::type;
+[build]       |                           ^
+[build] /13/../../../../include/x86_64-linux-gnu/c++/13/bits/c++config.h:137:34: note: expanded from macro '_GLIBCXX23_DEPRECATED'
+[build]   137 | # define _GLIBCXX23_DEPRECATED [[__deprecated__]]
+[build]       |                                  ^
+[build] In file included from /home/lux/code/language/python-cpp/src/compiler/RuntimeLinker/RuntimeLinker.cpp:1:
+[build] In file included from /home/lux/code/language/python-cpp/src/compiler/RuntimeLinker/RuntimeLinker.hpp:5:
+[build] In file included from /home/lux/code/language/python-cpp/src/compiler/Support/LLVMUtils.hpp:5:
+[build] In file included from /Bitcode/BitcodeReader.h:21:
+[build] In file included from /Support/Error.h:19:
+[build] /Support/AlignOf.h:28:29: warning: 'aligned_union_t' is deprecated [-Wdeprecated-declarations]
+[build]    28 |   using AlignedUnion = std::aligned_union_t<1, T, Ts...>;
+[build]       |                             ^
+[build] /Support/AlignOf.h:28:29: note: in instantiation of template type alias 'aligned_union_t' requested here
+[build] /Support/Error.h:731:39: note: in instantiation of template class 'llvm::AlignedCharArrayUnion<std::unique_ptr<llvm::ErrorInfoBase>>' requested here
+[build]   731 |     AlignedCharArrayUnion<error_type> ErrorStorage;
+[build]       |                                       ^
+[build] /13/../../../../include/c++/13/type_traits:2601:27: note: 'aligned_union_t' has been explicitly marked deprecated here
+[build]  2601 |     using aligned_union_t _GLIBCXX23_DEPRECATED = typename aligned_union<_Len, _Types...>::type;
+[build]       |                           ^
+[build] /13/../../../../include/x86_64-linux-gnu/c++/13/bits/c++config.h:137:34: note: expanded from macro '_GLIBCXX23_DEPRECATED'
+[build]   137 | # define _GLIBCXX23_DEPRECATED [[__deprecated__]]
+[build]       |                                  ^
+[build] In file included from /home/lux/code/language/python-cpp/src/compiler/RuntimeLinker/RuntimeLinker.cpp:1:
+[build] In file included from /home/lux/code/language/python-cpp/src/compiler/RuntimeLinker/RuntimeLinker.hpp:5:
+[build] In file included from /home/lux/code/language/python-cpp/src/compiler/Support/LLVMUtils.hpp:5:
+[build] In file included from /Bitcode/BitcodeReader.h:21:
+[build] In file included from /Support/Error.h:19:
+[build] /Support/AlignOf.h:28:29: warning: 'aligned_union_t' is deprecated [-Wdeprecated-declarations]
+[build]    28 |   using AlignedUnion = std::aligned_union_t<1, T, Ts...>;
+[build]       |                             ^
+[build] /Support/AlignOf.h:28:29: note: in instantiation of template type alias 'aligned_union_t' requested here
+[build] /ADT/DenseMap.h:904:59: note: in instantiation of template class 'llvm::AlignedCharArrayUnion<llvm::detail::DenseMapPair<void *, std::pair<llvm::PointerUnion<llvm::MetadataAsValue *, llvm::Metadata *, llvm::DebugValueUser *>, unsigned long>>[4], llvm::SmallDenseMap<void *, std::pair<llvm::PointerUnion<llvm::MetadataAsValue *, llvm::Metadata *, llvm::DebugValueUser *>, unsigned long>>::LargeRep>' requested here
+[build]   904 |   AlignedCharArrayUnion<BucketT[InlineBuckets], LargeRep> storage;
+[build]       |                                                           ^
+[build] /IR/Metadata.h:395:58: note: in instantiation of template class 'llvm::SmallDenseMap<void *, std::pair<llvm::PointerUnion<llvm::MetadataAsValue *, llvm::Metadata *, llvm::DebugValueUser *>, unsigned long>>' requested here
+[build]   395 |   SmallDenseMap<void *, std::pair<OwnerTy, uint64_t>, 4> UseMap;
+[build]       |                                                          ^
+[build] /13/../../../../include/c++/13/type_traits:2601:27: note: 'aligned_union_t' has been explicitly marked deprecated here
+[build]  2601 |     using aligned_union_t _GLIBCXX23_DEPRECATED = typename aligned_union<_Len, _Types...>::type;
+[build]       |                           ^
+[build] /13/../../../../include/x86_64-linux-gnu/c++/13/bits/c++config.h:137:34: note: expanded from macro '_GLIBCXX23_DEPRECATED'
+[build]   137 | # define _GLIBCXX23_DEPRECATED [[__deprecated__]]
+[build]       |                                  ^
+[build] In file included from /home/lux/code/language/python-cpp/src/compiler/RuntimeLinker/RuntimeLinker.cpp:1:
+[build] In file included from /home/lux/code/language/python-cpp/src/compiler/RuntimeLinker/RuntimeLinker.hpp:5:
+[build] In file included from /home/lux/code/language/python-cpp/src/compiler/Support/LLVMUtils.hpp:5:
+[build] In file included from /Bitcode/BitcodeReader.h:21:
+[build] In file included from /Support/Error.h:19:
+[build] /Support/AlignOf.h:28:29: warning: 'aligned_union_t' is deprecated [-Wdeprecated-declarations]
+[build]    28 |   using AlignedUnion = std::aligned_union_t<1, T, Ts...>;
+[build]       |                             ^
+[build] /Support/AlignOf.h:28:29: note: in instantiation of template type alias 'aligned_union_t' requested here
+[build] /ADT/DenseMap.h:904:59: note: in instantiation of template class 'llvm::AlignedCharArrayUnion<llvm::detail::DenseMapPair<llvm::AnalysisKey *, bool>[8], llvm::SmallDenseMap<llvm::AnalysisKey *, bool, 8>::LargeRep>' requested here
+[build]   904 |   AlignedCharArrayUnion<BucketT[InlineBuckets], LargeRep> storage;
+[build]       |                                                           ^
+[build] /IR/PassManager.h:336:39: note: in instantiation of template class 'llvm::SmallDenseMap<llvm::AnalysisKey *, bool, 8>' requested here
+[build]   336 |       auto IMapI = IsResultInvalidated.find(ID);
+[build]       |                                       ^
+[build] /13/../../../../include/c++/13/type_traits:2601:27: note: 'aligned_union_t' has been explicitly marked deprecated here
+[build]  2601 |     using aligned_union_t _GLIBCXX23_DEPRECATED = typename aligned_union<_Len, _Types...>::type;
+[build]       |                           ^
+[build] /13/../../../../include/x86_64-linux-gnu/c++/13/bits/c++config.h:137:34: note: expanded from macro '_GLIBCXX23_DEPRECATED'
+[build]   137 | # define _GLIBCXX23_DEPRECATED [[__deprecated__]]
+[build]       |                                  ^
+[build] In file included from /home/lux/code/language/python-cpp/src/compiler/RuntimeLinker/RuntimeLinker.cpp:1:
+[build] In file included from /home/lux/code/language/python-cpp/src/compiler/RuntimeLinker/RuntimeLinker.hpp:5:
+[build] In file included from /home/lux/code/language/python-cpp/src/compiler/Support/LLVMUtils.hpp:5:
+[build] In file included from /Bitcode/BitcodeReader.h:21:
+[build] In file included from /Support/Error.h:19:
+[build] /Support/AlignOf.h:28:29: warning: 'aligned_union_t' is deprecated [-Wdeprecated-declarations]
+[build]    28 |   using AlignedUnion = std::aligned_union_t<1, T, Ts...>;
+[build]       |                             ^
+[build] /Support/AlignOf.h:28:29: note: in instantiation of template type alias 'aligned_union_t' requested here
+[build] /ADT/DenseMap.h:904:59: note: in instantiation of template class 'llvm::AlignedCharArrayUnion<llvm::detail::DenseMapPair<llvm::AnalysisKey *, llvm::TinyPtrVector<llvm::AnalysisKey *>>[2], llvm::SmallDenseMap<llvm::AnalysisKey *, llvm::TinyPtrVector<llvm::AnalysisKey *>, 2>::LargeRep>' requested here
+[build]   904 |   AlignedCharArrayUnion<BucketT[InlineBuckets], LargeRep> storage;
+[build]       |                                                           ^
+[build] /IR/PassManager.h:771:9: note: in instantiation of template class 'llvm::SmallDenseMap<llvm::AnalysisKey *, llvm::TinyPtrVector<llvm::AnalysisKey *>, 2>' requested here
+[build]   771 |         OuterAnalysisInvalidationMap;
+[build]       |         ^
+[build] /13/../../../../include/c++/13/type_traits:2601:27: note: 'aligned_union_t' has been explicitly marked deprecated here
+[build]  2601 |     using aligned_union_t _GLIBCXX23_DEPRECATED = typename aligned_union<_Len, _Types...>::type;
+[build]       |                           ^
+[build] /13/../../../../include/x86_64-linux-gnu/c++/13/bits/c++config.h:137:34: note: expanded from macro '_GLIBCXX23_DEPRECATED'
+[build]   137 | # define _GLIBCXX23_DEPRECATED [[__deprecated__]]
+[build]       |                                  ^
+[build] In file included from /home/lux/code/language/python-cpp/src/compiler/RuntimeLinker/RuntimeLinker.cpp:1:
+[build] In file included from /home/lux/code/language/python-cpp/src/compiler/RuntimeLinker/RuntimeLinker.hpp:5:
+[build] In file included from /home/lux/code/language/python-cpp/src/compiler/Support/LLVMUtils.hpp:5:
+[build] In file included from /Bitcode/BitcodeReader.h:21:
+[build] In file included from /Support/Error.h:19:
+[build] /Support/AlignOf.h:28:29: warning: 'aligned_union_t' is deprecated [-Wdeprecated-declarations]
+[build]    28 |   using AlignedUnion = std::aligned_union_t<1, T, Ts...>;
+[build]       |                             ^
+[build] /Support/AlignOf.h:28:29: note: in instantiation of template type alias 'aligned_union_t' requested here
+[build] /Support/ErrorOr.h:255:41: note: in instantiation of template class 'llvm::AlignedCharArrayUnion<std::unique_ptr<llvm::MemoryBuffer>>' requested here
+[build]   255 |     AlignedCharArrayUnion<storage_type> TStorage;
+[build]       |                                         ^
+[build] /Support/ErrorOr.h:254:3: note: in instantiation of member class 'llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>>::(anonymous union at /Support/ErrorOr.h:254:3)' requested here
+[build]   254 |   union {
+[build]       |   ^
+[build] /home/lux/code/language/python-cpp/src/compiler/Support/LLVMUtils.hpp:72:21: note: in instantiation of template class 'llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>>' requested here
+[build]    72 |                 auto buf_or_err = llvm::MemoryBuffer::getFile(path_str);
+[build]       |                                   ^
+[build] /13/../../../../include/c++/13/type_traits:2601:27: note: 'aligned_union_t' has been explicitly marked deprecated here
+[build]  2601 |     using aligned_union_t _GLIBCXX23_DEPRECATED = typename aligned_union<_Len, _Types...>::type;
+[build]       |                           ^
+[build] /13/../../../../include/x86_64-linux-gnu/c++/13/bits/c++config.h:137:34: note: expanded from macro '_GLIBCXX23_DEPRECATED'
+[build]   137 | # define _GLIBCXX23_DEPRECATED [[__deprecated__]]
+[build]       |                                  ^
+[build] In file included from /home/lux/code/language/python-cpp/src/compiler/RuntimeLinker/RuntimeLinker.cpp:1:
+[build] In file included from /home/lux/code/language/python-cpp/src/compiler/RuntimeLinker/RuntimeLinker.hpp:5:
+[build] In file included from /home/lux/code/language/python-cpp/src/compiler/Support/LLVMUtils.hpp:5:
+[build] In file included from /Bitcode/BitcodeReader.h:21:
+[build] In file included from /Support/Error.h:19:
+[build] /Support/AlignOf.h:28:29: warning: 'aligned_union_t' is deprecated [-Wdeprecated-declarations]
+[build]    28 |   using AlignedUnion = std::aligned_union_t<1, T, Ts...>;
+[build]       |                             ^
+[build] /Support/AlignOf.h:28:29: note: in instantiation of template type alias 'aligned_union_t' requested here
+[build] /Support/Error.h:730:41: note: in instantiation of template class 'llvm::AlignedCharArrayUnion<std::unique_ptr<llvm::Module>>' requested here
+[build]   730 |     AlignedCharArrayUnion<storage_type> TStorage;
+[build]       |                                         ^
+[build] /Support/Error.h:729:3: note: in instantiation of member class 'llvm::Expected<std::unique_ptr<llvm::Module>>::(anonymous union at /Support/Error.h:729:3)' requested here
+[build]   729 |   union {
+[build]       |   ^
+[build] /home/lux/code/language/python-cpp/src/compiler/Support/LLVMUtils.hpp:77:21: note: in instantiation of template class 'llvm::Expected<std::unique_ptr<llvm::Module>>' requested here
+[build]    77 |                 auto mod_or_err = llvm::parseBitcodeFile(buf_or_err->get()->getMemBufferRef(), m_context);
+[build]       |                                   ^
+[build] /13/../../../../include/c++/13/type_traits:2601:27: note: 'aligned_union_t' has been explicitly marked deprecated here
+[build]  2601 |     using aligned_union_t _GLIBCXX23_DEPRECATED = typename aligned_union<_Len, _Types...>::type;
+[build]       |                           ^
+[build] /13/../../../../include/x86_64-linux-gnu/c++/13/bits/c++config.h:137:34: note: expanded from macro '_GLIBCXX23_DEPRECATED'
+[build]   137 | # define _GLIBCXX23_DEPRECATED [[__deprecated__]]
+[build]       |                                  ^
+[build] In file included from /home/lux/code/language/python-cpp/src/compiler/RuntimeLinker/RuntimeLinker.cpp:1:
+[build] /home/lux/code/language/python-cpp/src/compiler/RuntimeLinker/RuntimeLinker.hpp:55:48: error: no viable conversion from returned value of type 'const std::unique_ptr<llvm::Module>' to function return type 'llvm::Module *'
+[build]    55 |         llvm::Module *runtime_module() const { return m_runtime_module; }
+[build]       |                                                       ^~~~~~~~~~~~~~~~
+[build] /home/lux/code/language/python-cpp/src/compiler/RuntimeLinker/RuntimeLinker.cpp:32:26: error: no viable overloaded '='
+[build]    32 |         linker.m_runtime_module = module;
+[build]       |         ~~~~~~~~~~~~~~~~~~~~~~~ ^ ~~~~~~
+[build] /13/../../../../include/c++/13/bits/unique_ptr.h:414:19: note: candidate function not viable: no known conversion from 'llvm::Module *' to 'unique_ptr<Module>' for 1st argument
+[build]   414 |       unique_ptr& operator=(unique_ptr&&) = default;
+[build]       |                   ^         ~~~~~~~~~~~~
+[build] /13/../../../../include/c++/13/bits/unique_ptr.h:430:2: note: candidate template ignored: could not match 'unique_ptr<_Up, _Ep>' against 'llvm::Module *'
+[build]   430 |         operator=(unique_ptr<_Up, _Ep>&& __u) noexcept
+[build]       |         ^
+[build] /13/../../../../include/c++/13/bits/unique_ptr.h:440:7: note: candidate function not viable: no known conversion from 'llvm::Module *' to 'nullptr_t' (aka 'std::nullptr_t') for 1st argument
+[build]   440 |       operator=(nullptr_t) noexcept
+[build]       |       ^         ~~~~~~~~~
+[build] /13/../../../../include/c++/13/bits/unique_ptr.h:523:19: note: candidate function not viable: no known conversion from 'llvm::Module *' to 'const unique_ptr<Module>' for 1st argument
+[build]   523 |       unique_ptr& operator=(const unique_ptr&) = delete;
+[build]       |                   ^         ~~~~~~~~~~~~~~~~~
+[build] /home/lux/code/language/python-cpp/src/compiler/RuntimeLinker/RuntimeLinker.cpp:48:10: error: use of undeclared identifier 'Error'; did you mean 'llvm::Error'?
+[build]    48 |                 return Error(
+[build]       |                        ^
+[build] /Linker/IRMover.h:18:7: note: 'llvm::Error' declared here
+[build]    18 | class Error;
+[build]       |       ^
+[build] 8 warnings and 3 errors generated.
+[build] [2/15] Building CXX object src/CMakeFiles/pylang-compiler.dir/compiler/Codegen/IREmitter.cpp.o
+[build] FAILED: [code=1] src/CMakeFiles/pylang-compiler.dir/compiler/Codegen/IREmitter.cpp.o 
+[build] /usr/bin/ccache /usr/lib/ccache/c++ -DCMAKE_BINARY_DIR=\"/home/lux/code/language/python-cpp/build/debug\" -DCPPTRACE_STATIC_DEFINE -DPYLANG_HAS_LLD=1 -DPYLANG_USE_ARENA -DSPDLOG_COMPILED_LIB -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -I/usr/lib/llvm-20/include -I/home/lux/code/language/python-cpp/src -isystem /home/lux/code/language/python-cpp/build/debug/.cache/CPM/cpptrace/2b0e/include -isystem /home/lux/code/language/python-cpp/build/debug/_deps/cpptrace-build/include -isystem /home/lux/code/language/python-cpp/build/debug/.cache/CPM/spdlog/be97/include -g -std=c++23 -fcolor-diagnostics -MD -MT src/CMakeFiles/pylang-compiler.dir/compiler/Codegen/IREmitter.cpp.o -MF src/CMakeFiles/pylang-compiler.dir/compiler/Codegen/IREmitter.cpp.o.d -o src/CMakeFiles/pylang-compiler.dir/compiler/Codegen/IREmitter.cpp.o -c /home/lux/code/language/python-cpp/src/compiler/Codegen/IREmitter.cpp
