@@ -23,9 +23,13 @@ using namespace py::collections;
 
 namespace {
 PyType *s_collections_deque = nullptr;
-
-static std::unordered_set<PyObject *> visited;
-
+// 防止runtime.bc中全局静态变量visited的构造函数尚未执行导致的SIGFPE
+//static std::unordered_set<PyObject *> visited;
+static std::unordered_set<PyObject *> &visited_set()
+{
+    static std::unordered_set<PyObject *> s;
+    return s;
+}
 bool runtime_equals(PyObject *lhs, const Value &rhs)
 {
 	if (RuntimeContext::has_current()) {
@@ -102,32 +106,32 @@ PyResult<int32_t> Deque::__init__(PyTuple *args, PyDict *kwargs)
 
 PyResult<PyObject *> Deque::__repr__() const
 {
-	std::ostringstream os;
+    std::ostringstream os;
 
-	[[maybe_unused]] struct Cleanup
-	{
-		const Deque *d;
-		bool do_cleanup;
+    [[maybe_unused]] struct Cleanup
+    {
+        const Deque *d;
+        bool do_cleanup;
 
-		~Cleanup()
-		{
-			if (do_cleanup) {
-				auto it = visited.find(const_cast<Deque *>(d));
-				if (it != visited.end()) { visited.erase(it); }
-			}
-		}
-	} cleanup{ this, !visited.contains(const_cast<Deque *>(this)) };
-	visited.insert(const_cast<Deque *>(this));
+        ~Cleanup()
+        {
+            if (do_cleanup) {
+                auto it = visited_set().find(const_cast<Deque *>(d));
+                if (it != visited_set().end()) { visited_set().erase(it); }
+            }
+        }
+    } cleanup{ this, !visited_set().contains(const_cast<Deque *>(this)) };
+    visited_set().insert(const_cast<Deque *>(this));
 
-	auto repr = [](const auto &el) -> PyResult<PyString *> {
-		return std::visit(overloaded{
-							  [](const auto &value) { return PyString::create(value.to_string()); },
-							  [](PyObject *value) {
-								  if (visited.contains(value)) { return PyString::create("[...]"); }
-								  return value->repr();
-							  },
-						  },
-			el);
+    auto repr = [](const auto &el) -> PyResult<PyString *> {
+        return std::visit(overloaded{
+                              [](const auto &value) { return PyString::create(value.to_string()); },
+                              [](PyObject *value) {
+                                  if (visited_set().contains(value)) { return PyString::create("[...]"); }
+                                  return value->repr();
+                              },
+                          },
+            el);
 	};
 	os << type()->name() << "([";
 	if (!m_deque.empty()) {

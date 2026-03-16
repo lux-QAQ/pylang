@@ -117,3 +117,26 @@ Total primes found: 25
 [2026-03-15 09:28:54.594] [error] Unhandled exception: 'int' object is not iterable
 
 这可能是codegen的问题也可能是是runtime的问题请找到问题并修复它
+过程中需要使用git保存进度
+AruntimeDIR.md中给出了runtime的树状结构
+
+可能你需要先让pyc输出test.py的原始IR才方便检查编译器本身生成的IR是否有问题
+如果确认生成的IR没有问题,那么问题就出在runtime层或者export层
+
+(base) lux@Lux:~/code/language/python-cpp/src/compiler$ /home/lux/code/language/python-cpp/build/debug/src/pyc --help
+Python++ Compiler (AOT)
+Usage:
+  pyc [OPTION...] positional parameters
+
+  -o, --output arg        Output filename
+      --runtime arg       Path to runtime.bc (default: "")
+  -O, --opt-level arg     Optimization level (0-3) (default: 2)
+  -g, --debug-info        Include debug info (not fully implemented)
+      --emit-ir           Emit LLVM IR to stdout (processed)
+      --emit-raw-ir       Emit raw LLVM IR to stdout (before optimization)
+      --no-separate-link  Disable separate runtime linking (Force LTO-like 
+                          merging)
+  -d, --dump-passes       Dump IR before/after optimization phases
+  -v, --verbose           Enable verbose logging (info)
+      --vv                Enable trace logging (debug)
+  -h, --help              Print usage

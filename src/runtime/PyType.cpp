@@ -604,8 +604,9 @@ PyResult<std::monostate> PyType::initialize(const std::string &name,
 
 	return Ok(std::monostate{});
 }
-
-static std::array slotdefs = {
+static auto &get_slotdefs()
+{
+static std::array slotdefs_inst = {
 	Slot{ "__getattribute__", &TypePrototype::__getattribute__ },
 	Slot{ "__getattr__", &TypePrototype::__getattribute__ },
 	Slot{ "__setattr__", &TypePrototype::__setattribute__ },
@@ -830,6 +831,8 @@ static std::array slotdefs = {
 	//        wrap_indexargfunc,
 	//        "__imul__($self, value, /)\n--\n\nImplement self*=value."),
 };
+return slotdefs_inst;
+}
 
 namespace {
 	PyResult<PyObject *> new_wrapper(PyObject *self, PyTuple *args, PyDict *kwargs)
@@ -894,7 +897,7 @@ namespace {
 
 PyResult<std::monostate> PyType::add_operators()
 {
-	for (auto &&slot : slotdefs) {
+	for (auto &&slot : get_slotdefs()) {
 		if (!slot.has_member) { continue; }// ?
 		if (slot.name == "__new__") { continue; }
 		if (auto it = m_attributes->map().find(String{ std::string{ slot.name } });
@@ -1305,7 +1308,7 @@ namespace {
 		std::string_view name)
 	{
 		std::vector<std::reference_wrapper<Slot>> slots;
-		for (auto &slotdef : slotdefs) {
+		for (auto &slotdef : get_slotdefs()) {
 			if (slotdef.name == name) { slots.emplace_back(slotdef); }
 		}
 
@@ -1432,7 +1435,7 @@ namespace {
 
 void PyType::fixup_slots()
 {
-	for (auto &&slot : slotdefs) { update_slot(this, slot); }
+	for (auto &&slot : get_slotdefs()) { update_slot(this, slot); }
 }
 
 PyResult<PyObject *> PyType::__new__(const PyType *type_, PyTuple *args, PyDict *kwargs)

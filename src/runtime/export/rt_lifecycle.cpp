@@ -31,6 +31,10 @@
 #include "memory/ArenaManager.hpp"
 #endif
 
+#ifdef PYLANG_USE_Boehm_GC
+#include <gc.h>
+#endif
+
 // =============================================================================
 // Tier 0: 运行时初始化 / 销毁
 // =============================================================================
@@ -38,6 +42,11 @@
 PYLANG_EXPORT_LIFECYCLE("init", "void", "")
 void rt_init()
 {
+#ifdef PYLANG_USE_Boehm_GC
+	GC_INIT();
+	GC_allow_register_threads();
+#endif
+
 #ifdef PYLANG_USE_ARENA
 	py::ArenaManager::initialize();
 #endif
@@ -48,11 +57,11 @@ void rt_init()
 	// 	py::RuntimeContext::set_current(&s_compiler_ctx);
 	// }
 	// AOT 模式下提供最小化 RuntimeContext
-    // 使用 thread_local 而非 static，避免跨 Arena shutdown 边界的析构问题
-    if (!py::RuntimeContext::has_current()) {
-        static thread_local py::RuntimeContext s_compiler_ctx;
-        py::RuntimeContext::set_current(&s_compiler_ctx);
-    }
+	// 使用 thread_local 而非 static，避免跨 Arena shutdown 边界的析构问题
+	if (!py::RuntimeContext::has_current()) {
+		static thread_local py::RuntimeContext s_compiler_ctx;
+		py::RuntimeContext::set_current(&s_compiler_ctx);
+	}
 
 	// 2. 调用统一的 Runtime 层初始化
 	py::initialize_types();

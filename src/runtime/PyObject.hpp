@@ -486,6 +486,9 @@ class PyObject : public Cell
 	PyResult<PyObject *> iter() const;
 	PyResult<PyObject *> next();
 
+	// 添加 len() 抽象对象API
+	PyResult<size_t> len() const;
+
 	PyResult<PyObject *> call(PyTuple *args, PyDict *kwargs);
 	virtual PyResult<PyObject *> new_(PyTuple *args, PyDict *kwargs) const;
 	PyResult<int32_t> init(PyTuple *args, PyDict *kwargs);

@@ -5,7 +5,7 @@
 #include "parser/Parser.hpp"
 
 #include <cpptrace/cpptrace.hpp>
-#include <cxxopts.hpp> 
+#include <cxxopts.hpp>
 #include <spdlog/spdlog.h>
 
 #include <filesystem>
@@ -62,8 +62,11 @@ struct ResourceManager
 		extract("libgmpxx.a", embedded::LIB_GMPXX());
 		extract("libicuuc.a", embedded::LIB_ICUUC());
 		extract("libicudata.a", embedded::LIB_ICUDATA());
-		// extract("libzstd.a", embedded::LIB_ZSTD()); // 如果需要
-		// extract("libcpptrace.a", embedded::LIB_CPPTRACE()); // 如果需要
+
+#ifdef PYLANG_USE_Boehm_GC
+		// ✅ 提取 GC 静态库
+		extract("libgc.a", embedded::LIB_GC());
+#endif
 
 		// 2. 配置 Driver 链接选项
 		// 添加库搜索路径 -L/tmp/...
@@ -75,7 +78,12 @@ struct ResourceManager
 		opts.extra_link_flags.push_back("-lgmp");
 		opts.extra_link_flags.push_back("-licuuc");
 		opts.extra_link_flags.push_back("-licudata");
-		// opts.extra_link_flags.push_back("-lcpptrace");
+
+#ifdef PYLANG_USE_Boehm_GC
+		// ✅ 加上 Boehm GC 链接，以及必需的线程支持库
+		opts.extra_link_flags.push_back("-lgc");
+		opts.extra_link_flags.push_back("-pthread");
+#endif
 
 		is_initialized = true;
 #else
@@ -93,13 +101,11 @@ struct ResourceManager
 		fs::path dumped_bc = temp_lib_dir / "runtime.bc";
 		std::string_view data = embedded::RUNTIME_BC();
 
-		// 检查是否需要写入
-		if (!fs::exists(dumped_bc) || fs::file_size(dumped_bc) != data.size()) {
+		// 无论如何强制覆盖，避免修改代码后生成的 bc 文件大小恰巧相同导致的缓存更新失效
+		{
 			std::ofstream ofs(dumped_bc, std::ios::binary);
 			ofs.write(data.data(), data.size());
 			log::compiler()->debug("Extracted embedded runtime.bc to {}", dumped_bc.string());
-		} else {
-			log::compiler()->debug("Using cached embedded runtime.bc at {}", dumped_bc.string());
 		}
 
 		return dumped_bc.string();
@@ -167,8 +173,12 @@ int run_compiler(int argc, char **argv)
             ("o,output", "Output filename", cxxopts::value<std::string>())
             ("runtime", "Path to runtime.bc", cxxopts::value<std::string>()->default_value(""))
             
+            // [修改点 1] 添加 asan 与 force-rebuild 参数，修改 debug-info 的默认值为 true
+            ("asan", "Enable AddressSanitizer and frame pointers", cxxopts::value<bool>()->default_value("false"))
+            ("force-rebuild", "Force rebuild of runtime cache (runtime.o)", cxxopts::value<bool>()->default_value("false"))
+            ("g,debug-info", "Include debug info", cxxopts::value<bool>()->default_value("true"))
+            
             ("O,opt-level", "Optimization level (0-3)", cxxopts::value<int>()->default_value("2"))
-            ("g,debug-info", "Include debug info (not fully implemented)", cxxopts::value<bool>()->default_value("false"))
             
             ("emit-ir", "Emit LLVM IR to stdout (processed)", cxxopts::value<bool>()->default_value("false"))
             ("emit-raw-ir", "Emit raw LLVM IR to stdout (before optimization)", cxxopts::value<bool>()->default_value("false"))
@@ -209,9 +219,34 @@ int run_compiler(int argc, char **argv)
 
 		driver_opts.opt_level = opt_level;
 		driver_opts.extra_link_flags.push_back("-O" + std::to_string(driver_opts.opt_level));
+
+		// [修改点 2] 注入 ASAN, Debug 以及 Frame-Pointer 对应的链接和运行时参数
+		if (result["asan"].as<bool>()) {
+			driver_opts.extra_link_flags.push_back("-fsanitize=address");
+			driver_opts.extra_link_flags.push_back("-fno-omit-frame-pointer");
+		}
+		if (result["debug-info"].as<bool>()) {
+			driver_opts.extra_link_flags.push_back("-g");
+			// 如果没开 ASAN 但开了 -g，同样保留帧指针以协助 CppTrace 展开崩溃堆栈
+			if (!result["asan"].as<bool>()) {
+				driver_opts.extra_link_flags.push_back("-fno-omit-frame-pointer");
+			}
+		}
+
 		driver_opts.separate_runtime_linking = !result["no-separate-link"].as<bool>();
 		driver_opts.dump_ir_before_opt = result["dump-passes"].as<bool>();
 		driver_opts.dump_ir_after_opt = result["dump-passes"].as<bool>();
+
+		// [修改点 3] 如果直接指定了 runtime 或是强行重建，则删除本地缓存的 runtime.o
+		// 触发强制降级重编
+		if (result.count("runtime") || result["force-rebuild"].as<bool>()) {
+			std::error_code ec;
+			fs::path cache_path = "/tmp/pylang_runtime_cache.o";
+			if (fs::exists(cache_path, ec)) {
+				fs::remove(cache_path, ec);
+				log::compiler()->info("Cleared old runtime.o cache to force fresh rebuild.");
+			}
+		}
 
 		// 2.1 释放静态库并配置链接参数
 		res_mgr.setup_resources(driver_opts);

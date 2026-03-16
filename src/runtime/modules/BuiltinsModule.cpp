@@ -365,22 +365,18 @@ PyResult<PyObject *> locals(const PyTuple *, const PyDict *)
 
 PyResult<PyObject *> len(const PyTuple *args, const PyDict *kwargs)
 {
-	if (args->size() != 1) {
-		return Err(type_error("len() takes exactly one argument ({} given)", args->size()));
-	}
-	if (kwargs && !kwargs->map().empty()) {
-		return Err(type_error("len() takes no keyword arguments"));
-	}
+    if (args->size() != 1) {
+        return Err(type_error("len() takes exactly one argument ({} given)", args->size()));
+    }
+    if (kwargs && !kwargs->map().empty()) {
+        return Err(type_error("len() takes no keyword arguments"));
+    }
 
-	return PyObject::from(args->elements()[0]).and_then([](PyObject *o) -> PyResult<PyObject *> {
-		auto mapping = o->as_mapping();
-		if (mapping.is_err()) { return Err(mapping.unwrap_err()); }
-		if (auto r = mapping.unwrap().len(); r.is_ok()) {
-			return PyInteger::create(r.unwrap());
-		} else {
-			return Err(r.unwrap_err());
-		}
-	});
+    return PyObject::from(args->elements()[0]).and_then([](PyObject *o) -> PyResult<PyObject *> {
+        return o->len().and_then([](size_t length) -> PyResult<PyObject *> {
+            return PyInteger::create(static_cast<int64_t>(length));
+        });
+    });
 }
 
 PyResult<PyObject *> id(const PyTuple *args, const PyDict *)

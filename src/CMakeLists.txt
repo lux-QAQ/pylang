@@ -106,6 +106,7 @@ set(INTERPRETER_SOURCE_FILES
 set(MEMORY_SOURCE_FILES # cmake-format: sortable
   memory/Arena.cpp
   memory/ArenaManager.cpp
+  memory/Boehm_GCSetup.cpp
   memory/GarbageCollector.cpp
   memory/Heap.cpp)
 
@@ -292,6 +293,15 @@ add_library(
 
 if(ENABLE_RUNTIME_ARENA)
   target_compile_definitions(python-cpp PUBLIC PYLANG_USE_ARENA)
+  # [新增链接]
+  if(ENABLE_BOEHM_GC)
+    target_link_libraries(python-cpp PUBLIC gc)
+    # [关键修复]: 手动将 bdwgc 的头文件目录暴露给 python-cpp 及下游目标
+    target_include_directories(python-cpp PUBLIC ${bdwgc_SOURCE_DIR}/include)
+
+    # ✅ [修复]: 增加 GC_THREADS 宏，让 C++ 代码能看到多线程 API
+    target_compile_definitions(python-cpp PUBLIC PYLANG_USE_Boehm_GC GC_THREADS)
+  endif()
 endif()
 
 add_executable(unittests_ ${UNITTEST_SOURCES})
@@ -490,10 +500,10 @@ if(LLVM_FOUND)
     )
     setup_compiler_test_target(compiler_integration_tests)
     # 集成测试设置较长的超时时间，并标记 Label
-    gtest_discover_tests(compiler_integration_tests 
-      PROPERTIES 
-        LABELS "Integration" 
-        TIMEOUT 300
+    gtest_discover_tests(compiler_integration_tests
+      PROPERTIES
+      LABELS "Integration"
+      TIMEOUT 300
     )
   endif()
 
@@ -503,23 +513,33 @@ endif()
 # 编译器 CLI 入口 (pyc)
 # =========================================================================
 if(LLVM_FOUND)
-  
+
   # 1. 定位资源
   set(RUNTIME_BC_FILE "${CMAKE_BINARY_DIR}/runtime.bc")
   set(EMBEDDED_HEADER "${CMAKE_CURRENT_BINARY_DIR}/generated/EmbeddedResources.hpp")
   set(EMBED_SCRIPT "${CMAKE_SOURCE_DIR}/cmake/EmbedResources.cmake")
 
   # 寻找静态库 (注意：确保这些库在你的系统上存在 .a 版本)
-  find_library(LIB_GMP_STATIC NAMES libgmp.a gmp) 
+  find_library(LIB_GMP_STATIC NAMES libgmp.a gmp)
   find_library(LIB_GMPXX_STATIC NAMES libgmpxx.a gmpxx)
   find_library(LIB_ICUUC_STATIC NAMES libicuuc.a icuuc)
   find_library(LIB_ICUDATA_STATIC NAMES libicudata.a icudata)
-  
+
   # 获取 spdlog 静态文件路径
   if(TARGET spdlog)
     set(LIB_SPDLOG "$<TARGET_FILE:spdlog>")
   else()
     find_library(LIB_SPDLOG NAMES libspdlog.a spdlog)
+  endif()
+
+  # ✅ [新增] 获取 Boehm GC 静态库路径
+  if(TARGET gc)
+    set(LIB_GC_STATIC "$<TARGET_FILE:gc>")
+    set(GC_EMBED_ARG "LIB_GC=${LIB_GC_STATIC};")
+    set(GC_DEPEND gc)
+  else()
+    set(GC_EMBED_ARG "")
+    set(GC_DEPEND "")
   endif()
 
   # 2. 只有当必要的资源存在时才配置生成逻辑
@@ -528,27 +548,28 @@ if(LLVM_FOUND)
     add_custom_command(
       OUTPUT ${EMBEDDED_HEADER}
       COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/generated"
-      COMMAND ${CMAKE_COMMAND} 
-        -DOUTPUT_HEADER=${EMBEDDED_HEADER}
-        "-DFILES=RUNTIME_BC=${RUNTIME_BC_FILE};LIB_SPDLOG=${LIB_SPDLOG};LIB_GMP=${LIB_GMP_STATIC};LIB_GMPXX=${LIB_GMPXX_STATIC};LIB_ICUUC=${LIB_ICUUC_STATIC};LIB_ICUDATA=${LIB_ICUDATA_STATIC}"
-        -P ${EMBED_SCRIPT}
-      # [CRITICAL FIX]: 依赖目标 runtime_bitcode (来自 src/runtime/export/CMakeLists.txt)
-      DEPENDS runtime_bitcode spdlog ${LIB_GMP_STATIC} ${EMBED_SCRIPT}
+      COMMAND ${CMAKE_COMMAND}
+      -DOUTPUT_HEADER=${EMBEDDED_HEADER}
+      # ✅ [修改] 把 GC_EMBED_ARG 塞进传递给脚本的宏里
+      "-DFILES=RUNTIME_BC=${RUNTIME_BC_FILE};LIB_SPDLOG=${LIB_SPDLOG};LIB_GMP=${LIB_GMP_STATIC};LIB_GMPXX=${LIB_GMPXX_STATIC};LIB_ICUUC=${LIB_ICUUC_STATIC};LIB_ICUDATA=${LIB_ICUDATA_STATIC};${GC_EMBED_ARG}"
+      -P ${EMBED_SCRIPT}
+      # ✅ [修改] 把 GC_DEPEND 加入依赖列表
+      DEPENDS runtime_bitcode spdlog ${GC_DEPEND} ${LIB_GMP_STATIC} ${EMBED_SCRIPT}
       COMMENT "Embedding runtime libraries and bitcode into pyc header..."
       VERBATIM
     )
-    
+
     add_library(pyc_resources INTERFACE)
     target_include_directories(pyc_resources INTERFACE ${CMAKE_CURRENT_BINARY_DIR}/generated)
     target_compile_definitions(pyc_resources INTERFACE PYLANG_EMBEDDED_RES)
-    
+
     add_custom_target(gen_pyc_embedded_header DEPENDS ${EMBEDDED_HEADER})
   endif()
 
   # 3. 构建 pyc
   add_executable(pyc compiler/Driver/_SimpleDriverExecEntry/CompilerEntry.cpp)
 
-  target_link_libraries(pyc PRIVATE 
+  target_link_libraries(pyc PRIVATE
     pylang-compiler python-cpp cxxopts cpptrace::cpptrace spdlog
   )
 
@@ -564,6 +585,6 @@ if(LLVM_FOUND)
   if(PYLANG_HAS_LLD)
     target_compile_definitions(pyc PRIVATE PYLANG_HAS_LLD=1)
   endif()
-  
+
   install(TARGETS pyc DESTINATION bin)
 endif()

@@ -35,7 +35,16 @@
 
 namespace py {
 
-static std::unordered_set<PyObject *> visited;
+// static std::unordered_set<PyObject *> visited_set();
+// 是一个**文件作用域的静态变量**。在 AOT 模式下，`runtime.bc`
+// 被链接进最终的可执行文件时，这个全局静态变量的构造函数可能**尚未执行**（初始化顺序跨翻译单元是未定义的）。此时它的内部
+// bucket count 为 0，导致 `__num % __den` 中 `__den == 0`，触发 SIGFPE。
+
+static std::unordered_set<PyObject *> &visited_set()
+{
+	static std::unordered_set<PyObject *> s;
+	return s;
+}
 
 template<> PyList *as(PyObject *obj)
 {
@@ -234,18 +243,20 @@ PyResult<PyObject *> PyList::__repr__() const
 		~Cleanup()
 		{
 			if (do_cleanup) {
-				auto it = visited.find(const_cast<PyList *>(list));
-				if (it != visited.end()) { visited.erase(it); }
+				auto it = visited_set().find(const_cast<PyList *>(list));
+				if (it != visited_set().end()) { visited_set().erase(it); }
 			}
 		}
-	} cleanup{ this, !visited.contains(const_cast<PyList *>(this)) };
-	visited.insert(const_cast<PyList *>(this));
+	} cleanup{ this, !visited_set().contains(const_cast<PyList *>(this)) };
+	visited_set().insert(const_cast<PyList *>(this));
 
 	auto repr = [](const auto &el) -> PyResult<PyString *> {
 		return std::visit(overloaded{
 							  [](const auto &value) { return PyString::create(value.to_string()); },
 							  [](PyObject *value) {
-								  if (visited.contains(value)) { return PyString::create("[...]"); }
+								  if (visited_set().contains(value)) {
+									  return PyString::create("[...]");
+								  }
 								  return value->repr();
 							  },
 						  },
@@ -450,32 +461,62 @@ PyResult<std::monostate> PyList::__setitem__(PyObject *index, PyObject *value)
 				   ? static_cast<int64_t>(m_elements.size()) - 1
 				   : start;
 		if (step == 0) { return Err(value_error("slice step cannot be zero")); }
-		if (step != 1) { TODO(); }
-		auto start_index = validate_index(start);
-		if (start_index.is_err()) { return Err(start_index.unwrap_err()); }
-		auto stop_index = validate_index(stop);
-		if (stop_index.is_err()) { return Err(stop_index.unwrap_err()); }
-		start = start_index.unwrap();
-		stop = stop_index.unwrap();
+		// if (step != 1) { TODO(); }
+		// auto start_index = validate_index(start);
+		// if (start_index.is_err()) { return Err(start_index.unwrap_err()); }
+		// auto stop_index = validate_index(stop);
+		// if (stop_index.is_err()) { return Err(stop_index.unwrap_err()); }
+		// start = start_index.unwrap();
+		// stop = stop_index.unwrap();
 
+		// auto val = value_iter.unwrap()->next();
+		// auto i = start;
+		// for (; i < stop && val.is_ok(); i += step) {
+		// 	auto index_ = validate_index(i);
+		// 	if (index_.is_err()) { return Err(index_.unwrap_err()); }
+		// 	m_elements[index_.unwrap()] = val.unwrap();
+		// 	val = value_iter.unwrap()->next();
+		// }
+		// while (val.is_ok()) {
+		// 	m_elements.insert(m_elements.begin() + i, val.unwrap());
+		// 	val = value_iter.unwrap()->next();
+		// 	++i;
+		// }
+
+		// if (!val.unwrap_err()->type()->issubclass(types::stop_iteration())) {
+		// 	return Err(val.unwrap_err());
+		// }
+
+		// return Ok(std::monostate{});
+		if (step != 1) {
+			// Python 3.9 语义：当 step != 1 时，提供的 iterable 长度必须与切片长度严格相等
+			// 目前写了 TODO(); 需要完善。
+		}
+
+		// 1. 将所有元素先求值放入临时 vector (防止自我赋值导致的迭代器失效)
+		std::vector<Value> new_values;
 		auto val = value_iter.unwrap()->next();
-		auto i = start;
-		for (; i < stop && val.is_ok(); i += step) {
-			auto index_ = validate_index(i);
-			if (index_.is_err()) { return Err(index_.unwrap_err()); }
-			m_elements[index_.unwrap()] = val.unwrap();
-			val = value_iter.unwrap()->next();
-		}
 		while (val.is_ok()) {
-			m_elements.insert(m_elements.begin() + i, val.unwrap());
+			new_values.push_back(val.unwrap());
 			val = value_iter.unwrap()->next();
-			++i;
 		}
-
 		if (!val.unwrap_err()->type()->issubclass(types::stop_iteration())) {
 			return Err(val.unwrap_err());
 		}
 
+		// 2. 对于连续切片 (step == 1)，直接使用 std::vector 的区间操作
+		if (step == 1) {
+			// 删除原区间的元素
+			m_elements.erase(m_elements.begin() + start, m_elements.begin() + stop);
+			// 插入新的元素
+			m_elements.insert(m_elements.begin() + start, new_values.begin(), new_values.end());
+		} else {
+			// step != 1 时，上面已经验证了长度必然相等，直接覆盖
+			size_t idx_in_new = 0;
+			for (auto i = start; (step > 0) ? (i < stop) : (i > stop); i += step) {
+				m_elements[validate_index(i).unwrap()] = new_values[idx_in_new++];
+			}
+		}
 		return Ok(std::monostate{});
 	}
 
@@ -584,24 +625,33 @@ PyResult<PyObject *> PyList::sort(PyTuple *args, PyDict *kwargs)
 		std::vector<size_t> indices(cmp_list->elements().size());
 		std::iota(indices.begin(), indices.end(), 0);
 
-		// 修改：使用 RuntimeContext 替代 VirtualMachine::the()
-		auto cmp = [&err, cmp_list](size_t lhs_index, size_t rhs_index) -> bool {
-			if (!RuntimeContext::has_current()) { return false; }
+        // 【最正确的写法版本 1：带 key 排序】
+        auto cmp = [&err, cmp_list](size_t lhs_index, size_t rhs_index) -> bool {
+            // 短路：如果之前的比较已经抛出了异常，直接返回 false 终止排序算法的实际换位
+            if (err.is_err()) { return false; }
+            if (!RuntimeContext::has_current()) { return false; }
 
-			auto &ctx = RuntimeContext::current();
-			const auto &lhs = cmp_list->elements()[lhs_index];
-			const auto &rhs = cmp_list->elements()[rhs_index];
+            auto &ctx = RuntimeContext::current();
+            const auto &lhs = cmp_list->elements()[lhs_index];
+            const auto &rhs = cmp_list->elements()[rhs_index];
 
-			if (auto cmp_result = less_than(lhs, rhs, *ctx.interpreter()); cmp_result.is_ok()) {
-				bool is_true = ctx.is_true(cmp_result.unwrap_err());
-				return is_true;
-			} else {
-				err = Err(cmp_result.unwrap_err());
-				return false;
-			}
-		};
+            auto cmp_result = less_than(lhs, rhs, *ctx.interpreter());
+            if (cmp_result.is_err()) {
+                err = Err(cmp_result.unwrap_err());
+                return false;
+            }
 
-		if (reverse) {
+            // 使用引擎自带的 truthy 处理 Value 联合体
+            auto is_true_res = truthy(cmp_result.unwrap(), *ctx.interpreter());
+            if (is_true_res.is_err()) {
+                err = Err(is_true_res.unwrap_err());
+                return false;
+            }
+
+            return is_true_res.unwrap();
+        };
+
+        if (reverse) {
 			std::stable_sort(indices.rbegin(), indices.rend(), cmp);
 		} else {
 			std::stable_sort(indices.begin(), indices.end(), cmp);
@@ -619,21 +669,31 @@ PyResult<PyObject *> PyList::sort(PyTuple *args, PyDict *kwargs)
 			std::iter_swap(indices.begin() + i, indices.begin() + o);
 		}
 	} else {
-		// 修改：使用 RuntimeContext 替代 VirtualMachine::the()
-		auto cmp = [&err](const Value &lhs, const Value &rhs) -> bool {
-			if (!RuntimeContext::has_current()) { return false; }
+        // 【最正确的写法版本 2：无 key 排序】
+        auto cmp = [&err](const Value &lhs, const Value &rhs) -> bool {
+            // 短路：如果之前的比较已经抛出了异常，直接返回 false
+            if (err.is_err()) { return false; }
+            if (!RuntimeContext::has_current()) { return false; }
 
-			auto &ctx = RuntimeContext::current();
-			if (auto cmp_result = less_than(lhs, rhs, *ctx.interpreter()); cmp_result.is_ok()) {
-				bool is_true = ctx.is_true(cmp_result.unwrap_err());
-				return is_true;
-			} else {
-				err = Err(cmp_result.unwrap_err());
-				return false;
-			}
-		};
+            auto &ctx = RuntimeContext::current();
 
-		if (reverse) {
+            auto cmp_result = less_than(lhs, rhs, *ctx.interpreter());
+            if (cmp_result.is_err()) {
+                err = Err(cmp_result.unwrap_err());
+                return false;
+            }
+
+            // 使用引擎自带的 truthy 处理 Value 联合体
+            auto is_true_res = truthy(cmp_result.unwrap(), *ctx.interpreter());
+            if (is_true_res.is_err()) {
+                err = Err(is_true_res.unwrap_err());
+                return false;
+            }
+
+            return is_true_res.unwrap();
+        };
+
+        if (reverse) {
 			std::stable_sort(m_elements.rbegin(), m_elements.rend(), cmp);
 		} else {
 			std::stable_sort(m_elements.begin(), m_elements.end(), cmp);

@@ -4,6 +4,9 @@
 #include "memory/ArenaManager.hpp"
 #include "runtime/builtinTypeInit.hpp"
 #endif
+#ifdef PYLANG_USE_Boehm_GC
+#include <gc.h>
+#endif
 
 #include "gtest/gtest.h"
 
@@ -21,6 +24,11 @@ class PythonVMEnvironment : public ::testing::Environment
 	{
 #ifdef PYLANG_USE_ARENA
 		py::ArenaManager::initialize();
+
+#ifdef PYLANG_USE_Boehm_GC
+		GC_INIT();
+		GC_allow_register_threads();
+#endif
 #else
 		[[maybe_unused]] auto &vm = VirtualMachine::the();
 		vm.heap().set_start_stack_pointer(bit_cast<uintptr_t *>(m_argv));

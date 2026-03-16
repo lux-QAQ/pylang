@@ -19,14 +19,14 @@ message(STATUS "llvm-link  = ${LLVM_LINK_EXEC}")
 # GCC toolchain（解决 clang 找不到 stdlib.h 的问题）
 # ---------------------------------------------------------------------------
 execute_process(COMMAND gcc -dumpmachine OUTPUT_VARIABLE GCC_MACHINE OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
-execute_process(COMMAND gcc -dumpversion  OUTPUT_VARIABLE GCC_VERSION OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
+execute_process(COMMAND gcc -dumpversion OUTPUT_VARIABLE GCC_VERSION OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
 set(GCC_INCLUDE_DIR "/usr/lib/gcc/${GCC_MACHINE}/${GCC_VERSION}/include")
 message(STATUS "Bitcode GCC include: ${GCC_INCLUDE_DIR}")
 
 # ---------------------------------------------------------------------------
 # 收集源文件（这是关键！）
 # ---------------------------------------------------------------------------
-set(SRC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../..")   # => src/
+set(SRC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../..") # => src/
 
 # export 层自身
 file(GLOB EXPORT_SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/*.cpp")
@@ -80,6 +80,11 @@ foreach(_var "ordered-map_SOURCE_DIR" "tsl-ordered-map_SOURCE_DIR" "ordered_map_
   endif()
 endforeach()
 
+# ✅ [新增]: 将 Boehm GC 的 include 路径暴露给 wllvm
+if(DEFINED bdwgc_SOURCE_DIR)
+  list(APPEND BC_INC "-isystem" "${bdwgc_SOURCE_DIR}/include")
+endif()
+
 if(GMP_INCLUDES)
   list(APPEND BC_INC "-I" "${GMP_INCLUDES}")
 endif()
@@ -92,13 +97,19 @@ set(BC_DEFS "-DSPDLOG_COMPILED_LIB")
 list(APPEND BC_DEFS "-DPYLANG_AOT_MODE")
 if(ENABLE_RUNTIME_ARENA)
   list(APPEND BC_DEFS "-DPYLANG_USE_ARENA")
+
+  # ✅ [新增]: 将宏传递给 wllvm，以确保 bitcode 也会调用 GC_MALLOC
+  if(ENABLE_BOEHM_GC)
+    list(APPEND BC_DEFS "-DPYLANG_USE_Boehm_GC")
+    list(APPEND BC_DEFS "-DGC_THREADS") # <--- 增加这一行，向 wllvm 暴露多线程 API
+  endif()
 endif()
 
 # ---------------------------------------------------------------------------
 # 每个 .cpp → .o → .bc
 # ---------------------------------------------------------------------------
 set(BC_OBJ_DIR "${CMAKE_BINARY_DIR}/bitcode_obj")
-set(BC_DIR     "${CMAKE_BINARY_DIR}/bitcode")
+set(BC_DIR "${CMAKE_BINARY_DIR}/bitcode")
 file(MAKE_DIRECTORY "${BC_OBJ_DIR}" "${BC_DIR}")
 
 # 根据构建类型选择优化等级
@@ -118,20 +129,20 @@ foreach(src ${ALL_SOURCES})
   string(REPLACE ".cpp" "" name "${name}")
 
   set(obj "${BC_OBJ_DIR}/${name}.o")
-  set(bc  "${BC_DIR}/${name}.bc")
+  set(bc "${BC_DIR}/${name}.bc")
 
   add_custom_command(
     OUTPUT "${obj}"
     COMMAND ${CMAKE_COMMAND} -E env
-      LLVM_COMPILER=clang
-      LLVM_COMPILER_PATH=/usr/bin
-      ${WLLVM_CXX}
-        -std=c++20 ${BC_OPT_LEVEL} -g -c
-        -fno-discard-value-names
-        ${BC_DEFS}
-        ${BC_INC}
-        -Wno-everything
-        -o "${obj}" "${src}"
+    LLVM_COMPILER=clang
+    LLVM_COMPILER_PATH=/usr/bin
+    ${WLLVM_CXX}
+    -std=c++20 ${BC_OPT_LEVEL} -g -c
+    -fno-discard-value-names
+    ${BC_DEFS}
+    ${BC_INC}
+    -Wno-everything
+    -o "${obj}" "${src}"
     DEPENDS "${src}"
     COMMENT "wllvm: ${rel}"
     VERBATIM

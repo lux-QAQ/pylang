@@ -57,6 +57,9 @@ py::PyObject *rt_compare_is_not(py::PyObject *lhs, py::PyObject *rhs)
 PYLANG_EXPORT_CMP("compare_in", "obj", "obj,obj")
 py::PyObject *rt_compare_in(py::PyObject *value, py::PyObject *container)
 {
+	// spdlog::error("rt_compare_in: value type = {}, container type = {}",
+	// 	value->type()->name(),
+	// 	container->type()->name());
 	bool result = rt_unwrap(container->contains(value));
 	return result ? py::py_true() : py::py_false();
 }

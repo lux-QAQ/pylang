@@ -319,7 +319,7 @@ PyResult<PyObject *> PySequenceWrapper::repeat(const PyObject *value)
 			static_cast<const PyInteger &>(*value).as_size_t());
 	}
 
-	return Err(type_error("object of type '{}' has no contains()", m_object->type()->name()));
+	return Err(type_error("object of type '{}' has no repeat()", m_object->type()->name()));
 }
 
 
@@ -996,13 +996,13 @@ PyResult<bool> PyObject::contains(PyObject *value)
 			return seq.unwrap().contains(value);
 		}
 	}
-	auto it = value->iter();
+	auto it = iter();
 	if (it.is_err()) { return Err(it.unwrap_err()); }
 
 	auto n = it.unwrap()->next();
 
 	while (n.is_ok()) {
-		if (auto r = eq(n.unwrap()); r.is_ok()) {
+		if (auto r = value->eq(n.unwrap()); r.is_ok()) {
 			// 修改：使用 RuntimeContext 的 is_true 方法
 			if (RuntimeContext::has_current()) {
 				if (RuntimeContext::current().is_true(r.unwrap())) { return Ok(true); }
@@ -1123,8 +1123,28 @@ PyResult<bool> PyObject::true_()
 	}
 }
 
+PyResult<size_t> PyObject::len() const
+{
+    auto *self = const_cast<PyObject *>(this);
+
+    // 1. 优先 mapping 协议 (与 CPython PyObject_Size 一致)
+    if (type_prototype().mapping_type_protocol.has_value()
+        && type_prototype().mapping_type_protocol->__len__.has_value()) {
+        return self->as_mapping().unwrap().len();
+    }
+
+    // 2. 回退 sequence 协议
+    if (type_prototype().sequence_type_protocol.has_value()
+        && type_prototype().sequence_type_protocol->__len__.has_value()) {
+        return self->as_sequence().unwrap().len();
+    }
+
+    return Err(type_error("object of type '{}' has no len()", type()->name()));
+}
+
 PyResult<PyObject *> PyObject::iter() const
 {
+	//spdlog::error("iter called on {}", type()->name());
 	if (type_prototype().__iter__.has_value()) {
 		return call_slot(*type_prototype().__iter__, this);
 	}

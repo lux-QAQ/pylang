@@ -108,6 +108,7 @@ class PyDictItems : public PyBaseObject
 	PyDictItemsIterator end() const;
 
 	PyResult<PyObject *> __iter__() const;
+	PyResult<size_t> __len__() const;
 
 	std::string to_string() const override;
 	void visit_graph(Visitor &) override;
@@ -139,6 +140,7 @@ class PyDictKeys : public PyBaseObject
 	PyDictKeyIterator end() const;
 
 	PyResult<PyObject *> __iter__() const;
+	PyResult<size_t> __len__() const;
 
 	std::string to_string() const override;
 	void visit_graph(Visitor &) override;
@@ -171,6 +173,7 @@ class PyDictValues : public PyBaseObject
 
 	PyResult<PyObject *> __repr__() const;
 	PyResult<PyObject *> __iter__() const;
+	PyResult<size_t> __len__() const;
 
 	std::string to_string() const override;
 	void visit_graph(Visitor &) override;
