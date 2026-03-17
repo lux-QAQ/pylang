@@ -4,3 +4,5 @@ build/*
 _deps/*
 CMakeFiles/*
 vtune/*
+
+*.ll
