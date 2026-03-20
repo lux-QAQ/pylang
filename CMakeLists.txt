@@ -11,7 +11,11 @@ set(CMAKE_CXX_STANDARD 23)
 
 # 移除旧的 add_compile_definitions，改用更强力的全局 Flags 注入
 # add_compile_definitions(ALWAYS_SMALL_CLEAR_STACK)
-
+if(MSVC)
+    add_compile_options("$<$<CONFIG:Release>:/O2>")
+else()
+    add_compile_options("$<$<CONFIG:Release>:-O3>")
+endif()
 # [强制全局定义]
 # 直接修改 C_FLAGS 是 100% 确保宏传递给 bdwgc (包括其内部 misc.c) 的方法
 # 这将强制 GC_clear_stack 使用 memset (BZERO) 而非递归清除，彻底根除 Stack Overflow
@@ -41,6 +45,13 @@ CPMAddPackage("gh:antirez/linenoise#2.0")
 CPMAddPackage("gh:aminya/project_options@0.41.0")
 CPMAddPackage("gh:jeremy-rifkin/cpptrace@0.8.3")
 
+# [新增]: 通过 CPM 引入阿里 yalantinglibs (提供编译期反射 ylt/reflection)
+CPMAddPackage(
+    NAME yalantinglibs
+    GITHUB_REPOSITORY alibaba/yalantinglibs
+    GIT_TAG 0.6.0 # 或选择您需要的版本
+)
+
 # [新增]: 通过 CPM 按序引入 BDWGC 的依赖项和 BDWGC
 CPMAddPackage(
     NAME libatomic_ops
@@ -55,8 +66,7 @@ CPMAddPackage(
     "enable_threads ON" # 允许无 GIL 的多线程分配
     "enable_parallel_mark ON" # 强制开启并行标记（如果系统支持）
     "enable_handle_fork ON" # 确保多线程环境下的进程安全
-    "enable_mmap ON" # 【关键】增量 GC 使用的 OS 页写保护需要依赖 mmap
-    "enable_cplusplus OFF" # 启用兼容性
+    "enable_cplusplus ON" # 启用兼容性
     "build_tests OFF" # 不要编译它的测试
     "build_docs OFF"
     # [删除] 之前建议的 target 补丁代码现在是多余的了，因为全局 Flag 已经覆盖了

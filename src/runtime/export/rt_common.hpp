@@ -10,6 +10,11 @@
 #include "runtime/PyObject.hpp"
 #include "runtime/Value.hpp"
 
+// 新增依赖
+#include "runtime/PyInteger.hpp"
+#include "runtime/PyNumber.hpp"
+#include "runtime/taggered_pointer/RtValue.hpp"
+
 // 前向声明 rt_raise —— 定义在 rt_error.cpp 中
 // Phase 2: 打印异常信息后 abort()
 // Phase 4+: 设置线程异常状态，由调用者检查 null 传播
@@ -39,3 +44,4 @@ template<typename T> inline void rt_unwrap_void(py::PyResult<T> result)
 {
 	if (result.is_err()) { rt_raise(result.unwrap_err()); }
 }
+

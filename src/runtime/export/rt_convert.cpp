@@ -8,19 +8,21 @@
 #include "runtime/PyObject.hpp"
 #include "runtime/PyTraceback.hpp"
 #include "runtime/PyTuple.hpp"
+#include "runtime/taggered_pointer/RtValue.hpp"
 
 // =============================================================================
 // 编译器原语（不是 Python 函数，无对应的 builtins 名称）
 // =============================================================================
 
 PYLANG_EXPORT_CONVERT("is_true", "bool", "obj")
-bool rt_is_true(py::PyObject *obj) { return rt_unwrap(obj->true_()); }
+bool rt_is_true(py::PyObject *obj) { return py::RtValue::flatten(obj).is_truthy(); }
+
 
 /// list → tuple 转换（用于 *args 展开后的 list→tuple）
 PYLANG_EXPORT_CONVERT("list_to_tuple", "obj", "obj")
 py::PyObject *rt_list_to_tuple(py::PyObject *list)
 {
-	auto *l = static_cast<py::PyList *>(list);
+	auto *l = static_cast<py::PyList *>(py::ensure_box(list));
 	return rt_unwrap(py::PyTuple::create(l->elements()));
 }
 
@@ -53,14 +55,17 @@ py::PyObject *rt_list_to_tuple(py::PyObject *list)
 
 /// type(obj) — 用于 with.__exit__(type(exc), exc, tb)
 PYLANG_EXPORT_CONVERT("type_of", "obj", "obj")
-py::PyObject *rt_type_of(py::PyObject *obj) { return static_cast<py::PyObject *>(obj->type()); }
+py::PyObject *rt_type_of(py::PyObject *obj)
+{
+	// obj->type() 返回原生 PyType* 指针，不要 rt_unwrap
+	return static_cast<py::PyObject *>(py::ensure_box(obj)->type());
+}
 
 /// exc.__traceback__ — 用于 with.__exit__
 PYLANG_EXPORT_CONVERT("get_traceback", "obj", "obj")
 py::PyObject *rt_get_traceback(py::PyObject *exc)
 {
-	auto *base_exc = static_cast<py::BaseException *>(exc);
+	auto *base_exc = static_cast<py::BaseException *>(py::ensure_box(exc));
 	auto *tb = base_exc->traceback();
-	// PyTraceback 继承 PyObject，需要完整类型定义才能 static_cast
 	return tb ? static_cast<py::PyObject *>(tb) : py::py_none();
 }

@@ -41,10 +41,12 @@ class SimpleDriverTest : public ::testing::Test
 		opts.dump_ir_after_opt = false;
 		opts.extra_link_flags = { "-g",
 			"-fno-omit-frame-pointer",
-			"-fsanitize=address",
+			//"-fsanitize=address",
 			"-L" + s_build_dir + "/_deps/spdlog-build",
+			"-L" + s_build_dir + "/_deps/bdwgc-build",
 			"-lspdlogd",
 			"-lgmpxx",
+			"-lgc",
 			"-lgmp",
 			"-licuuc",
 			"-licudata" };

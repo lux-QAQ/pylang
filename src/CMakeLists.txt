@@ -236,6 +236,7 @@ set(VM_SOURCE_FILES # cmake-format: sortable
 
 # Runtime export layer — auto-collected
 file(GLOB RUNTIME_EXPORT_FILES CONFIGURE_DEPENDS runtime/export/*.cpp)
+file(GLOB RUNTIME_EXPORT_TAGGERED CONFIGURE_DEPENDS runtime/taggered_pointer/*.cpp)
 
 set(UNITTEST_SOURCES
   # cmake-format: sortable
@@ -278,6 +279,19 @@ set(PYTHON_INSTALL_PATH ${CMAKE_INSTALL_PREFIX})
 
 configure_file(runtime/modules/paths.hpp.in runtime/modules/paths.hpp)
 
+# [关键修复]: 必须在 add_library/add_subdirectory 之前调用
+# 确保所有引用了 GCTracingAllocator.hpp 的代码都能找到 ylt
+include_directories(
+  SYSTEM PUBLIC # 使用 SYSTEM 可以抑制第三方库的警告
+  ${yalantinglibs_SOURCE_DIR}/include
+  ${yalantinglibs_SOURCE_DIR}/include/ylt/thirdparty
+)
+
+# 如果开启了 Boehm GC，也要全局暴露 gc.h
+if(ENABLE_BOEHM_GC)
+  include_directories(SYSTEM PUBLIC ${bdwgc_SOURCE_DIR}/include)
+endif()
+
 add_library(
   python-cpp
   ${AST_SOURCE_FILES}
@@ -289,6 +303,7 @@ add_library(
   ${PARSER_SOURCE_FILES}
   ${RUNTIME_SOURCE_FILES}
   ${RUNTIME_EXPORT_FILES}
+  ${RUNTIME_EXPORT_TAGGERED}
   ${VM_SOURCE_FILES})
 
 if(ENABLE_RUNTIME_ARENA)
@@ -321,9 +336,15 @@ target_link_libraries(python-cpp
   tsl::ordered_map
 )
 
+# [关键修复]: 将 ylt 的路径放入 PUBLIC，这样 integration 目录链接 python-cpp 时就能自动继承这些路径！
 target_include_directories(python-cpp
-  PUBLIC .
-  PRIVATE ${GMP_INCLUDES} ${CMAKE_CURRENT_BINARY_DIR}
+  PUBLIC
+  .
+  ${yalantinglibs_SOURCE_DIR}/include
+  ${yalantinglibs_SOURCE_DIR}/include/ylt/thirdparty
+  PRIVATE
+  ${GMP_INCLUDES}
+  ${CMAKE_CURRENT_BINARY_DIR}
 )
 
 target_compile_options(

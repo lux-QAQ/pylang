@@ -31,8 +31,12 @@ set(SRC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../..") # => src/
 # export 层自身
 file(GLOB EXPORT_SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/*.cpp")
 
+# taggered_pointer 层 (RtValue的实现)
+file(GLOB TAGGERED_SOURCES CONFIGURE_DEPENDS "${SRC_DIR}/runtime/taggered_pointer/*.cpp")
+
+
 # runtime 核心 + memory（RUNTIME_SOURCE_FILES / MEMORY_SOURCE_FILES 由父目录定义）
-set(ALL_SOURCES ${EXPORT_SOURCES})
+set(ALL_SOURCES ${EXPORT_SOURCES} ${TAGGERED_SOURCES})
 foreach(src ${RUNTIME_SOURCE_FILES} ${MEMORY_SOURCE_FILES})
   list(APPEND ALL_SOURCES "${SRC_DIR}/${src}")
 endforeach()
@@ -83,6 +87,13 @@ endforeach()
 # ✅ [新增]: 将 Boehm GC 的 include 路径暴露给 wllvm
 if(DEFINED bdwgc_SOURCE_DIR)
   list(APPEND BC_INC "-isystem" "${bdwgc_SOURCE_DIR}/include")
+endif()
+
+# ✅ [新增]: 将 yalantinglibs 的编译期反射库暴露给 wllvm
+if(DEFINED yalantinglibs_SOURCE_DIR)
+  list(APPEND BC_INC "-isystem" "${yalantinglibs_SOURCE_DIR}/include")
+  # [修复]: 必须包含 ylt 的第三方库路径，否则找不到 frozen/string.h
+  list(APPEND BC_INC "-isystem" "${yalantinglibs_SOURCE_DIR}/include/ylt/thirdparty")
 endif()
 
 if(GMP_INCLUDES)
@@ -137,7 +148,7 @@ foreach(src ${ALL_SOURCES})
     LLVM_COMPILER=clang
     LLVM_COMPILER_PATH=/usr/bin
     ${WLLVM_CXX}
-    -std=c++20 ${BC_OPT_LEVEL} -g -c
+    -std=c++23 ${BC_OPT_LEVEL} -g -c
     -fno-discard-value-names
     ${BC_DEFS}
     ${BC_INC}

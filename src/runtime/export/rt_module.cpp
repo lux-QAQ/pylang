@@ -1,16 +1,11 @@
 #include "rt_common.hpp"
 #include "runtime/Import.hpp"
 #include "runtime/PyDict.hpp"
+#include "runtime/PyModule.hpp"
+#include "runtime/PyObject.hpp"
 #include "runtime/PyString.hpp"
 #include "runtime/PyTuple.hpp"
-#include "runtime/PyObject.hpp"
-#include "runtime/Import.hpp"
-#include "runtime/PyModule.hpp"
-
-// =============================================================================
-// Tier 0: 模块操作
-// 修改签名：增加了 globals 和 locals (与 Python __import__ 规范对齐)
-// =============================================================================
+#include "runtime/taggered_pointer/RtValue.hpp"
 
 PYLANG_EXPORT_MODULE("import", "obj", "str,obj,obj,obj,i32")
 py::PyObject *rt_import(const char *module_name,
@@ -20,16 +15,15 @@ py::PyObject *rt_import(const char *module_name,
 	int32_t level)
 {
 	auto *name_str = rt_unwrap(py::PyString::create(std::string(module_name)));
+	auto *b_globals = py::ensure_box(globals);
+	auto *b_from_list = py::ensure_box(from_list);
 
-	// 如果 from_list 没有提供，使用空 tuple 默认值
-	if (!from_list) { from_list = rt_unwrap(py::PyTuple::create()); }
+	if (!b_from_list) { b_from_list = rt_unwrap(py::PyTuple::create()); }
 
-	// 严谨语义：委托给运行时的默认 import 实现。
-	// globals 参数不能丟，它是确定相对导入基础包路径（__package__）的核心。
 	return rt_unwrap(py::import_module_level_object(name_str,
-		globals ? py::as<py::PyDict>(globals) : nullptr,
-		locals,
-		from_list,
+		b_globals ? py::as<py::PyDict>(b_globals) : nullptr,
+		py::ensure_box(locals),
+		b_from_list,
 		static_cast<uint32_t>(level)));
 }
 

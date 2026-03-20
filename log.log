@@ -1,47 +1,337 @@
-GC_clear_stack (bdwgc\2bfb\misc.c:275)
-GC_generic_malloc_many (bdwgc\2bfb\mallocx.c:465)
-GC_malloc_kind (bdwgc\2bfb\thread_local_alloc.c:187)
-GC_malloc (bdwgc\2bfb\malloc.c:358)
-py::PyInteger* py::Arena::allocate<py::PyInteger, __gmp_expr<__mpz_struct [1], __mpz_struct [1]>&>(__gmp_expr<__mpz_struct [1], __mpz_struct [1]>&) (src\memory\Arena.hpp:137)
-py::PyInteger::create(__gmp_expr<__mpz_struct [1], __mpz_struct [1]>) (src\runtime\PyInteger.cpp:55)
-py::PyNumber::create(py::Number const&) (src\runtime\PyNumber.cpp:285)
-py::PyResult<py::PyObject*> py::PyObject::from<py::Number>(py::Number const&) (src\runtime\PyObject.cpp:386)
-py::PyRangeIterator::__next__() (src\runtime\PyRange.cpp:228)
-std::function<py::PyResult<py::PyObject*> (py::PyObject*)>::operator()(py::PyObject*) const (\usr\include\c++\13\bits\std_function.h:591)
-py::PyResult<py::PyObject*> py::(anonymous namespace)::call_slot<std::function<py::PyResult<py::PyObject*> (py::PyObject*)>, py::PyResult<py::PyObject*>, py::PyObject*>(std::variant<std::function<py::PyResult<py::PyObject*> (py::PyObject*)>, py::PyObject*> const&, py::PyObject*&&) requires std::is_same_v<py::PyResult<py::PyObject*>::OkType, py::PyObject*> (src\runtime\PyObject.cpp:165)
-py::PyObject::next() (src\runtime\PyObject.cpp:1163)
-rt_iter_next(py::PyObject*, bool*) (src\runtime\export\rt_subscr.cpp:22)
-test.<module>.0:0.Sieve.8:0.to_list.14:4 (@test.<module>.0:0.Sieve.8:0.to_list.14:4:70)
-py::PyNativeFunction::create_aot(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char>>, void*, py::PyObject*, py::PyObject*, py::PyObject*, py::PyObject*)::$_1::operator()(py::PyTuple*, py::PyDict*) const (src\runtime\PyFunction.cpp:111)
-py::PyResult<py::PyObject*> std::__invoke_impl<py::PyResult<py::PyObject*>, py::PyNativeFunction::create_aot(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char>>, void*, py::PyObject*, py::PyObject*, py::PyObject*, py::PyObject*)::$_1&, py::PyTuple*, py::PyDict*>(std::__invoke_other, py::PyNativeFunction::create_aot(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char>>, void*, py::PyObject*, py::PyObject*, py::PyObject*, py::PyObject*)::$_1&, py::PyTuple*&&, py::PyDict*&&) (\usr\include\c++\13\bits\invoke.h:61)
-std::enable_if<is_invocable_r_v<py::PyResult<py::PyObject*>, py::PyNativeFunction::create_aot(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char>>, void*, py::PyObject*, py::PyObject*, py::PyObject*, py::PyObject*)::$_1&, py::PyTuple*, py::PyDict*>, py::PyResult<py::PyObject*>>::type std::__invoke_r<py::PyResult<py::PyObject*>, py::PyNativeFunction::create_aot(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char>>, void*, py::PyObject*, py::PyObject*, py::PyObject*, py::PyObject*)::$_1&, py::PyTuple*, py::PyDict*>(py::PyNativeFunction::create_aot(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char>>, void*, py::PyObject*, py::PyObject*, py::PyObject*, py::PyObject*)::$_1&, py::PyTuple*&&, py::PyDict*&&) (\usr\include\c++\13\bits\invoke.h:114)
-std::_Function_handler<py::PyResult<py::PyObject*> (py::PyTuple*, py::PyDict*), py::PyNativeFunction::create_aot(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char>>, void*, py::PyObject*, py::PyObject*, py::PyObject*, py::PyObject*)::$_1>::_M_invoke(std::_Any_data const&, py::PyTuple*&&, py::PyDict*&&) (\usr\include\c++\13\bits\std_function.h:290)
-std::function<py::PyResult<py::PyObject*> (py::PyTuple*, py::PyDict*)>::operator()(py::PyTuple*, py::PyDict*) const (\usr\include\c++\13\bits\std_function.h:591)
-py::PyNativeFunction::operator()(py::PyTuple*, py::PyDict*) (src\runtime\PyFunction.hpp:159)
-py::PyNativeFunction::__call__(py::PyTuple*, py::PyDict*) (src\runtime\PyFunction.cpp:291)
-py::PyNativeFunction::__get__(py::PyObject*, py::PyObject*) const::$_0::operator()(py::PyTuple*, py::PyDict*) const (src\runtime\PyFunction.cpp:323)
-py::PyResult<py::PyObject*> std::__invoke_impl<py::PyResult<py::PyObject*>, py::PyNativeFunction::__get__(py::PyObject*, py::PyObject*) const::$_0&, py::PyTuple*, py::PyDict*>(std::__invoke_other, py::PyNativeFunction::__get__(py::PyObject*, py::PyObject*) const::$_0&, py::PyTuple*&&, py::PyDict*&&) (\usr\include\c++\13\bits\invoke.h:61)
-std::enable_if<is_invocable_r_v<py::PyResult<py::PyObject*>, py::PyNativeFunction::__get__(py::PyObject*, py::PyObject*) const::$_0&, py::PyTuple*, py::PyDict*>, py::PyResult<py::PyObject*>>::type std::__invoke_r<py::PyResult<py::PyObject*>, py::PyNativeFunction::__get__(py::PyObject*, py::PyObject*) const::$_0&, py::PyTuple*, py::PyDict*>(py::PyNativeFunction::__get__(py::PyObject*, py::PyObject*) const::$_0&, py::PyTuple*&&, py::PyDict*&&) (\usr\include\c++\13\bits\invoke.h:114)
-std::_Function_handler<py::PyResult<py::PyObject*> (py::PyTuple*, py::PyDict*), py::PyNativeFunction::__get__(py::PyObject*, py::PyObject*) const::$_0>::_M_invoke(std::_Any_data const&, py::PyTuple*&&, py::PyDict*&&) (\usr\include\c++\13\bits\std_function.h:290)
-std::function<py::PyResult<py::PyObject*> (py::PyTuple*, py::PyDict*)>::operator()(py::PyTuple*, py::PyDict*) const (\usr\include\c++\13\bits\std_function.h:591)
-py::PyNativeFunction::operator()(py::PyTuple*, py::PyDict*) (src\runtime\PyFunction.hpp:159)
-std::function<py::PyResult<py::PyObject*> (py::PyObject*, py::PyTuple*, py::PyDict*)>::operator()(py::PyObject*, py::PyTuple*, py::PyDict*) const (\usr\include\c++\13\bits\std_function.h:591)
-py::PyResult<py::PyObject*> py::(anonymous namespace)::call_slot<std::function<py::PyResult<py::PyObject*> (py::PyObject*, py::PyTuple*, py::PyDict*)>, py::PyResult<py::PyObject*>>(std::variant<std::function<py::PyResult<py::PyObject*> (py::PyObject*, py::PyTuple*, py::PyDict*)>, py::PyObject*> const&, py::PyObject*, py::PyTuple*, py::PyDict*) requires std::is_same_v<py::PyResult<py::PyObject*>::OkType, py::PyObject*> (src\runtime\PyObject.cpp:144)
-py::PyObject::call(py::PyTuple*, py::PyDict*) (src\runtime\PyObject.cpp:764)
-rt_call(py::PyObject*, py::PyObject*, py::PyObject*) (src\runtime\export\rt_func.cpp:22)
-test.<module>.0:0.find.86:0 (@test.<module>.0:0.find.86:0:86)
-py::PyNativeFunction::create_aot(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char>>, void*, py::PyObject*, py::PyObject*, py::PyObject*, py::PyObject*)::$_1::operator()(py::PyTuple*, py::PyDict*) const (src\runtime\PyFunction.cpp:111)
-py::PyResult<py::PyObject*> std::__invoke_impl<py::PyResult<py::PyObject*>, py::PyNativeFunction::create_aot(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char>>, void*, py::PyObject*, py::PyObject*, py::PyObject*, py::PyObject*)::$_1&, py::PyTuple*, py::PyDict*>(std::__invoke_other, py::PyNativeFunction::create_aot(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char>>, void*, py::PyObject*, py::PyObject*, py::PyObject*, py::PyObject*)::$_1&, py::PyTuple*&&, py::PyDict*&&) (\usr\include\c++\13\bits\invoke.h:61)
-std::enable_if<is_invocable_r_v<py::PyResult<py::PyObject*>, py::PyNativeFunction::create_aot(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char>>, void*, py::PyObject*, py::PyObject*, py::PyObject*, py::PyObject*)::$_1&, py::PyTuple*, py::PyDict*>, py::PyResult<py::PyObject*>>::type std::__invoke_r<py::PyResult<py::PyObject*>, py::PyNativeFunction::create_aot(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char>>, void*, py::PyObject*, py::PyObject*, py::PyObject*, py::PyObject*)::$_1&, py::PyTuple*, py::PyDict*>(py::PyNativeFunction::create_aot(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char>>, void*, py::PyObject*, py::PyObject*, py::PyObject*, py::PyObject*)::$_1&, py::PyTuple*&&, py::PyDict*&&) (\usr\include\c++\13\bits\invoke.h:114)
-std::_Function_handler<py::PyResult<py::PyObject*> (py::PyTuple*, py::PyDict*), py::PyNativeFunction::create_aot(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char>>, void*, py::PyObject*, py::PyObject*, py::PyObject*, py::PyObject*)::$_1>::_M_invoke(std::_Any_data const&, py::PyTuple*&&, py::PyDict*&&) (\usr\include\c++\13\bits\std_function.h:290)
-std::function<py::PyResult<py::PyObject*> (py::PyTuple*, py::PyDict*)>::operator()(py::PyTuple*, py::PyDict*) const (\usr\include\c++\13\bits\std_function.h:591)
-py::PyNativeFunction::operator()(py::PyTuple*, py::PyDict*) (src\runtime\PyFunction.hpp:159)
-std::function<py::PyResult<py::PyObject*> (py::PyObject*, py::PyTuple*, py::PyDict*)>::operator()(py::PyObject*, py::PyTuple*, py::PyDict*) const (\usr\include\c++\13\bits\std_function.h:591)
-py::PyResult<py::PyObject*> py::(anonymous namespace)::call_slot<std::function<py::PyResult<py::PyObject*> (py::PyObject*, py::PyTuple*, py::PyDict*)>, py::PyResult<py::PyObject*>>(std::variant<std::function<py::PyResult<py::PyObject*> (py::PyObject*, py::PyTuple*, py::PyDict*)>, py::PyObject*> const&, py::PyObject*, py::PyTuple*, py::PyDict*) requires std::is_same_v<py::PyResult<py::PyObject*>::OkType, py::PyObject*> (src\runtime\PyObject.cpp:144)
-py::PyObject::call(py::PyTuple*, py::PyDict*) (src\runtime\PyObject.cpp:764)
-rt_call(py::PyObject*, py::PyObject*, py::PyObject*) (src\runtime\export\rt_func.cpp:22)
-PyInit_test (@PyInit_test:161)
-main (@main:7)
-__libc_start_call_main (@__libc_start_call_main:29)
-__libc_start_main_impl (@__libc_start_main@@GLIBC_2.34:44)
-_start (@_start:15)
+[build] /home/lux/code/language/python-cpp/build/debug/.cache/CPM/yalantinglibs/f7f2/include/ylt/thirdparty/frozen/string.h:114:29: error: identifier '_s' preceded by whitespace in a literal operator declaration is deprecated [-Werror,-Wdeprecated-literal-operator]
+[build]   114 | constexpr string operator"" _s(const char *data, std::size_t size) {
+[build]       |                  ~~~~~~~~~~~^~
+[build]       |                  operator""_s
+[build] /home/lux/code/language/python-cpp/build/debug/.cache/CPM/yalantinglibs/f7f2/include/ylt/thirdparty/frozen/string.h:118:30: error: identifier '_s' preceded by whitespace in a literal operator declaration is deprecated [-Werror,-Wdeprecated-literal-operator]
+[build]   118 | constexpr wstring operator"" _s(const wchar_t *data, std::size_t size) {
+[build]       |                   ~~~~~~~~~~~^~
+[build]       |                   operator""_s
+[build] /home/lux/code/language/python-cpp/build/debug/.cache/CPM/yalantinglibs/f7f2/include/ylt/thirdparty/frozen/string.h:122:32: error: identifier '_s' preceded by whitespace in a literal operator declaration is deprecated [-Werror,-Wdeprecated-literal-operator]
+[build]   122 | constexpr u16string operator"" _s(const char16_t *data, std::size_t size) {
+[build]       |                     ~~~~~~~~~~~^~
+[build]       |                     operator""_s
+[build] /home/lux/code/language/python-cpp/build/debug/.cache/CPM/yalantinglibs/f7f2/include/ylt/thirdparty/frozen/string.h:126:32: error: identifier '_s' preceded by whitespace in a literal operator declaration is deprecated [-Werror,-Wdeprecated-literal-operator]
+[build]   126 | constexpr u32string operator"" _s(const char32_t *data, std::size_t size) {
+[build]       |                     ~~~~~~~~~~~^~
+[build]       |                     operator""_s
+[build] /home/lux/code/language/python-cpp/build/debug/.cache/CPM/yalantinglibs/f7f2/include/ylt/thirdparty/frozen/string.h:131:31: error: identifier '_s' preceded by whitespace in a literal operator declaration is deprecated [-Werror,-Wdeprecated-literal-operator]
+[build]   131 | constexpr u8string operator"" _s(const char8_t *data, std::size_t size) {
+[build]       |                    ~~~~~~~~~~~^~
+[build]       |                    operator""_s
+[build] 5 errors generated.
+[build] [399/725] wllvm: runtime/modules/weakref/PyWeakRef.cpp
+[build] [400/725] Building CXX object src/CMakeFiles/python-cpp.dir/executable/bytecode/instructions/BuildList.cpp.o
+[build] FAILED: [code=1] src/CMakeFiles/python-cpp.dir/executable/bytecode/instructions/BuildList.cpp.o 
+[build] /usr/bin/ccache /usr/lib/ccache/c++ -DCMAKE_BINARY_DIR=\"/home/lux/code/language/python-cpp/build/debug\" -DGC_THREADS -DPYLANG_HAS_LLD=1 -DPYLANG_USE_ARENA -DPYLANG_USE_Boehm_GC -DSPDLOG_COMPILED_LIB -I/home/lux/code/language/python-cpp/build/debug/.cache/CPM/yalantinglibs/f7f2/include -I/home/lux/code/language/python-cpp/build/debug/.cache/CPM/yalantinglibs/f7f2/include/ylt/thirdparty -I/home/lux/code/language/python-cpp/build/debug/.cache/CPM/bdwgc/2bfb/include -I/home/lux/code/language/python-cpp/src/. -I/home/lux/code/language/python-cpp/build/debug/src -isystem /home/lux/code/language/python-cpp/build/debug/.cache/CPM/spdlog/be97/include -isystem /home/lux/code/language/python-cpp/build/debug/.cache/CPM/ordered-map/397e/include -DALWAYS_SMALL_CLEAR_STACK -DSMALL_CLEAR_SIZE=4 -g -std=c++23 -fcolor-diagnostics -fno-omit-frame-pointer -fsanitize=address -Wall -Wextra -Wextra-semi -Wshadow -Wnon-virtual-dtor -Wold-style-cast -Wcast-align -Wunused -Woverloaded-virtual -Wpedantic -Wconversion -Wsign-conversion -Wnull-dereference -Wdouble-promotion -Wformat=2 -Wimplicit-fallthrough -Werror -Wno-sign-conversion -Wno-shadow -Wno-implicit-fallthrough -Wno-old-style-cast -Wno-deprecated-copy -Wno-missing-field-initializers -Wno-null-dereference -Wno-unknown-warning-option -MD -MT src/CMakeFiles/python-cpp.dir/executable/bytecode/instructions/BuildList.cpp.o -MF src/CMakeFiles/python-cpp.dir/executable/bytecode/instructions/BuildList.cpp.o.d -o src/CMakeFiles/python-cpp.dir/executable/bytecode/instructions/BuildList.cpp.o -c /home/lux/code/language/python-cpp/src/executable/bytecode/instructions/BuildList.cpp
+[build] In file included from /home/lux/code/language/python-cpp/src/executable/bytecode/instructions/BuildList.cpp:1:
+[build] In file included from /home/lux/code/language/python-cpp/src/executable/bytecode/instructions/BuildList.hpp:3:
+[build] In file included from /home/lux/code/language/python-cpp/src/executable/bytecode/instructions/Instructions.hpp:3:
+[build] In file included from /home/lux/code/language/python-cpp/src/./runtime/Value.hpp:6:
+[build] In file included from /home/lux/code/language/python-cpp/src/./memory/GCTracingAllocator.hpp:21:
+[build] In file included from /home/lux/code/language/python-cpp/build/debug/.cache/CPM/yalantinglibs/f7f2/include/ylt/reflection/member_names.hpp:6:
+[build] In file included from /home/lux/code/language/python-cpp/build/debug/.cache/CPM/yalantinglibs/f7f2/include/ylt/reflection/template_string.hpp:5:
+[build] /home/lux/code/language/python-cpp/build/debug/.cache/CPM/yalantinglibs/f7f2/include/ylt/thirdparty/frozen/string.h:114:29: error: identifier '_s' preceded by whitespace in a literal operator declaration is deprecated [-Werror,-Wdeprecated-literal-operator]
+[build]   114 | constexpr string operator"" _s(const char *data, std::size_t size) {
+[build]       |                  ~~~~~~~~~~~^~
+[build]       |                  operator""_s
+[build] /home/lux/code/language/python-cpp/build/debug/.cache/CPM/yalantinglibs/f7f2/include/ylt/thirdparty/frozen/string.h:118:30: error: identifier '_s' preceded by whitespace in a literal operator declaration is deprecated [-Werror,-Wdeprecated-literal-operator]
+[build]   118 | constexpr wstring operator"" _s(const wchar_t *data, std::size_t size) {
+[build]       |                   ~~~~~~~~~~~^~
+[build]       |                   operator""_s
+[build] /home/lux/code/language/python-cpp/build/debug/.cache/CPM/yalantinglibs/f7f2/include/ylt/thirdparty/frozen/string.h:122:32: error: identifier '_s' preceded by whitespace in a literal operator declaration is deprecated [-Werror,-Wdeprecated-literal-operator]
+[build]   122 | constexpr u16string operator"" _s(const char16_t *data, std::size_t size) {
+[build]       |                     ~~~~~~~~~~~^~
+[build]       |                     operator""_s
+[build] /home/lux/code/language/python-cpp/build/debug/.cache/CPM/yalantinglibs/f7f2/include/ylt/thirdparty/frozen/string.h:126:32: error: identifier '_s' preceded by whitespace in a literal operator declaration is deprecated [-Werror,-Wdeprecated-literal-operator]
+[build]   126 | constexpr u32string operator"" _s(const char32_t *data, std::size_t size) {
+[build]       |                     ~~~~~~~~~~~^~
+[build]       |                     operator""_s
+[build] /home/lux/code/language/python-cpp/build/debug/.cache/CPM/yalantinglibs/f7f2/include/ylt/thirdparty/frozen/string.h:131:31: error: identifier '_s' preceded by whitespace in a literal operator declaration is deprecated [-Werror,-Wdeprecated-literal-operator]
+[build]   131 | constexpr u8string operator"" _s(const char8_t *data, std::size_t size) {
+[build]       |                    ~~~~~~~~~~~^~
+[build]       |                    operator""_s
+[build] 5 errors generated.
+[build] [401/725] Building CXX object src/CMakeFiles/python-cpp.dir/executable/bytecode/instructions/BuildDict.cpp.o
+[build] FAILED: [code=1] src/CMakeFiles/python-cpp.dir/executable/bytecode/instructions/BuildDict.cpp.o 
+[build] /usr/bin/ccache /usr/lib/ccache/c++ -DCMAKE_BINARY_DIR=\"/home/lux/code/language/python-cpp/build/debug\" -DGC_THREADS -DPYLANG_HAS_LLD=1 -DPYLANG_USE_ARENA -DPYLANG_USE_Boehm_GC -DSPDLOG_COMPILED_LIB -I/home/lux/code/language/python-cpp/build/debug/.cache/CPM/yalantinglibs/f7f2/include -I/home/lux/code/language/python-cpp/build/debug/.cache/CPM/yalantinglibs/f7f2/include/ylt/thirdparty -I/home/lux/code/language/python-cpp/build/debug/.cache/CPM/bdwgc/2bfb/include -I/home/lux/code/language/python-cpp/src/. -I/home/lux/code/language/python-cpp/build/debug/src -isystem /home/lux/code/language/python-cpp/build/debug/.cache/CPM/spdlog/be97/include -isystem /home/lux/code/language/python-cpp/build/debug/.cache/CPM/ordered-map/397e/include -DALWAYS_SMALL_CLEAR_STACK -DSMALL_CLEAR_SIZE=4 -g -std=c++23 -fcolor-diagnostics -fno-omit-frame-pointer -fsanitize=address -Wall -Wextra -Wextra-semi -Wshadow -Wnon-virtual-dtor -Wold-style-cast -Wcast-align -Wunused -Woverloaded-virtual -Wpedantic -Wconversion -Wsign-conversion -Wnull-dereference -Wdouble-promotion -Wformat=2 -Wimplicit-fallthrough -Werror -Wno-sign-conversion -Wno-shadow -Wno-implicit-fallthrough -Wno-old-style-cast -Wno-deprecated-copy -Wno-missing-field-initializers -Wno-null-dereference -Wno-unknown-warning-option -MD -MT src/CMakeFiles/python-cpp.dir/executable/bytecode/instructions/BuildDict.cpp.o -MF src/CMakeFiles/python-cpp.dir/executable/bytecode/instructions/BuildDict.cpp.o.d -o src/CMakeFiles/python-cpp.dir/executable/bytecode/instructions/BuildDict.cpp.o -c /home/lux/code/language/python-cpp/src/executable/bytecode/instructions/BuildDict.cpp
+[build] In file included from /home/lux/code/language/python-cpp/src/executable/bytecode/instructions/BuildDict.cpp:1:
+[build] In file included from /home/lux/code/language/python-cpp/src/executable/bytecode/instructions/BuildDict.hpp:3:
+[build] In file included from /home/lux/code/language/python-cpp/src/executable/bytecode/instructions/Instructions.hpp:3:
+[build] In file included from /home/lux/code/language/python-cpp/src/./runtime/Value.hpp:6:
+[build] In file included from /home/lux/code/language/python-cpp/src/./memory/GCTracingAllocator.hpp:21:
+[build] In file included from /home/lux/code/language/python-cpp/build/debug/.cache/CPM/yalantinglibs/f7f2/include/ylt/reflection/member_names.hpp:6:
+[build] In file included from /home/lux/code/language/python-cpp/build/debug/.cache/CPM/yalantinglibs/f7f2/include/ylt/reflection/template_string.hpp:5:
+[build] /home/lux/code/language/python-cpp/build/debug/.cache/CPM/yalantinglibs/f7f2/include/ylt/thirdparty/frozen/string.h:114:29: error: identifier '_s' preceded by whitespace in a literal operator declaration is deprecated [-Werror,-Wdeprecated-literal-operator]
+[build]   114 | constexpr string operator"" _s(const char *data, std::size_t size) {
+[build]       |                  ~~~~~~~~~~~^~
+[build]       |                  operator""_s
+[build] /home/lux/code/language/python-cpp/build/debug/.cache/CPM/yalantinglibs/f7f2/include/ylt/thirdparty/frozen/string.h:118:30: error: identifier '_s' preceded by whitespace in a literal operator declaration is deprecated [-Werror,-Wdeprecated-literal-operator]
+[build]   118 | constexpr wstring operator"" _s(const wchar_t *data, std::size_t size) {
+[build]       |                   ~~~~~~~~~~~^~
+[build]       |                   operator""_s
+[build] /home/lux/code/language/python-cpp/build/debug/.cache/CPM/yalantinglibs/f7f2/include/ylt/thirdparty/frozen/string.h:122:32: error: identifier '_s' preceded by whitespace in a literal operator declaration is deprecated [-Werror,-Wdeprecated-literal-operator]
+[build]   122 | constexpr u16string operator"" _s(const char16_t *data, std::size_t size) {
+[build]       |                     ~~~~~~~~~~~^~
+[build]       |                     operator""_s
+[build] /home/lux/code/language/python-cpp/build/debug/.cache/CPM/yalantinglibs/f7f2/include/ylt/thirdparty/frozen/string.h:126:32: error: identifier '_s' preceded by whitespace in a literal operator declaration is deprecated [-Werror,-Wdeprecated-literal-operator]
+[build]   126 | constexpr u32string operator"" _s(const char32_t *data, std::size_t size) {
+[build]       |                     ~~~~~~~~~~~^~
+[build]       |                     operator""_s
+[build] /home/lux/code/language/python-cpp/build/debug/.cache/CPM/yalantinglibs/f7f2/include/ylt/thirdparty/frozen/string.h:131:31: error: identifier '_s' preceded by whitespace in a literal operator declaration is deprecated [-Werror,-Wdeprecated-literal-operator]
+[build]   131 | constexpr u8string operator"" _s(const char8_t *data, std::size_t size) {
+[build]       |                    ~~~~~~~~~~~^~
+[build]       |                    operator""_s
+[build] 5 errors generated.
+[build] [402/725] Building CXX object src/CMakeFiles/python-cpp.dir/executable/bytecode/instructions/BuildTuple.cpp.o
+[build] FAILED: [code=1] src/CMakeFiles/python-cpp.dir/executable/bytecode/instructions/BuildTuple.cpp.o 
+[build] /usr/bin/ccache /usr/lib/ccache/c++ -DCMAKE_BINARY_DIR=\"/home/lux/code/language/python-cpp/build/debug\" -DGC_THREADS -DPYLANG_HAS_LLD=1 -DPYLANG_USE_ARENA -DPYLANG_USE_Boehm_GC -DSPDLOG_COMPILED_LIB -I/home/lux/code/language/python-cpp/build/debug/.cache/CPM/yalantinglibs/f7f2/include -I/home/lux/code/language/python-cpp/build/debug/.cache/CPM/yalantinglibs/f7f2/include/ylt/thirdparty -I/home/lux/code/language/python-cpp/build/debug/.cache/CPM/bdwgc/2bfb/include -I/home/lux/code/language/python-cpp/src/. -I/home/lux/code/language/python-cpp/build/debug/src -isystem /home/lux/code/language/python-cpp/build/debug/.cache/CPM/spdlog/be97/include -isystem /home/lux/code/language/python-cpp/build/debug/.cache/CPM/ordered-map/397e/include -DALWAYS_SMALL_CLEAR_STACK -DSMALL_CLEAR_SIZE=4 -g -std=c++23 -fcolor-diagnostics -fno-omit-frame-pointer -fsanitize=address -Wall -Wextra -Wextra-semi -Wshadow -Wnon-virtual-dtor -Wold-style-cast -Wcast-align -Wunused -Woverloaded-virtual -Wpedantic -Wconversion -Wsign-conversion -Wnull-dereference -Wdouble-promotion -Wformat=2 -Wimplicit-fallthrough -Werror -Wno-sign-conversion -Wno-shadow -Wno-implicit-fallthrough -Wno-old-style-cast -Wno-deprecated-copy -Wno-missing-field-initializers -Wno-null-dereference -Wno-unknown-warning-option -MD -MT src/CMakeFiles/python-cpp.dir/executable/bytecode/instructions/BuildTuple.cpp.o -MF src/CMakeFiles/python-cpp.dir/executable/bytecode/instructions/BuildTuple.cpp.o.d -o src/CMakeFiles/python-cpp.dir/executable/bytecode/instructions/BuildTuple.cpp.o -c /home/lux/code/language/python-cpp/src/executable/bytecode/instructions/BuildTuple.cpp
+[build] In file included from /home/lux/code/language/python-cpp/src/executable/bytecode/instructions/BuildTuple.cpp:1:
+[build] In file included from /home/lux/code/language/python-cpp/src/executable/bytecode/instructions/BuildTuple.hpp:3:
+[build] In file included from /home/lux/code/language/python-cpp/src/executable/bytecode/instructions/Instructions.hpp:3:
+[build] In file included from /home/lux/code/language/python-cpp/src/./runtime/Value.hpp:6:
+[build] In file included from /home/lux/code/language/python-cpp/src/./memory/GCTracingAllocator.hpp:21:
+[build] In file included from /home/lux/code/language/python-cpp/build/debug/.cache/CPM/yalantinglibs/f7f2/include/ylt/reflection/member_names.hpp:6:
+[build] In file included from /home/lux/code/language/python-cpp/build/debug/.cache/CPM/yalantinglibs/f7f2/include/ylt/reflection/template_string.hpp:5:
+[build] /home/lux/code/language/python-cpp/build/debug/.cache/CPM/yalantinglibs/f7f2/include/ylt/thirdparty/frozen/string.h:114:29: error: identifier '_s' preceded by whitespace in a literal operator declaration is deprecated [-Werror,-Wdeprecated-literal-operator]
+[build]   114 | constexpr string operator"" _s(const char *data, std::size_t size) {
+[build]       |                  ~~~~~~~~~~~^~
+[build]       |                  operator""_s
+[build] /home/lux/code/language/python-cpp/build/debug/.cache/CPM/yalantinglibs/f7f2/include/ylt/thirdparty/frozen/string.h:118:30: error: identifier '_s' preceded by whitespace in a literal operator declaration is deprecated [-Werror,-Wdeprecated-literal-operator]
+[build]   118 | constexpr wstring operator"" _s(const wchar_t *data, std::size_t size) {
+[build]       |                   ~~~~~~~~~~~^~
+[build]       |                   operator""_s
+[build] /home/lux/code/language/python-cpp/build/debug/.cache/CPM/yalantinglibs/f7f2/include/ylt/thirdparty/frozen/string.h:122:32: error: identifier '_s' preceded by whitespace in a literal operator declaration is deprecated [-Werror,-Wdeprecated-literal-operator]
+[build]   122 | constexpr u16string operator"" _s(const char16_t *data, std::size_t size) {
+[build]       |                     ~~~~~~~~~~~^~
+[build]       |                     operator""_s
+[build] /home/lux/code/language/python-cpp/build/debug/.cache/CPM/yalantinglibs/f7f2/include/ylt/thirdparty/frozen/string.h:126:32: error: identifier '_s' preceded by whitespace in a literal operator declaration is deprecated [-Werror,-Wdeprecated-literal-operator]
+[build]   126 | constexpr u32string operator"" _s(const char32_t *data, std::size_t size) {
+[build]       |                     ~~~~~~~~~~~^~
+[build]       |                     operator""_s
+[build] /home/lux/code/language/python-cpp/build/debug/.cache/CPM/yalantinglibs/f7f2/include/ylt/thirdparty/frozen/string.h:131:31: error: identifier '_s' preceded by whitespace in a literal operator declaration is deprecated [-Werror,-Wdeprecated-literal-operator]
+[build]   131 | constexpr u8string operator"" _s(const char8_t *data, std::size_t size) {
+[build]       |                    ~~~~~~~~~~~^~
+[build]       |                    operator""_s
+[build] 5 errors generated.
+[build] [403/725] Building CXX object src/CMakeFiles/python-cpp.dir/executable/bytecode/instructions/BuildSet.cpp.o
+[build] FAILED: [code=1] src/CMakeFiles/python-cpp.dir/executable/bytecode/instructions/BuildSet.cpp.o 
+[build] /usr/bin/ccache /usr/lib/ccache/c++ -DCMAKE_BINARY_DIR=\"/home/lux/code/language/python-cpp/build/debug\" -DGC_THREADS -DPYLANG_HAS_LLD=1 -DPYLANG_USE_ARENA -DPYLANG_USE_Boehm_GC -DSPDLOG_COMPILED_LIB -I/home/lux/code/language/python-cpp/build/debug/.cache/CPM/yalantinglibs/f7f2/include -I/home/lux/code/language/python-cpp/build/debug/.cache/CPM/yalantinglibs/f7f2/include/ylt/thirdparty -I/home/lux/code/language/python-cpp/build/debug/.cache/CPM/bdwgc/2bfb/include -I/home/lux/code/language/python-cpp/src/. -I/home/lux/code/language/python-cpp/build/debug/src -isystem /home/lux/code/language/python-cpp/build/debug/.cache/CPM/spdlog/be97/include -isystem /home/lux/code/language/python-cpp/build/debug/.cache/CPM/ordered-map/397e/include -DALWAYS_SMALL_CLEAR_STACK -DSMALL_CLEAR_SIZE=4 -g -std=c++23 -fcolor-diagnostics -fno-omit-frame-pointer -fsanitize=address -Wall -Wextra -Wextra-semi -Wshadow -Wnon-virtual-dtor -Wold-style-cast -Wcast-align -Wunused -Woverloaded-virtual -Wpedantic -Wconversion -Wsign-conversion -Wnull-dereference -Wdouble-promotion -Wformat=2 -Wimplicit-fallthrough -Werror -Wno-sign-conversion -Wno-shadow -Wno-implicit-fallthrough -Wno-old-style-cast -Wno-deprecated-copy -Wno-missing-field-initializers -Wno-null-dereference -Wno-unknown-warning-option -MD -MT src/CMakeFiles/python-cpp.dir/executable/bytecode/instructions/BuildSet.cpp.o -MF src/CMakeFiles/python-cpp.dir/executable/bytecode/instructions/BuildSet.cpp.o.d -o src/CMakeFiles/python-cpp.dir/executable/bytecode/instructions/BuildSet.cpp.o -c /home/lux/code/language/python-cpp/src/executable/bytecode/instructions/BuildSet.cpp
+[build] In file included from /home/lux/code/language/python-cpp/src/executable/bytecode/instructions/BuildSet.cpp:1:
+[build] In file included from /home/lux/code/language/python-cpp/src/executable/bytecode/instructions/BuildSet.hpp:3:
+[build] In file included from /home/lux/code/language/python-cpp/src/executable/bytecode/instructions/Instructions.hpp:3:
+[build] In file included from /home/lux/code/language/python-cpp/src/./runtime/Value.hpp:6:
+[build] In file included from /home/lux/code/language/python-cpp/src/./memory/GCTracingAllocator.hpp:21:
+[build] In file included from /home/lux/code/language/python-cpp/build/debug/.cache/CPM/yalantinglibs/f7f2/include/ylt/reflection/member_names.hpp:6:
+[build] In file included from /home/lux/code/language/python-cpp/build/debug/.cache/CPM/yalantinglibs/f7f2/include/ylt/reflection/template_string.hpp:5:
+[build] /home/lux/code/language/python-cpp/build/debug/.cache/CPM/yalantinglibs/f7f2/include/ylt/thirdparty/frozen/string.h:114:29: error: identifier '_s' preceded by whitespace in a literal operator declaration is deprecated [-Werror,-Wdeprecated-literal-operator]
+[build]   114 | constexpr string operator"" _s(const char *data, std::size_t size) {
+[build]       |                  ~~~~~~~~~~~^~
+[build]       |                  operator""_s
+[build] /home/lux/code/language/python-cpp/build/debug/.cache/CPM/yalantinglibs/f7f2/include/ylt/thirdparty/frozen/string.h:118:30: error: identifier '_s' preceded by whitespace in a literal operator declaration is deprecated [-Werror,-Wdeprecated-literal-operator]
+[build]   118 | constexpr wstring operator"" _s(const wchar_t *data, std::size_t size) {
+[build]       |                   ~~~~~~~~~~~^~
+[build]       |                   operator""_s
+[build] /home/lux/code/language/python-cpp/build/debug/.cache/CPM/yalantinglibs/f7f2/include/ylt/thirdparty/frozen/string.h:122:32: error: identifier '_s' preceded by whitespace in a literal operator declaration is deprecated [-Werror,-Wdeprecated-literal-operator]
+[build]   122 | constexpr u16string operator"" _s(const char16_t *data, std::size_t size) {
+[build]       |                     ~~~~~~~~~~~^~
+[build]       |                     operator""_s
+[build] /home/lux/code/language/python-cpp/build/debug/.cache/CPM/yalantinglibs/f7f2/include/ylt/thirdparty/frozen/string.h:126:32: error: identifier '_s' preceded by whitespace in a literal operator declaration is deprecated [-Werror,-Wdeprecated-literal-operator]
+[build]   126 | constexpr u32string operator"" _s(const char32_t *data, std::size_t size) {
+[build]       |                     ~~~~~~~~~~~^~
+[build]       |                     operator""_s
+[build] /home/lux/code/language/python-cpp/build/debug/.cache/CPM/yalantinglibs/f7f2/include/ylt/thirdparty/frozen/string.h:131:31: error: identifier '_s' preceded by whitespace in a literal operator declaration is deprecated [-Werror,-Wdeprecated-literal-operator]
+[build]   131 | constexpr u8string operator"" _s(const char8_t *data, std::size_t size) {
+[build]       |                    ~~~~~~~~~~~^~
+[build]       |                    operator""_s
+[build] 5 errors generated.
+[build] [404/725] wllvm: runtime/warnings/ImportWarning.cpp
+[build] [405/725] Building CXX object src/CMakeFiles/python-cpp.dir/executable/bytecode/instructions/BinarySubscript.cpp.o
+[build] FAILED: [code=1] src/CMakeFiles/python-cpp.dir/executable/bytecode/instructions/BinarySubscript.cpp.o 
+[build] /usr/bin/ccache /usr/lib/ccache/c++ -DCMAKE_BINARY_DIR=\"/home/lux/code/language/python-cpp/build/debug\" -DGC_THREADS -DPYLANG_HAS_LLD=1 -DPYLANG_USE_ARENA -DPYLANG_USE_Boehm_GC -DSPDLOG_COMPILED_LIB -I/home/lux/code/language/python-cpp/build/debug/.cache/CPM/yalantinglibs/f7f2/include -I/home/lux/code/language/python-cpp/build/debug/.cache/CPM/yalantinglibs/f7f2/include/ylt/thirdparty -I/home/lux/code/language/python-cpp/build/debug/.cache/CPM/bdwgc/2bfb/include -I/home/lux/code/language/python-cpp/src/. -I/home/lux/code/language/python-cpp/build/debug/src -isystem /home/lux/code/language/python-cpp/build/debug/.cache/CPM/spdlog/be97/include -isystem /home/lux/code/language/python-cpp/build/debug/.cache/CPM/ordered-map/397e/include -DALWAYS_SMALL_CLEAR_STACK -DSMALL_CLEAR_SIZE=4 -g -std=c++23 -fcolor-diagnostics -fno-omit-frame-pointer -fsanitize=address -Wall -Wextra -Wextra-semi -Wshadow -Wnon-virtual-dtor -Wold-style-cast -Wcast-align -Wunused -Woverloaded-virtual -Wpedantic -Wconversion -Wsign-conversion -Wnull-dereference -Wdouble-promotion -Wformat=2 -Wimplicit-fallthrough -Werror -Wno-sign-conversion -Wno-shadow -Wno-implicit-fallthrough -Wno-old-style-cast -Wno-deprecated-copy -Wno-missing-field-initializers -Wno-null-dereference -Wno-unknown-warning-option -MD -MT src/CMakeFiles/python-cpp.dir/executable/bytecode/instructions/BinarySubscript.cpp.o -MF src/CMakeFiles/python-cpp.dir/executable/bytecode/instructions/BinarySubscript.cpp.o.d -o src/CMakeFiles/python-cpp.dir/executable/bytecode/instructions/BinarySubscript.cpp.o -c /home/lux/code/language/python-cpp/src/executable/bytecode/instructions/BinarySubscript.cpp
+[build] In file included from /home/lux/code/language/python-cpp/src/executable/bytecode/instructions/BinarySubscript.cpp:1:
+[build] In file included from /home/lux/code/language/python-cpp/src/executable/bytecode/instructions/BinarySubscript.hpp:3:
+[build] In file included from /home/lux/code/language/python-cpp/src/executable/bytecode/instructions/Instructions.hpp:3:
+[build] In file included from /home/lux/code/language/python-cpp/src/./runtime/Value.hpp:6:
+[build] In file included from /home/lux/code/language/python-cpp/src/./memory/GCTracingAllocator.hpp:21:
+[build] In file included from /home/lux/code/language/python-cpp/build/debug/.cache/CPM/yalantinglibs/f7f2/include/ylt/reflection/member_names.hpp:6:
+[build] In file included from /home/lux/code/language/python-cpp/build/debug/.cache/CPM/yalantinglibs/f7f2/include/ylt/reflection/template_string.hpp:5:
+[build] /home/lux/code/language/python-cpp/build/debug/.cache/CPM/yalantinglibs/f7f2/include/ylt/thirdparty/frozen/string.h:114:29: error: identifier '_s' preceded by whitespace in a literal operator declaration is deprecated [-Werror,-Wdeprecated-literal-operator]
+[build]   114 | constexpr string operator"" _s(const char *data, std::size_t size) {
+[build]       |                  ~~~~~~~~~~~^~
+[build]       |                  operator""_s
+[build] /home/lux/code/language/python-cpp/build/debug/.cache/CPM/yalantinglibs/f7f2/include/ylt/thirdparty/frozen/string.h:118:30: error: identifier '_s' preceded by whitespace in a literal operator declaration is deprecated [-Werror,-Wdeprecated-literal-operator]
+[build]   118 | constexpr wstring operator"" _s(const wchar_t *data, std::size_t size) {
+[build]       |                   ~~~~~~~~~~~^~
+[build]       |                   operator""_s
+[build] /home/lux/code/language/python-cpp/build/debug/.cache/CPM/yalantinglibs/f7f2/include/ylt/thirdparty/frozen/string.h:122:32: error: identifier '_s' preceded by whitespace in a literal operator declaration is deprecated [-Werror,-Wdeprecated-literal-operator]
+[build]   122 | constexpr u16string operator"" _s(const char16_t *data, std::size_t size) {
+[build]       |                     ~~~~~~~~~~~^~
+[build]       |                     operator""_s
+[build] /home/lux/code/language/python-cpp/build/debug/.cache/CPM/yalantinglibs/f7f2/include/ylt/thirdparty/frozen/string.h:126:32: error: identifier '_s' preceded by whitespace in a literal operator declaration is deprecated [-Werror,-Wdeprecated-literal-operator]
+[build]   126 | constexpr u32string operator"" _s(const char32_t *data, std::size_t size) {
+[build]       |                     ~~~~~~~~~~~^~
+[build]       |                     operator""_s
+[build] /home/lux/code/language/python-cpp/build/debug/.cache/CPM/yalantinglibs/f7f2/include/ylt/thirdparty/frozen/string.h:131:31: error: identifier '_s' preceded by whitespace in a literal operator declaration is deprecated [-Werror,-Wdeprecated-literal-operator]
+[build]   131 | constexpr u8string operator"" _s(const char8_t *data, std::size_t size) {
+[build]       |                    ~~~~~~~~~~~^~
+[build]       |                    operator""_s
+[build] 5 errors generated.
+[build] [406/725] wllvm: runtime/warnings/ResourceWarning.cpp
+[build] [407/725] wllvm: runtime/modules/weakref/module.cpp
+[build] [408/725] wllvm: runtime/types/builtin.cpp
+[build] [409/725] wllvm: runtime/warnings/PendingDeprecationWarning.cpp
+[build] [410/725] Building CXX object src/CMakeFiles/python-cpp.dir/executable/bytecode/instructions/BuildString.cpp.o
+[build] FAILED: [code=1] src/CMakeFiles/python-cpp.dir/executable/bytecode/instructions/BuildString.cpp.o 
+[build] /usr/bin/ccache /usr/lib/ccache/c++ -DCMAKE_BINARY_DIR=\"/home/lux/code/language/python-cpp/build/debug\" -DGC_THREADS -DPYLANG_HAS_LLD=1 -DPYLANG_USE_ARENA -DPYLANG_USE_Boehm_GC -DSPDLOG_COMPILED_LIB -I/home/lux/code/language/python-cpp/build/debug/.cache/CPM/yalantinglibs/f7f2/include -I/home/lux/code/language/python-cpp/build/debug/.cache/CPM/yalantinglibs/f7f2/include/ylt/thirdparty -I/home/lux/code/language/python-cpp/build/debug/.cache/CPM/bdwgc/2bfb/include -I/home/lux/code/language/python-cpp/src/. -I/home/lux/code/language/python-cpp/build/debug/src -isystem /home/lux/code/language/python-cpp/build/debug/.cache/CPM/spdlog/be97/include -isystem /home/lux/code/language/python-cpp/build/debug/.cache/CPM/ordered-map/397e/include -DALWAYS_SMALL_CLEAR_STACK -DSMALL_CLEAR_SIZE=4 -g -std=c++23 -fcolor-diagnostics -fno-omit-frame-pointer -fsanitize=address -Wall -Wextra -Wextra-semi -Wshadow -Wnon-virtual-dtor -Wold-style-cast -Wcast-align -Wunused -Woverloaded-virtual -Wpedantic -Wconversion -Wsign-conversion -Wnull-dereference -Wdouble-promotion -Wformat=2 -Wimplicit-fallthrough -Werror -Wno-sign-conversion -Wno-shadow -Wno-implicit-fallthrough -Wno-old-style-cast -Wno-deprecated-copy -Wno-missing-field-initializers -Wno-null-dereference -Wno-unknown-warning-option -MD -MT src/CMakeFiles/python-cpp.dir/executable/bytecode/instructions/BuildString.cpp.o -MF src/CMakeFiles/python-cpp.dir/executable/bytecode/instructions/BuildString.cpp.o.d -o src/CMakeFiles/python-cpp.dir/executable/bytecode/instructions/BuildString.cpp.o -c /home/lux/code/language/python-cpp/src/executable/bytecode/instructions/BuildString.cpp
+[build] In file included from /home/lux/code/language/python-cpp/src/executable/bytecode/instructions/BuildString.cpp:1:
+[build] In file included from /home/lux/code/language/python-cpp/src/executable/bytecode/instructions/BuildString.hpp:3:
+[build] In file included from /home/lux/code/language/python-cpp/src/executable/bytecode/instructions/Instructions.hpp:3:
+[build] In file included from /home/lux/code/language/python-cpp/src/./runtime/Value.hpp:6:
+[build] In file included from /home/lux/code/language/python-cpp/src/./memory/GCTracingAllocator.hpp:21:
+[build] In file included from /home/lux/code/language/python-cpp/build/debug/.cache/CPM/yalantinglibs/f7f2/include/ylt/reflection/member_names.hpp:6:
+[build] In file included from /home/lux/code/language/python-cpp/build/debug/.cache/CPM/yalantinglibs/f7f2/include/ylt/reflection/template_string.hpp:5:
+[build] /home/lux/code/language/python-cpp/build/debug/.cache/CPM/yalantinglibs/f7f2/include/ylt/thirdparty/frozen/string.h:114:29: error: identifier '_s' preceded by whitespace in a literal operator declaration is deprecated [-Werror,-Wdeprecated-literal-operator]
+[build]   114 | constexpr string operator"" _s(const char *data, std::size_t size) {
+[build]       |                  ~~~~~~~~~~~^~
+[build]       |                  operator""_s
+[build] /home/lux/code/language/python-cpp/build/debug/.cache/CPM/yalantinglibs/f7f2/include/ylt/thirdparty/frozen/string.h:118:30: error: identifier '_s' preceded by whitespace in a literal operator declaration is deprecated [-Werror,-Wdeprecated-literal-operator]
+[build]   118 | constexpr wstring operator"" _s(const wchar_t *data, std::size_t size) {
+[build]       |                   ~~~~~~~~~~~^~
+[build]       |                   operator""_s
+[build] /home/lux/code/language/python-cpp/build/debug/.cache/CPM/yalantinglibs/f7f2/include/ylt/thirdparty/frozen/string.h:122:32: error: identifier '_s' preceded by whitespace in a literal operator declaration is deprecated [-Werror,-Wdeprecated-literal-operator]
+[build]   122 | constexpr u16string operator"" _s(const char16_t *data, std::size_t size) {
+[build]       |                     ~~~~~~~~~~~^~
+[build]       |                     operator""_s
+[build] /home/lux/code/language/python-cpp/build/debug/.cache/CPM/yalantinglibs/f7f2/include/ylt/thirdparty/frozen/string.h:126:32: error: identifier '_s' preceded by whitespace in a literal operator declaration is deprecated [-Werror,-Wdeprecated-literal-operator]
+[build]   126 | constexpr u32string operator"" _s(const char32_t *data, std::size_t size) {
+[build]       |                     ~~~~~~~~~~~^~
+[build]       |                     operator""_s
+[build] /home/lux/code/language/python-cpp/build/debug/.cache/CPM/yalantinglibs/f7f2/include/ylt/thirdparty/frozen/string.h:131:31: error: identifier '_s' preceded by whitespace in a literal operator declaration is deprecated [-Werror,-Wdeprecated-literal-operator]
+[build]   131 | constexpr u8string operator"" _s(const char8_t *data, std::size_t size) {
+[build]       |                    ~~~~~~~~~~~^~
+[build]       |                    operator""_s
+[build] 5 errors generated.
+[build] [411/725] Building CXX object src/CMakeFiles/python-cpp.dir/executable/bytecode/instructions/ClearTopCleanup.cpp.o
+[build] FAILED: [code=1] src/CMakeFiles/python-cpp.dir/executable/bytecode/instructions/ClearTopCleanup.cpp.o 
+[build] /usr/bin/ccache /usr/lib/ccache/c++ -DCMAKE_BINARY_DIR=\"/home/lux/code/language/python-cpp/build/debug\" -DGC_THREADS -DPYLANG_HAS_LLD=1 -DPYLANG_USE_ARENA -DPYLANG_USE_Boehm_GC -DSPDLOG_COMPILED_LIB -I/home/lux/code/language/python-cpp/build/debug/.cache/CPM/yalantinglibs/f7f2/include -I/home/lux/code/language/python-cpp/build/debug/.cache/CPM/yalantinglibs/f7f2/include/ylt/thirdparty -I/home/lux/code/language/python-cpp/build/debug/.cache/CPM/bdwgc/2bfb/include -I/home/lux/code/language/python-cpp/src/. -I/home/lux/code/language/python-cpp/build/debug/src -isystem /home/lux/code/language/python-cpp/build/debug/.cache/CPM/spdlog/be97/include -isystem /home/lux/code/language/python-cpp/build/debug/.cache/CPM/ordered-map/397e/include -DALWAYS_SMALL_CLEAR_STACK -DSMALL_CLEAR_SIZE=4 -g -std=c++23 -fcolor-diagnostics -fno-omit-frame-pointer -fsanitize=address -Wall -Wextra -Wextra-semi -Wshadow -Wnon-virtual-dtor -Wold-style-cast -Wcast-align -Wunused -Woverloaded-virtual -Wpedantic -Wconversion -Wsign-conversion -Wnull-dereference -Wdouble-promotion -Wformat=2 -Wimplicit-fallthrough -Werror -Wno-sign-conversion -Wno-shadow -Wno-implicit-fallthrough -Wno-old-style-cast -Wno-deprecated-copy -Wno-missing-field-initializers -Wno-null-dereference -Wno-unknown-warning-option -MD -MT src/CMakeFiles/python-cpp.dir/executable/bytecode/instructions/ClearTopCleanup.cpp.o -MF src/CMakeFiles/python-cpp.dir/executable/bytecode/instructions/ClearTopCleanup.cpp.o.d -o src/CMakeFiles/python-cpp.dir/executable/bytecode/instructions/ClearTopCleanup.cpp.o -c /home/lux/code/language/python-cpp/src/executable/bytecode/instructions/ClearTopCleanup.cpp
+[build] In file included from /home/lux/code/language/python-cpp/src/executable/bytecode/instructions/ClearTopCleanup.cpp:1:
+[build] In file included from /home/lux/code/language/python-cpp/src/executable/bytecode/instructions/ClearTopCleanup.hpp:3:
+[build] In file included from /home/lux/code/language/python-cpp/src/executable/bytecode/instructions/Instructions.hpp:3:
+[build] In file included from /home/lux/code/language/python-cpp/src/./runtime/Value.hpp:6:
+[build] In file included from /home/lux/code/language/python-cpp/src/./memory/GCTracingAllocator.hpp:21:
+[build] In file included from /home/lux/code/language/python-cpp/build/debug/.cache/CPM/yalantinglibs/f7f2/include/ylt/reflection/member_names.hpp:6:
+[build] In file included from /home/lux/code/language/python-cpp/build/debug/.cache/CPM/yalantinglibs/f7f2/include/ylt/reflection/template_string.hpp:5:
+[build] /home/lux/code/language/python-cpp/build/debug/.cache/CPM/yalantinglibs/f7f2/include/ylt/thirdparty/frozen/string.h:114:29: error: identifier '_s' preceded by whitespace in a literal operator declaration is deprecated [-Werror,-Wdeprecated-literal-operator]
+[build]   114 | constexpr string operator"" _s(const char *data, std::size_t size) {
+[build]       |                  ~~~~~~~~~~~^~
+[build]       |                  operator""_s
+[build] /home/lux/code/language/python-cpp/build/debug/.cache/CPM/yalantinglibs/f7f2/include/ylt/thirdparty/frozen/string.h:118:30: error: identifier '_s' preceded by whitespace in a literal operator declaration is deprecated [-Werror,-Wdeprecated-literal-operator]
+[build]   118 | constexpr wstring operator"" _s(const wchar_t *data, std::size_t size) {
+[build]       |                   ~~~~~~~~~~~^~
+[build]       |                   operator""_s
+[build] /home/lux/code/language/python-cpp/build/debug/.cache/CPM/yalantinglibs/f7f2/include/ylt/thirdparty/frozen/string.h:122:32: error: identifier '_s' preceded by whitespace in a literal operator declaration is deprecated [-Werror,-Wdeprecated-literal-operator]
+[build]   122 | constexpr u16string operator"" _s(const char16_t *data, std::size_t size) {
+[build]       |                     ~~~~~~~~~~~^~
+[build]       |                     operator""_s
+[build] /home/lux/code/language/python-cpp/build/debug/.cache/CPM/yalantinglibs/f7f2/include/ylt/thirdparty/frozen/string.h:126:32: error: identifier '_s' preceded by whitespace in a literal operator declaration is deprecated [-Werror,-Wdeprecated-literal-operator]
+[build]   126 | constexpr u32string operator"" _s(const char32_t *data, std::size_t size) {
+[build]       |                     ~~~~~~~~~~~^~
+[build]       |                     operator""_s
+[build] /home/lux/code/language/python-cpp/build/debug/.cache/CPM/yalantinglibs/f7f2/include/ylt/thirdparty/frozen/string.h:131:31: error: identifier '_s' preceded by whitespace in a literal operator declaration is deprecated [-Werror,-Wdeprecated-literal-operator]
+[build]   131 | constexpr u8string operator"" _s(const char8_t *data, std::size_t size) {
+[build]       |                    ~~~~~~~~~~~^~
+[build]       |                    operator""_s
+[build] 5 errors generated.
+[build] [412/725] Building CXX object src/CMakeFiles/python-cpp.dir/executable/bytecode/instructions/DictAdd.cpp.o
+[build] FAILED: [code=1] src/CMakeFiles/python-cpp.dir/executable/bytecode/instructions/DictAdd.cpp.o 
+[build] /usr/bin/ccache /usr/lib/ccache/c++ -DCMAKE_BINARY_DIR=\"/home/lux/code/language/python-cpp/build/debug\" -DGC_THREADS -DPYLANG_HAS_LLD=1 -DPYLANG_USE_ARENA -DPYLANG_USE_Boehm_GC -DSPDLOG_COMPILED_LIB -I/home/lux/code/language/python-cpp/build/debug/.cache/CPM/yalantinglibs/f7f2/include -I/home/lux/code/language/python-cpp/build/debug/.cache/CPM/yalantinglibs/f7f2/include/ylt/thirdparty -I/home/lux/code/language/python-cpp/build/debug/.cache/CPM/bdwgc/2bfb/include -I/home/lux/code/language/python-cpp/src/. -I/home/lux/code/language/python-cpp/build/debug/src -isystem /home/lux/code/language/python-cpp/build/debug/.cache/CPM/spdlog/be97/include -isystem /home/lux/code/language/python-cpp/build/debug/.cache/CPM/ordered-map/397e/include -DALWAYS_SMALL_CLEAR_STACK -DSMALL_CLEAR_SIZE=4 -g -std=c++23 -fcolor-diagnostics -fno-omit-frame-pointer -fsanitize=address -Wall -Wextra -Wextra-semi -Wshadow -Wnon-virtual-dtor -Wold-style-cast -Wcast-align -Wunused -Woverloaded-virtual -Wpedantic -Wconversion -Wsign-conversion -Wnull-dereference -Wdouble-promotion -Wformat=2 -Wimplicit-fallthrough -Werror -Wno-sign-conversion -Wno-shadow -Wno-implicit-fallthrough -Wno-old-style-cast -Wno-deprecated-copy -Wno-missing-field-initializers -Wno-null-dereference -Wno-unknown-warning-option -MD -MT src/CMakeFiles/python-cpp.dir/executable/bytecode/instructions/DictAdd.cpp.o -MF src/CMakeFiles/python-cpp.dir/executable/bytecode/instructions/DictAdd.cpp.o.d -o src/CMakeFiles/python-cpp.dir/executable/bytecode/instructions/DictAdd.cpp.o -c /home/lux/code/language/python-cpp/src/executable/bytecode/instructions/DictAdd.cpp
+[build] In file included from /home/lux/code/language/python-cpp/src/executable/bytecode/instructions/DictAdd.cpp:1:
+[build] In file included from /home/lux/code/language/python-cpp/src/executable/bytecode/instructions/DictAdd.hpp:3:
+[build] In file included from /home/lux/code/language/python-cpp/src/executable/bytecode/instructions/Instructions.hpp:3:
+[build] In file included from /home/lux/code/language/python-cpp/src/./runtime/Value.hpp:6:
+[build] In file included from /home/lux/code/language/python-cpp/src/./memory/GCTracingAllocator.hpp:21:
+[build] In file included from /home/lux/code/language/python-cpp/build/debug/.cache/CPM/yalantinglibs/f7f2/include/ylt/reflection/member_names.hpp:6:
+[build] In file included from /home/lux/code/language/python-cpp/build/debug/.cache/CPM/yalantinglibs/f7f2/include/ylt/reflection/template_string.hpp:5:
+[build] /home/lux/code/language/python-cpp/build/debug/.cache/CPM/yalantinglibs/f7f2/include/ylt/thirdparty/frozen/string.h:114:29: error: identifier '_s' preceded by whitespace in a literal operator declaration is deprecated [-Werror,-Wdeprecated-literal-operator]
+[build]   114 | constexpr string operator"" _s(const char *data, std::size_t size) {
+[build]       |                  ~~~~~~~~~~~^~
+[build]       |                  operator""_s
+[build] /home/lux/code/language/python-cpp/build/debug/.cache/CPM/yalantinglibs/f7f2/include/ylt/thirdparty/frozen/string.h:118:30: error: identifier '_s' preceded by whitespace in a literal operator declaration is deprecated [-Werror,-Wdeprecated-literal-operator]
+[build]   118 | constexpr wstring operator"" _s(const wchar_t *data, std::size_t size) {
+[build]       |                   ~~~~~~~~~~~^~
+[build]       |                   operator""_s
+[build] /home/lux/code/language/python-cpp/build/debug/.cache/CPM/yalantinglibs/f7f2/include/ylt/thirdparty/frozen/string.h:122:32: error: identifier '_s' preceded by whitespace in a literal operator declaration is deprecated [-Werror,-Wdeprecated-literal-operator]
+[build]   122 | constexpr u16string operator"" _s(const char16_t *data, std::size_t size) {
+[build]       |                     ~~~~~~~~~~~^~
+[build]       |                     operator""_s
+[build] /home/lux/code/language/python-cpp/build/debug/.cache/CPM/yalantinglibs/f7f2/include/ylt/thirdparty/frozen/string.h:126:32: error: identifier '_s' preceded by whitespace in a literal operator declaration is deprecated [-Werror,-Wdeprecated-literal-operator]
+[build]   126 | constexpr u32string operator"" _s(const char32_t *data, std::size_t size) {
+[build]       |                     ~~~~~~~~~~~^~
+[build]       |                     operator""_s
+[build] /home/lux/code/language/python-cpp/build/debug/.cache/CPM/yalantinglibs/f7f2/include/ylt/thirdparty/frozen/string.h:131:31: error: identifier '_s' preceded by whitespace in a literal operator declaration is deprecated [-Werror,-Wdeprecated-literal-operator]
+[build]   131 | constexpr u8string operator"" _s(const char8_t *data, std::size_t size) {
+[build]       |                    ~~~~~~~~~~~^~
+[build]       |                    operator""_s
+[build] 5 errors generated.
+[build] [413/725] Building CXX object src/CMakeFiles/python-cpp.dir/executable/bytecode/instructions/BuildSlice.cpp.o
+[build] FAILED: [code=1] src/CMakeFiles/python-cpp.dir/executable/bytecode/instructions/BuildSlice.cpp.o 
+[build] /usr/bin/ccache /usr/lib/ccache/c++ -DCMAKE_BINARY_DIR=\"/home/lux/code/language/python-cpp/build/debug\" -DGC_THREADS -DPYLANG_HAS_LLD=1 -DPYLANG_USE_ARENA -DPYLANG_USE_Boehm_GC -DSPDLOG_COMPILED_LIB -I/home/lux/code/language/python-cpp/build/debug/.cache/CPM/yalantinglibs/f7f2/include -I/home/lux/code/language/python-cpp/build/debug/.cache/CPM/yalantinglibs/f7f2/include/ylt/thirdparty -I/home/lux/code/language/python-cpp/build/debug/.cache/CPM/bdwgc/2bfb/include -I/home/lux/code/language/python-cpp/src/. -I/home/lux/code/language/python-cpp/build/debug/src -isystem /home/lux/code/language/python-cpp/build/debug/.cache/CPM/spdlog/be97/include -isystem /home/lux/code/language/python-cpp/build/debug/.cache/CPM/ordered-map/397e/include -DALWAYS_SMALL_CLEAR_STACK -DSMALL_CLEAR_SIZE=4 -g -std=c++23 -fcolor-diagnostics -fno-omit-frame-pointer -fsanitize=address -Wall -Wextra -Wextra-semi -Wshadow -Wnon-virtual-dtor -Wold-style-cast -Wcast-align -Wunused -Woverloaded-virtual -Wpedantic -Wconversion -Wsign-conversion -Wnull-dereference -Wdouble-promotion -Wformat=2 -Wimplicit-fallthrough -Werror -Wno-sign-conversion -Wno-shadow -Wno-implicit-fallthrough -Wno-old-style-cast -Wno-deprecated-copy -Wno-missing-field-initializers -Wno-null-dereference -Wno-unknown-warning-option -MD -MT src/CMakeFiles/python-cpp.dir/executable/bytecode/instructions/BuildSlice.cpp.o -MF src/CMakeFiles/python-cpp.dir/executable/bytecode/instructions/BuildSlice.cpp.o.d -o src/CMakeFiles/python-cpp.dir/executable/bytecode/instructions/BuildSlice.cpp.o -c /home/lux/code/language/python-cpp/src/executable/bytecode/instructions/BuildSlice.cpp
+[build] In file included from /home/lux/code/language/python-cpp/src/executable/bytecode/instructions/BuildSlice.cpp:1:
+[build] In file included from /home/lux/code/language/python-cpp/src/executable/bytecode/instructions/BuildSlice.hpp:3:
+[build] In file included from /home/lux/code/language/python-cpp/src/executable/bytecode/instructions/Instructions.hpp:3:
+[build] In file included from /home/lux/code/language/python-cpp/src/./runtime/Value.hpp:6:
+[build] In file included from /home/lux/code/language/python-cpp/src/./memory/GCTracingAllocator.hpp:21:
+[build] In file included from /home/lux/code/language/python-cpp/build/debug/.cache/CPM/yalantinglibs/f7f2/include/ylt/reflection/member_names.hpp:6:
+[build] In file included from /home/lux/code/language/python-cpp/build/debug/.cache/CPM/yalantinglibs/f7f2/include/ylt/reflection/template_string.hpp:5:
+[build] /home/lux/code/language/python-cpp/build/debug/.cache/CPM/yalantinglibs/f7f2/include/ylt/thirdparty/frozen/string.h:114:29: error: identifier '_s' preceded by whitespace in a literal operator declaration is deprecated [-Werror,-Wdeprecated-literal-operator]
+[build]   114 | constexpr string operator"" _s(const char *data, std::size_t size) {
+[build]       |                  ~~~~~~~~~~~^~
+[build]       |                  operator""_s
+[build] /home/lux/code/language/python-cpp/build/debug/.cache/CPM/yalantinglibs/f7f2/include/ylt/thirdparty/frozen/string.h:118:30: error: identifier '_s' preceded by whitespace in a literal operator declaration is deprecated [-Werror,-Wdeprecated-literal-operator]
+[build]   118 | constexpr wstring operator"" _s(const wchar_t *data, std::size_t size) {
+[build]       |                   ~~~~~~~~~~~^~
+[build]       |                   operator""_s
+[build] /home/lux/code/language/python-cpp/build/debug/.cache/CPM/yalantinglibs/f7f2/include/ylt/thirdparty/frozen/string.h:122:32: error: identifier '_s' preceded by whitespace in a literal operator declaration is deprecated [-Werror,-Wdeprecated-literal-operator]
+[build]   122 | constexpr u16string operator"" _s(const char16_t *data, std::size_t size) {
+[build]       |                     ~~~~~~~~~~~^~
+[build]       |                     operator""_s
+[build] /home/lux/code/language/python-cpp/build/debug/.cache/CPM/yalantinglibs/f7f2/include/ylt/thirdparty/frozen/string.h:126:32: error: identifier '_s' preceded by whitespace in a literal operator declaration is deprecated [-Werror,-Wdeprecated-literal-operator]
+[build]   126 | constexpr u32string operator"" _s(const char32_t *data, std::size_t size) {
+[build]       |                     ~~~~~~~~~~~^~
+[build]       |                     operator""_s
+[build] /home/lux/code/language/python-cpp/build/debug/.cache/CPM/yalantinglibs/f7f2/include/ylt/thirdparty/frozen/string.h:131:31: error: identifier '_s' preceded by whitespace in a literal operator declaration is deprecated [-Werror,-Wdeprecated-literal-operator]
+[build]   131 | constexpr u8string operator"" _s(const char8_t *data, std::size_t size) {
+[build]       |                    ~~~~~~~~~~~^~
+[build]       |                    operator""_s
+[build] 5 errors generated.
+[build] [414/725] Building CXX object src/CMakeFiles/python-cpp.dir/executable/bytecode/instructions/ClearExceptionState.cpp.o
+[build] FAILED: [code=1] src/CMakeFiles/python-cpp.dir/executable/bytecode/instructions/ClearExceptionState.cpp.o 
+[build] /usr/bin/ccache /usr/lib/ccache/c++ -DCMAKE_BINARY_DIR=\"/home/lux/code/language/python-cpp/build/debug\" -DGC_THREADS -DPYLANG_HAS_LLD=1 -DPYLANG_USE_ARENA -DPYLANG_USE_Boehm_GC -DSPDLOG_COMPILED_LIB -I/home/lux/code/language/python-cpp/build/debug/.cache/CPM/yalantinglibs/f7f2/include -I/home/lux/code/language/python-cpp/build/debug/.cache/CPM/yalantinglibs/f7f2/include/ylt/thirdparty -I/home/lux/code/language/python-cpp/build/debug/.cache/CPM/bdwgc/2bfb/include -I/home/lux/code/language/python-cpp/src/. -I/home/lux/code/language/python-cpp/build/debug/src -isystem /home/lux/code/language/python-cpp/build/debug/.cache/CPM/spdlog/be97/include -isystem /home/lux/code/language/python-cpp/build/debug/.cache/CPM/ordered-map/397e/include -DALWAYS_SMALL_CLEAR_STACK -DSMALL_CLEAR_SIZE=4 -g -std=c++23 -fcolor-diagnostics -fno-omit-frame-pointer -fsanitize=address -Wall -Wextra -Wextra-semi -Wshadow -Wnon-virtual-dtor -Wold-style-cast -Wcast-align -Wunused -Woverloaded-virtual -Wpedantic -Wconversion -Wsign-conversion -Wnull-dereference -Wdouble-promotion -Wformat=2 -Wimplicit-fallthrough -Werror -Wno-sign-conversion -Wno-shadow -Wno-implicit-fallthrough -Wno-old-style-cast -Wno-deprecated-copy -Wno-missing-field-initializers -Wno-null-dereference -Wno-unknown-warning-option -MD -MT src/CMakeFiles/python-cpp.dir/executable/bytecode/instructions/ClearExceptionState.cpp.o -MF src/CMakeFiles/python-cpp.dir/executable/bytecode/instructions/ClearExceptionState.cpp.o.d -o src/CMakeFiles/python-cpp.dir/executable/bytecode/instructions/ClearExceptionState.cpp.o -c /home/lux/code/language/python-cpp/src/executable/bytecode/instructions/ClearExceptionState.cpp
+[build] In file included from /home/lux/code/language/python-cpp/src/executable/bytecode/instructions/ClearExceptionState.cpp:1:
+[build] In file included from /home/lux/code/language/python-cpp/src/executable/bytecode/instructions/ClearExceptionState.hpp:3:
+[build] In file included from /home/lux/code/language/python-cpp/src/executable/bytecode/instructions/Instructions.hpp:3:
+[build] In file included from /home/lux/code/language/python-cpp/src/./runtime/Value.hpp:6:
+[build] In file included from /home/lux/code/language/python-cpp/src/./memory/GCTracingAllocator.hpp:21:
+[build] In file included from /home/lux/code/language/python-cpp/build/debug/.cache/CPM/yalantinglibs/f7f2/include/ylt/reflection/member_names.hpp:6:
+[build] In file included from /home/lux/code/language/python-cpp/build/debug/.cache/CPM/yalantinglibs/f7f2/include/ylt/reflection/template_string.hpp:5:
+[build] /home/lux/code/language/python-cpp/build/debug/.cache/CPM/yalantinglibs/f7f2/include/ylt/thirdparty/frozen/string.h:114:29: error: identifier '_s' preceded by whitespace in a literal operator declaration is deprecated [-Werror,-Wdeprecated-literal-operator]
+[build]   114 | constexpr string operator"" _s(const char *data, std::size_t size) {
+[build]       |                  ~~~~~~~~~~~^~
+[build]       |                  operator""_s
+[build] /home/lux/code/language/python-cpp/build/debug/.cache/CPM/yalantinglibs/f7f2/include/ylt/thirdparty/frozen/string.h:118:30: error: identifier '_s' preceded by whitespace in a literal operator declaration is deprecated [-Werror,-Wdeprecated-literal-operator]
+[build]   118 | constexpr wstring operator"" _s(const wchar_t *data, std::size_t size) {
+[build]       |                   ~~~~~~~~~~~^~
+[build]       |                   operator""_s
+[build] /home/lux/code/language/python-cpp/build/debug/.cache/CPM/yalantinglibs/f7f2/include/ylt/thirdparty/frozen/string.h:122:32: error: identifier '_s' preceded by whitespace in a literal operator declaration is deprecated [-Werror,-Wdeprecated-literal-operator]
+[build]   122 | constexpr u16string operator"" _s(const char16_t *data, std::size_t size) {
+[build]       |                     ~~~~~~~~~~~^~
+[build]       |                     operator""_s
+[build] /home/lux/code/language/python-cpp/build/debug/.cache/CPM/yalantinglibs/f7f2/include/ylt/thirdparty/frozen/string.h:126:32: error: identifier '_s' preceded by whitespace in a literal operator declaration is deprecated [-Werror,-Wdeprecated-literal-operator]
+[build]   126 | constexpr u32string operator"" _s(const char32_t *data, std::size_t size) {
+[build]       |                     ~~~~~~~~~~~^~
+[build]       |                     operator""_s
+[build] /home/lux/code/language/python-cpp/build/debug/.cache/CPM/yalantinglibs/f7f2/include/ylt/thirdparty/frozen/string.h:131:31: error: identifier '_s' preceded by whitespace in a literal operator declaration is deprecated [-Werror,-Wdeprecated-literal-operator]
+[build]   131 | constexpr u8string operator"" _s(const char8_t *data, std::size_t size) {
+[build]       |                    ~~~~~~~~~~~^~
+[build]       |                    operator""_s
+[build] 5 errors generated.

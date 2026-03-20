@@ -1,244 +1,246 @@
-## 深度分析：上一轮方案的致命错误
 
-### 问题诊断
 
-VTune 的数据已经非常清晰地揭示了问题的根源。让我重新审视整个架构：
+# GC 标记开销分析与优化方案
 
-| 组件 | 当前做法 | 问题 |
-|---|---|---|
-| **全局 `new` 劫持** | 所有 `new` → `GC_MALLOC` | **这是灾难的根源！** 所有 `std::string` 的 char 缓冲区、spdlog 内部缓冲区、fmt 缓冲区、所有临时对象全部涌入 GC 堆。GC 要逐字节扫描数 GB 纯文本数据去"找指针"。 |
-| **删除所有 Finalizer** | 上一轮建议删掉 | **这会导致内存泄漏！** 如果我们移除全局 new 劫持（必须做），STL 的缓冲区回到了 `malloc` 堆上，GC 回收 PyObject 时不调析构函数，`vector`/`string` 的缓冲区就永远泄漏了。 |
-| **GMP 接管** | 上一轮建议用 `GC_MALLOC_ATOMIC` | 方向正确，但不够。 |
+看了你的代码，问题根源很清晰：每个 `PyInteger` 内部持有 `mpz_class`，而 `mpz_class` 通过 `GC_MALLOC` 分配的 buffer 对 GC 来说是不透明的指针链。GC 必须保守扫描每一块内存来找到这些引用，导致 `GC_mark_from` 爆炸。
 
-**核心矛盾**：我们需要 GC 能发现藏在 `std::vector<Value>` 缓冲区里的 `PyObject*` 指针（防 UAF），但又不能让 GC 扫描所有内存（性能灾难）。
+## 问题 1：减少 GC 标记开销
 
-### 正确方案：精准打击
+### 核心问题：GMP 内存不应该被 GC 追踪
 
-**原则：只让存放 `PyObject*` 指针的内存进入 GC 扫描范围，其他一切走普通 `malloc`。**
+你在 rt_lifecycle.cpp 中把 GMP 的分配器设成了 `GC_MALLOC_ATOMIC`，这是对的方向，但 `GC_MALLOC_ATOMIC` 分配的内存虽然不会被扫描内部指针，GC 仍然需要标记它为存活。真正的问题是：
 
-1. **删除全局 `new` 劫持** → GC 扫描量从数 GB 降至数 MB
-2. **保留 Finalizer** → 回收 PyObject 时调析构函数，释放 STL 的 `malloc` 缓冲区
-3. **仅对存放 `Value`/`PyObject*` 的容器使用 `gc_allocator`** → 防 UAF
-4. **GMP 重定向到 `GC_MALLOC_ATOMIC`** → GMP 大整数缓冲区不被扫描
+1. 大量小整数运算产生海量临时 `PyInteger`，每个都是 GC 对象
+2. `GC_MALLOC` 分配的 `PyInteger` 本身需要被扫描（因为内部有 `m_type` 等指针）
+3. GMP 的 `mpz_class` 内部 buffer 虽然用了 `GC_MALLOC_ATOMIC`，但 `mpz_class` 对象本身嵌在 `PyInteger` 里，GC 扫描 `PyInteger` 时要遍历整个对象体
 
----
+### 方案 A：小整数缓存（立竿见影）
 
-### 第 1 步：清空 Boehm_GCSetup.cpp（消灭性能灾难）
+Python 的 CPython 缓存 [-5, 256] 范围的整数。你的 runtime 没做这个优化，意味着 `for i in range(1000000)` 会创建 100 万个 `PyInteger`。
 
 ````cpp
-// =============================================================================
-// Boehm GC 全局设置
-// =============================================================================
-// 注意: 我们 **不再** 劫持全局 operator new/delete！
-// 只有通过 Arena::allocate 创建的 PyObject 才进入 GC 堆。
-// STL 容器内部缓冲区走普通 malloc, 由 Finalizer 调用析构函数释放。
-// 存放 PyObject* 的容器使用 gc_allocator, 确保 GC 能扫描到指针。
-// =============================================================================
+// ...existing code...
+class PyInteger : public Interface<PyNumber, PyInteger>
+{
+	// ...existing code...
 
-#ifdef PYLANG_USE_Boehm_GC
-// 此文件故意留空。不再劫持全局 new/delete。
-// GC 只管理通过 Arena::allocate (即 GC_MALLOC) 分配的 PyObject。
-#endif
-````
+  public:
+	static PyResult<PyInteger *> create(int64_t);
+	static PyResult<PyInteger *> create(BigIntType);
 
-### 第 2 步：定义 GC 感知的分配器别名（新文件）
+	// 新增：小整数缓存
+	static constexpr int64_t kSmallIntMin = -5;
+	static constexpr int64_t kSmallIntMax = 256;
+	static void init_small_int_cache();
 
-````cpp
-#pragma once
+  private:
+	static PyInteger *s_small_int_cache[256 - (-5) + 1];
 
-// =============================================================================
-// GC-aware allocator — 仅用于存放 PyObject* / Value 的容器
-// =============================================================================
-
-#include <memory>
-
-#ifdef PYLANG_USE_Boehm_GC
-#include <gc.h>
-
-namespace py {
-
-/// 一个极简的 STL 兼容 Allocator，内部缓冲区分配到 GC 可扫描的堆上。
-/// 这样 GC 在 mark 阶段能发现缓冲区内的 PyObject* 指针，防止 UAF。
-template<typename T>
-struct GCTracingAllocator {
-    using value_type = T;
-
-    GCTracingAllocator() noexcept = default;
-
-    template<typename U>
-    GCTracingAllocator(const GCTracingAllocator<U>&) noexcept {}
-
-    T* allocate(std::size_t n) {
-        // GC_MALLOC: 分配的内存会被 GC 扫描以发现内部的指针
-        void* p = GC_MALLOC(n * sizeof(T));
-        if (!p) throw std::bad_alloc();
-        return static_cast<T*>(p);
-    }
-
-    void deallocate(T* p, std::size_t) noexcept {
-        GC_FREE(p);
-    }
-
-    template<typename U>
-    bool operator==(const GCTracingAllocator<U>&) const noexcept { return true; }
-    template<typename U>
-    bool operator!=(const GCTracingAllocator<U>&) const noexcept { return false; }
+	// ...existing code...
 };
-
-} // namespace py
-
-/// 容器别名: 用于存放 Value / PyObject* 的 vector
-#define PYLANG_GC_VECTOR(T) std::vector<T, ::py::GCTracingAllocator<T>>
-
-#else // !PYLANG_USE_Boehm_GC
-
-#define PYLANG_GC_VECTOR(T) std::vector<T>
-
-#endif
 ````
-
-### 第 3 步：保留 Arena.hpp 中的 Finalizer（但保持精简）
-
-在 Arena.hpp 中 **保留** Finalizer 逻辑，因为现在 STL 缓冲区回到了普通 `malloc`，必须通过析构函数释放它们。
 
 ````cpp
 // ...existing code...
 
-	template<typename T, typename... Args> T *allocate(Args &&...args)
-	{
-		static_assert(
-			alignof(T) <= alignof(std::max_align_t), "Over-aligned types not yet supported");
+PyInteger *PyInteger::s_small_int_cache[256 - (-5) + 1] = {};
 
-#ifdef PYLANG_USE_Boehm_GC
-		void *mem = GC_MALLOC(sizeof(T));
-		if (!mem) return nullptr;
-
-		T *obj = new (mem) T(std::forward<Args>(args)...);
-
-		// ✅ 保留 Finalizer！STL 缓冲区在普通 malloc 堆上，需要析构函数释放。
-		if constexpr (!std::is_trivially_destructible_v<T>) {
-			GC_register_finalizer_ignore_self(
-				mem, gc_finalizer_proxy<T>, nullptr, nullptr, nullptr);
-		}
-		return obj;
-#else
-		// ...existing code... (原有 bump allocation)
-#endif
+void PyInteger::init_small_int_cache()
+{
+	for (int64_t i = kSmallIntMin; i <= kSmallIntMax; ++i) {
+		auto *obj = PYLANG_ALLOC(PyInteger, BigIntType{i});
+		s_small_int_cache[i - kSmallIntMin] = obj;
 	}
+}
 
-	template<typename T, typename... Args>
-	T *allocate_with_extra(size_t extra_bytes, Args &&...args)
-	{
-		static_assert(
-			alignof(T) <= alignof(std::max_align_t), "Over-aligned types not yet supported");
-
-#ifdef PYLANG_USE_Boehm_GC
-		void *mem = GC_MALLOC(sizeof(T) + extra_bytes);
-		if (!mem) return nullptr;
-
-		T *obj = new (mem) T(std::forward<Args>(args)...);
-
-		// ✅ 同样保留
-		if constexpr (!std::is_trivially_destructible_v<T>) {
-			GC_register_finalizer_ignore_self(
-				mem, gc_finalizer_proxy<T>, nullptr, nullptr, nullptr);
-		}
-		return obj;
-#else
-		// ...existing code...
-#endif
+PyResult<PyInteger *> PyInteger::create(int64_t value)
+{
+	if (value >= kSmallIntMin && value <= kSmallIntMax) {
+		return Ok(s_small_int_cache[value - kSmallIntMin]);
 	}
+	return PyInteger::create(BigIntType{ value });
+}
+
+PyResult<PyInteger *> PyInteger::create(BigIntType value)
+{
+	if (value.fits_slong_p()) {
+		auto v = value.get_si();
+		if (v >= kSmallIntMin && v <= kSmallIntMax) {
+			return Ok(s_small_int_cache[v - kSmallIntMin]);
+		}
+	}
+	auto *result = PYLANG_ALLOC(PyInteger, std::move(value));
+	PYLANG_CHECK_ALLOC(result, PyInteger);
+	return Ok(result);
+}
 
 // ...existing code...
 ````
 
-### 第 4 步：修改存放 `PyObject*` 的容器（仅约 5 个文件）
-
-这是唯一需要修改业务层代码的地方，但改动极小且高度定向。
-
-**`PyList.hpp`**（或其容器成员声明处）：
-````cpp
-// ...existing code...
-#include "memory/GCAllocator.hpp"
-
-namespace py {
-class PyList : public PyObject {
-    // ...existing code...
-private:
-    // ✅ 改为 GC 感知的 allocator，让 GC 能扫描到缓冲区内的 PyObject*
-    PYLANG_GC_VECTOR(Value) m_elements;
-    // ...existing code...
-};
-}
-````
-
-**`PyDict.hpp`** / `PySet.hpp` / 任何存放 `Value` 或 `PyObject*` 的容器——同理，将 allocator 参数换为 `GCTracingAllocator`。
-
-对于 `tsl::ordered_map`，它接受 allocator 作为最后一个模板参数：
-````cpp
-// ...existing code...
-#include "memory/GCAllocator.hpp"
-
-// 将 allocator 替换为 GC 感知版本
-#ifdef PYLANG_USE_Boehm_GC
-using DictMap = tsl::ordered_map<Value, Value, ValueHash, std::equal_to<Value>,
-    ::py::GCTracingAllocator<std::pair<Value, Value>>>;
-#else
-using DictMap = tsl::ordered_map<Value, Value, ValueHash>;
-#endif
-// ...existing code...
-````
-
-### 第 5 步：GMP 重定向（优化，rt_lifecycle.cpp）
+在 `rt_init` 中调用：
 
 ````cpp
 // ...existing code...
-
-#ifdef PYLANG_USE_Boehm_GC
-#include <gc.h>
-#include <gmp.h>
-
-// GMP 内部存的是大整数 limb 数组，纯数字无指针，用 ATOMIC 跳过扫描
-extern "C" {
-static void* gmp_gc_alloc(size_t size) {
-    return GC_MALLOC_ATOMIC(size);
-}
-static void* gmp_gc_realloc(void* ptr, size_t /*old_size*/, size_t new_size) {
-    return GC_REALLOC(ptr, new_size);
-}
-static void gmp_gc_free(void* ptr, size_t /*size*/) {
-    GC_FREE(ptr);
-}
-}
-#endif
-
 PYLANG_EXPORT_LIFECYCLE("init", "void", "")
 void rt_init()
 {
 #ifdef PYLANG_USE_Boehm_GC
     GC_INIT();
+    GC_expand_hp(256 * 1024 * 1024);
+    GC_set_free_space_divisor(100);
+    GC_enable_incremental();
     GC_allow_register_threads();
-    // GMP 的 limb 缓冲区交给 GC 管理(ATOMIC, 不扫描)
-    // 这样 PyInteger 的 finalizer 就不需要调 mpz_clear 去 free()
-    mp_set_memory_functions(gmp_gc_alloc, gmp_gc_realloc, gmp_gc_free);
+    GC_set_warn_proc(pylang_gc_warn_proc);
+    GC_set_finalize_on_demand(0);
+    mp_set_memory_functions(pylang_gmp_alloc, pylang_gmp_realloc, pylang_gmp_free);
 #endif
 
 #ifdef PYLANG_USE_ARENA
     py::ArenaManager::initialize();
 #endif
-    // ...existing code...
+
+    if (!py::RuntimeContext::has_current()) {
+        static thread_local py::RuntimeContext s_compiler_ctx;
+        py::RuntimeContext::set_current(&s_compiler_ctx);
+    }
+
+    py::initialize_types();
+    py::PyInteger::init_small_int_cache();
+    py::register_all_builtins();
+}
+// ...existing code...
 ````
+
+### 方案 B：GMP 内存脱离 GC 管理
+
+GMP 的 buffer 是纯数据（不含指针），让 GC 追踪它们毫无意义。改用 `malloc/free` 而非 `GC_MALLOC_ATOMIC`：
+
+````cpp
+// ...existing code...
+#ifdef PYLANG_USE_Boehm_GC
+// ...existing code...
+extern "C" {
+static void *pylang_gmp_alloc(size_t alloc_size) { return std::malloc(alloc_size); }
+static void *pylang_gmp_realloc(void *ptr, [[maybe_unused]] size_t old_size, size_t new_size)
+{
+	return std::realloc(ptr, new_size);
+}
+static void pylang_gmp_free(void *ptr, [[maybe_unused]] size_t size) { std::free(ptr); }
+}
+#endif
+// ...existing code...
+````
+
+这样做的前提是 `PyInteger` 的 finalizer 必须正常运行（调用 `~mpz_class()` 来 `free` buffer）。你当前 `gc_needs_finalizer` 返回 `false`（第 42 行 `if constexpr (1) { return false; }`），这会导致 GMP buffer 泄漏。修复：
+
+````cpp
+// ...existing code...
+template<typename T> constexpr bool gc_needs_finalizer()
+{
+#ifdef PYLANG_USE_Boehm_GC
+	// GMP buffer 用 malloc 分配，必须通过析构函数释放
+	// 只有真正 trivially destructible 的类型才能跳过 finalizer
+	return !std::is_trivially_destructible_v<T>;
+#else
+	return !std::is_trivially_destructible_v<T>;
+#endif
+}
+// ...existing code...
+````
+
+但这会重新引入 finalizer 开销。所以需要配合方案 C。
+
+### 方案 C：对 PyInteger 使用 `GC_MALLOC_ATOMIC` + 手动类型指针
+
+`PyInteger` 的内存布局中，唯一需要 GC 追踪的指针是 `m_type`。如果把 `m_type` 改为全局查表（整数类型是固定的），整个 `PyInteger` 就不含 GC 指针，可以用 `GC_MALLOC_ATOMIC` 分配——GC 完全不扫描它的内部。
+
+这个改动侵入性较大，但效果最好。简化版：在 Arena 中为"叶子对象"提供 atomic 分配路径：
+
+````cpp
+// ...existing code...
+	/// 分配叶子对象（内部不含 GC 指针），GC 不扫描其内部
+	template<typename T, typename... Args> T *allocate_atomic(Args &&...args)
+	{
+#ifdef PYLANG_USE_Boehm_GC
+		void *mem = GC_MALLOC_ATOMIC(sizeof(T));
+		if (!mem) return nullptr;
+		T *obj = new (mem) T(std::forward<Args>(args)...);
+		if constexpr (!std::is_trivially_destructible_v<T>) {
+			GC_register_finalizer_no_order(mem, gc_finalizer_proxy<T>, nullptr, nullptr, nullptr);
+		}
+		return obj;
+#else
+		return allocate<T>(std::forward<Args>(args)...);
+#endif
+	}
+// ...existing code...
+````
+
+然后为 `PyInteger` 和 `PyFloat` 使用 atomic 分配。这需要一个新的 `PYLANG_ALLOC_ATOMIC` 宏，以及确保这些类型的 `m_type` 不依赖 GC 追踪（`types::integer()` 是全局 immortal 对象，GC root 已经持有它）。
 
 ---
 
-### 性能对比：为什么这能解决 VTune 的问题？
 
-| 度量 | 旧方案（全局 new 劫持） | 新方案（精准打击） |
-|---|---|---|
-| GC 管理的堆大小 | **数 GB**（所有 string/vector/spdlog 缓冲区） | **数十 MB**（仅 PyObject 实例 + Value 数组） |
-| GC 扫描量 | 每次 Mark 扫描数 GB 纯文本 | 每次 Mark 仅扫描 PyObject 和 Value 容器 |
-| Finalizer 数量 | 相同（数万） | 相同，但 Mark 阶段极快，Finalizer 开销微不足道 |
-| UAF 风险 | 无 | 无（Value 容器用 `GCTracingAllocator`） |
-| 内存泄漏 | 无 | 无（Finalizer 调析构，析构释放 STL 的 malloc 缓冲区） |
+### 方案 E：Tagged Pointer / Unboxed Integer（终极方案）
 
-**VTune 中 `GC_mark_from` 的 1517 秒将降至几秒以内**，因为 GC 需要扫描的内存量减少了 100 倍以上。
+这是 V8、LuaJIT、CPython 3.12+ 都在用的技术。核心思想：小整数不分配堆内存，直接编码在指针里。
+
+````cpp
+#pragma once
+#include <cstdint>
+
+namespace py {
+
+// 利用指针最低位做标记：
+//   bit 0 = 0 → 真实 PyObject* 指针
+//   bit 0 = 1 → 立即数整数，高 63 位存值
+class TaggedValue
+{
+	uintptr_t m_bits;
+
+  public:
+	static constexpr int kTagBits = 1;
+	static constexpr uintptr_t kIntTag = 1;
+	static constexpr int64_t kIntMax = (1LL << 62) - 1;
+	static constexpr int64_t kIntMin = -(1LL << 62);
+
+	// 从 PyObject* 构造
+	explicit TaggedValue(PyObject *obj) : m_bits(reinterpret_cast<uintptr_t>(obj)) {}
+
+	// 从立即数整数构造
+	static TaggedValue from_int(int64_t v)
+	{
+		TaggedValue tv;
+		tv.m_bits = (static_cast<uintptr_t>(v) << kTagBits) | kIntTag;
+		return tv;
+	}
+
+	bool is_int() const { return (m_bits & kIntTag) != 0; }
+	bool is_ptr() const { return (m_bits & kIntTag) == 0; }
+
+	int64_t as_int() const { return static_cast<int64_t>(m_bits) >> kTagBits; }
+	PyObject *as_ptr() const { return reinterpret_cast<PyObject *>(m_bits); }
+
+  private:
+	TaggedValue() = default;
+};
+
+}// namespace py
+````
+
+这个方案改动最大，但效果也最好——63 位范围内的整数运算零分配。需要修改编译器生成的 IR，在算术运算前检查 tag，走快速路径。
+
+---
+
+## 推荐实施顺序
+
+| 优先级 | 方案 | 预期效果 | 改动量 |
+|--------|------|----------|--------|
+| 1 | A: 小整数缓存 | 减少 50-80% 的 PyInteger 分配 | 小 |
+| 2 | B: GMP 用 malloc | 减少 GC 追踪对象数 30%+ | 小 |
+| 2 | 修复 `gc_needs_finalizer` | 防止 GMP buffer 泄漏 | 一行 |
+| 3 | C: atomic 分配 | GC 标记时间减少 50%+ | 中 |
+| 4 | D: Scoped Arena | Arena 模式下内存不再只增不减 | 中 |
+| 5 | E: Tagged Pointer | 小整数零分配，彻底解决问题 | 大 |
+
+方案 A + B + 修复 finalizer 三个一起做，改动量小，应该能把 `GC_mark_from` 的开销降到可接受范围。

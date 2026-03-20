@@ -1,6 +1,6 @@
-[2026-03-17 19:09:31.798] [info] [timer] precompile_runtime: 45351.95ms
-[2026-03-17 19:09:40.495] [info] [timer] SimpleDriver::create: 54050.25ms
-[2026-03-17 19:09:40.504] [info] [timer] stage_codegen: 7.88ms
+[2026-03-18 21:04:38.304] [info] [timer] precompile_runtime: 36909.03ms
+[2026-03-18 21:04:46.135] [info] [timer] SimpleDriver::create: 44739.95ms
+[2026-03-18 21:04:46.141] [info] [timer] stage_codegen: 6.24ms
 ; ModuleID = 'test'
 source_filename = "test"
 
@@ -1598,11 +1598,11 @@ unwind:                                           ; preds = %entry
 ; Function Attrs: uwtable
 declare void @_Z7rt_initv() #2
 
-; Function Attrs: mustprogress nofree norecurse nosync nounwind willreturn memory(none) uwtable
-declare void @_Z11rt_shutdownv() #3
+; Function Attrs: uwtable
+declare void @_Z11rt_shutdownv() #2
 
 ; Function Attrs: mustprogress nounwind uwtable
-declare noundef ptr @_Z14rt_catch_beginPv(ptr noundef) #4
+declare noundef ptr @_Z14rt_catch_beginPv(ptr noundef) #3
 
 ; Function Attrs: mustprogress uwtable
 declare void @_Z28rt_print_unhandled_exceptionPN2py8PyObjectE(ptr noundef) #1
@@ -1613,6 +1613,5 @@ declare void @_Z12rt_catch_endv() #1
 attributes #0 = { uwtable(sync) }
 attributes #1 = { mustprogress uwtable "min-legal-vector-width"="0" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+cmov,+cx8,+fxsr,+mmx,+sse,+sse2,+x87" "tune-cpu"="generic" }
 attributes #2 = { uwtable "no-trapping-math"="true" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+cmov,+cx8,+fxsr,+mmx,+sse,+sse2,+x87" "tune-cpu"="generic" }
-attributes #3 = { mustprogress nofree norecurse nosync nounwind willreturn memory(none) uwtable "min-legal-vector-width"="0" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+cmov,+cx8,+fxsr,+mmx,+sse,+sse2,+x87" "tune-cpu"="generic" }
-attributes #4 = { mustprogress nounwind uwtable "min-legal-vector-width"="0" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+cmov,+cx8,+fxsr,+mmx,+sse,+sse2,+x87" "tune-cpu"="generic" }
+attributes #3 = { mustprogress nounwind uwtable "min-legal-vector-width"="0" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+cmov,+cx8,+fxsr,+mmx,+sse,+sse2,+x87" "tune-cpu"="generic" }
 

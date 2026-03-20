@@ -8,7 +8,9 @@
 #include "runtime/PyType.hpp"
 #include "runtime/RuntimeError.hpp"
 #include "runtime/TypeError.hpp"
+#include "runtime/taggered_pointer/RtValue.hpp"
 #include "runtime/types/builtin.hpp"
+
 
 #include <cstdio>
 #include <cstdlib>
@@ -71,8 +73,9 @@ PYLANG_EXPORT_ERROR("catch_rethrow", "void", "")
 PYLANG_EXPORT_ERROR("raise", "void", "obj")
 void rt_raise_obj(py::PyObject *exc)
 {
+	auto *b_exc = py::ensure_box(exc);
 	// 如果 exc 是类型（如 ValueError），实例化它
-	if (auto *type = py::as<py::PyType>(exc)) {
+	if (auto *type = py::as<py::PyType>(b_exc)) {
 		auto args = py::PyTuple::create();
 		if (args.is_err()) { rt_raise(args.unwrap_err()); }
 		auto instance = type->__call__(args.unwrap(), nullptr);
@@ -94,21 +97,21 @@ py::PyObject *rt_load_assertion_error() { return py::types::assertion_error(); }
 PYLANG_EXPORT_ERROR("check_exception_match", "bool", "obj,obj")
 bool rt_check_exception_match(py::PyObject *exc, py::PyObject *exc_type)
 {
-	return py::check_exception_match(exc, exc_type);
+	return py::check_exception_match(py::ensure_box(exc), py::ensure_box(exc_type));
 }
 
 PYLANG_EXPORT_ERROR("reraise", "void", "obj")
 void rt_reraise(py::PyObject *exc)
 {
 	if (!exc) { rt_raise(py::runtime_error("No active exception to re-raise")); }
-	rt_raise(static_cast<py::BaseException *>(exc));
+	rt_raise(static_cast<py::BaseException *>(py::ensure_box(exc)));
 }
 
 PYLANG_EXPORT_ATTR("print_unhandled_exception", "void", "obj")
 void rt_print_unhandled_exception(py::PyObject *exc)
 {
 	if (exc) {
-		spdlog::error("Unhandled exception: {}", exc->to_string());
+		spdlog::error("Unhandled exception: {}", py::ensure_box(exc)->to_string());
 	} else {
 		spdlog::error("Unhandled unknown exception");
 	}
