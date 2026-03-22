@@ -399,10 +399,46 @@ void IREmitter::call_set_add(llvm::Value *set, llvm::Value *value)
 // =============================================================================
 // Tier 0: 属性访问
 // =============================================================================
+
+llvm::Value *IREmitter::get_interned_string_obj(std::string_view name)
+{
+	std::string key(name);
+	if (m_interned_string_objects.count(key)) return m_interned_string_objects[key];
+
+	// 创建一个全局 ptr 变量，初始值为 null
+	auto *gvar = new llvm::GlobalVariable(*m_module,
+		m_builder.getPtrTy(),
+		false,
+		llvm::GlobalValue::InternalLinkage,
+		llvm::ConstantPointerNull::get(m_builder.getPtrTy()),
+		".pystr_obj." + key);
+
+	m_interned_string_objects[key] = gvar;
+	return gvar;
+}
+
+void IREmitter::emit_interned_strings_initialization()
+{
+    // 遍历当前模块记录的所有属性名常量
+    for (auto &[name, gvar] : m_interned_string_objects) {
+        auto *str_ptr = create_global_string(name);
+        auto *len = m_builder.getInt64(name.size());
+        
+        // 调用 rt_string_from_cstr。内部 PyString::create 会调用 intern，
+        // 确保跨模块的同名字符串指向同一个真正的 PyString 实例。
+        auto *py_str = emit_runtime_call("string_from_cstr", { str_ptr, len });
+        
+        // 将获取到的 PyObject* 存入该模块私有的全局变量槽位
+        m_builder.CreateStore(py_str, gvar);
+    }
+}
+
 llvm::Value *IREmitter::call_getattr(llvm::Value *obj, std::string_view name)
 {
-	auto *name_str = create_global_string(name);
-	return emit_runtime_call("getattr", { obj, name_str });
+	// 从缓存加载 PyObject* (PyString)
+	auto *gvar = get_interned_string_obj(name);
+	auto *name_obj = m_builder.CreateLoad(m_builder.getPtrTy(), gvar);
+	return emit_runtime_call("getattr_fast", { obj, name_obj });
 }
 
 llvm::Value *IREmitter::call_load_global(llvm::Value *module, std::string_view name)
@@ -417,10 +453,18 @@ void IREmitter::call_store_global(llvm::Value *module, std::string_view name, ll
 	emit_runtime_call("store_global", { module, name_str, value });
 }
 
+// void IREmitter::call_setattr(llvm::Value *obj, std::string_view name, llvm::Value *value)
+// {
+// 	auto *name_str = create_global_string(name);
+// 	emit_runtime_call("setattr", { obj, name_str, value });
+// }
+
 void IREmitter::call_setattr(llvm::Value *obj, std::string_view name, llvm::Value *value)
 {
-	auto *name_str = create_global_string(name);
-	emit_runtime_call("setattr", { obj, name_str, value });
+	// 同理，setattr 也应使用 fast 版本以避免每一步都 intern
+	auto *gvar = get_interned_string_obj(name);
+	auto *name_obj = m_builder.CreateLoad(m_builder.getPtrTy(), gvar);
+	emit_runtime_call("setattr_fast", { obj, name_obj, value });
 }
 
 void IREmitter::call_delattr(llvm::Value *obj, std::string_view name)
@@ -438,12 +482,22 @@ llvm::Value *IREmitter::call_function(llvm::Value *callable, llvm::Value *args, 
 	return emit_runtime_call("call", { callable, args, kwargs });
 }
 
-llvm::Value *IREmitter::call_function_raw_ptrs(llvm::Value *callable, llvm::Value *args_ptr, llvm::Value *argc, llvm::Value *kwargs) {
-    return emit_runtime_call("call_raw_ptrs", {callable, args_ptr, argc, kwargs});
+llvm::Value *IREmitter::call_function_raw_ptrs(llvm::Value *callable,
+	llvm::Value *args_ptr,
+	llvm::Value *argc,
+	llvm::Value *kwargs)
+{
+	return emit_runtime_call("call_raw_ptrs", { callable, args_ptr, argc, kwargs });
 }
 
-llvm::Value *IREmitter::call_method_raw_ptrs(llvm::Value *owner, llvm::Value *method_name_cstr, llvm::Value *args_ptr, llvm::Value *argc, llvm::Value *kwargs) {
-    return emit_runtime_call("call_method_raw_ptrs", {owner, method_name_cstr, args_ptr, argc, kwargs});
+llvm::Value *IREmitter::call_method_raw_ptrs(llvm::Value *owner,
+	llvm::Value *method_name_cstr,
+	llvm::Value *args_ptr,
+	llvm::Value *argc,
+	llvm::Value *kwargs)
+{
+	return emit_runtime_call(
+		"call_method_raw_ptrs", { owner, method_name_cstr, args_ptr, argc, kwargs });
 }
 
 llvm::Value *IREmitter::call_function_fast(llvm::Value *callable,

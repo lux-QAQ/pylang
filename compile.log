@@ -1,33 +1,113 @@
-[build] [1/19] wllvm: runtime/PySlotWrapper.cpp
-[build] FAILED: [code=1] bitcode_obj/runtime_PySlotWrapper.o /home/lux/code/language/python-cpp/build/debug/bitcode_obj/runtime_PySlotWrapper.o 
-[build] cd /home/lux/code/language/python-cpp/build/debug/src/runtime/export && /home/lux/soft/cmake/bin/cmake -E env LLVx86_64-linux-gnu -Wno-everything -o /home/lux/code/language/python-cpp/build/debug/bitcode_obj/runtime_PySlotWrapper.o /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PySlotWrapper.cpp
-[build] /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PySlotWrapper.cpp:51:38: error: no member named 'as_pyobject_raw' in 'std::variant<py::Number, py::String, py::Bytes, py::Ellipsis, py::NameConstant, py::Tuple, py::PyObject *>'
-[build]    51 |     auto *self = args->elements()[0].as_pyobject_raw();
-[build]       |                  ~~~~~~~~~~~~~~~~~~~ ^
-[build] /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PySlotWrapper.cpp:74:26: error: no member named 'as_pyobject_raw' in 'std::variant<py::Number, py::String, py::Bytes, py::Ellipsis, py::NameConstant, py::Tuple, py::PyObject *>'
-[build]    74 |     auto* self = args[0].as_pyobject_raw();
-[build]       |                  ~~~~~~~ ^
-[build] /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PySlotWrapper.cpp:81:51: error: no matching member function for call to 'and_then'
-[build]    81 |     return PyTuple::create(std::move(slice_args)).and_then([this, self, kwargs](PyTuple* t) {
-[build]       |            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~
-[build] /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/Value.hpp:294:25: note: candidate template ignored: substitution failure [with FunctorType = (lambda at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PySlotWrapper.cpp:81:60)]: no type named 'type' in 'std::invoke_result<(lambda at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PySlotWrapper.cpp:81:60), py::PyTuple *>'
-[build]   294 |         PyResult<PyResultType> and_then(FunctorType &&op) const;
-[build]       |                                ^
-[build] 3 errors generated.
-[build] ERROR:Failed to compile using given arguments: [-std=c++23 -O1 -g -c -fno-discard-value-names -DSPDLOG_COMPILED_LIB -DDEBUG -DPYLANG_AOT_MODE -DPYLANG_USE_ARENA -DPYLANG_USE_Boehm_GC -DGC_THREADS yalantinglibs/f7f2/include/ylt/thirdparty -I /usr/include/x86_64-linux-gnu -Wno-everything -o /home/lux/code/language/python-cpp/build/debug/bitcode_obj/runtime_PySlotWrapper.o /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PySlotWrapper.cpp]
-[build] [2/19] Building CXX object src/CMakeFiles/python-cpp.dir/runtime/PySlotWrapper.cpp.o
-[build] FAILED: [code=1] src/CMakeFiles/python-cpp.dir/runtime/PySlotWrapper.cpp.o 
-[build] /usr/bin/ccache /usr/lib/ccache/c++ -DCMAKE_BINARY_DIR=\"/home/lux/code/language/python-cpp/build/debug\" -DCPPTRACE_STATIC_DEFINE -DGC_THREADS -DPYLANG_HAS_LLD=1 -DPYLANG_USE_ARENA -DPYLANG_USE_Boehm_GC -DSPDLOG_COMPILED_LIB -DALWAYS_SMALL_CLEAR_STACK -DSMALL_CLEAR_SIZE=4 -g -std=c++23 -fcolor-diagnostics -fno-omit-frame-pointer -fsanitize=address -Wall -Wextra -Wextra-semi -Wshadow -Wnon-virtual-dtor -Wold-style-cast -Wcast-align -Wunused -Woverloaded-virtual -Wpedantic -Wconversion -Wsign-conversion -Wnull-dereference -Wdouble-promotion -Wformat=2 -Wimplicit-fallthrough -Werror -Wno-sign-conversion -Wno-shadow -Wno-implicit-fallthrough -Wno-old-style-cast -Wno-deprecated-copy -Wno-missing-field-initializers -Wno-null-dereference -Wno-unknown-warning-option -MD -MT src/CMakeFiles/python-cpp.dir/runtime/PySlotWrapper.cpp.o -MF src/CMakeFiles/python-cpp.dir/runtime/PySlotWrapper.cpp.o.d -o src/CMakeFiles/python-cpp.dir/runtime/PySlotWrapper.cpp.o -c /home/lux/code/language/python-cpp/src/runtime/PySlotWrapper.cpp
-[build] /home/lux/code/language/python-cpp/src/runtime/PySlotWrapper.cpp:51:38: error: no member named 'as_pyobject_raw' in 'std::variant<py::Number, py::String, py::Bytes, py::Ellipsis, py::NameConstant, py::Tuple, py::PyObject *>'
-[build]    51 |     auto *self = args->elements()[0].as_pyobject_raw();
-[build]       |                  ~~~~~~~~~~~~~~~~~~~ ^
-[build] /home/lux/code/language/python-cpp/src/runtime/PySlotWrapper.cpp:74:26: error: no member named 'as_pyobject_raw' in 'std::variant<py::Number, py::String, py::Bytes, py::Ellipsis, py::NameConstant, py::Tuple, py::PyObject *>'
-[build]    74 |     auto* self = args[0].as_pyobject_raw();
-[build]       |                  ~~~~~~~ ^
-[build] /home/lux/code/language/python-cpp/src/runtime/PySlotWrapper.cpp:81:51: error: no matching member function for call to 'and_then'
-[build]    81 |     return PyTuple::create(std::move(slice_args)).and_then([this, self, kwargs](PyTuple* t) {
-[build]       |            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~
-[build] /home/lux/code/language/python-cpp/src/runtime/Value.hpp:294:25: note: candidate template ignored: substitution failure [with FunctorType = (lambda at /home/lux/code/language/python-cpp/src/runtime/PySlotWrapper.cpp:81:60)]: no type named 'type' in 'std::invoke_result<(lambda at /home/lux/code/language/python-cpp/src/runtime/PySlotWrapper.cpp:81:60), py::PyTuple *>'
-[build]   294 |         PyResult<PyResultType> and_then(FunctorType &&op) const;
-[build]       |                                ^
-[build] 3 errors generated.
+python-cpp/build/debug/bitcode_obj/runtime_PyObject.o /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyObject.cpp
+[build] /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyObject.cpp:434:57: error: member initializer 'm_type' does not name a non-static data member or base class
+[build]   434 | PyObject::PyObject(const TypePrototype &type) : Cell(), m_type(type) {}
+[build]       |                                                         ^~~~~~~~~~~~
+[build] /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyObject.cpp:436:16: error: expected ')'
+[build]   436 | PyObject(PyType* type) : Cell(), m_type_ptr(type) { ASSERT(type); }
+[build]       |                ^
+[build] /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyObject.cpp:436:9: note: to match this '('
+[build]   436 | PyObject(PyType* type) : Cell(), m_type_ptr(type) { ASSERT(type); }
+[build]       |         ^
+[build] /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyObject.cpp:436:10: error: call to deleted constructor of 'PyObject'
+[build]   436 | PyObject(PyType* type) : Cell(), m_type_ptr(type) { ASSERT(type); }
+[build]       |          ^
+[build] /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyObject.hpp:432:2: note: 'PyObject' has been explicitly marked deleted here
+[build]   432 |         PyObject() = delete;
+[build]       |         ^
+[build] /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyObject.cpp:436:24: error: expected ';' after top level declarator
+[build]   436 | PyObject(PyType* type) : Cell(), m_type_ptr(type) { ASSERT(type); }
+[build]       |                        ^
+[build]       |                        ;
+[build] /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyObject.cpp:436:31: error: expected unqualified-id
+[build]   436 | PyObject(PyType* type) : Cell(), m_type_ptr(type) { ASSERT(type); }
+[build]       |                               ^
+[build] /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyObject.cpp:448:37: error: expected expression
+[build]   448 |         if (std::holds_alternative<PyType *>(m_type)) {
+[build]       |                                            ^
+[build] /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyObject.cpp:448:39: error: use of undeclared identifier 'm_type'
+[build]   448 |         if (std::holds_alternative<PyType *>(m_type)) {
+[build]       |                                              ^
+[build] /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyObject.cpp:449:34: error: expected expression
+[build]   449 |                 if (auto *t = std::get<PyType *>(m_type)) { visitor.visit(*t); }
+[build]       |                                                ^
+[build] /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyObject.cpp:449:36: error: use of undeclared identifier 'm_type'
+[build]   449 |                 if (auto *t = std::get<PyType *>(m_type)) { visitor.visit(*t); }
+[build]       |                                                  ^
+[build] /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyObject.cpp:452:58: error: use of undeclared identifier 'm_type'
+[build]   452 |                         std::get<std::reference_wrapper<const TypePrototype>>(m_type).get())
+[build]       |                                                                               ^
+[build] /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyObject.cpp:1208:7: error: no matching function for call to 'as'
+[build]  1208 |         if (!as<PyType>(this)) {
+[build]       |              ^~~~~~~~~~
+[build] /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/forward.hpp:34:25: note: candidate template ignored: invalid explicitly-specified argument for template parameter 'T'
+[build]    34 | template<typename T> T *as(PyObject *node);
+[build]       |                         ^
+[build] /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/forward.hpp:35:31: note: candidate template ignored: invalid explicitly-specified argument for template parameter 'T'
+[build]    35 | template<typename T> const T *as(const PyObject *node);
+[build]       |                               ^
+[build] /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyObject.cpp:1218:7: error: no matching function for call to 'as'
+[build]  1218 |         if (!as<PyType>(maybe_type)) {
+[build]       |              ^~~~~~~~~~
+[build] /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/forward.hpp:34:25: note: candidate template ignored: invalid explicitly-specified argument for template parameter 'T'
+[build]    34 | template<typename T> T *as(PyObject *node);
+[build]       |                         ^
+[build] /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/forward.hpp:35:31: note: candidate template ignored: invalid explicitly-specified argument for template parameter 'T'
+[build]    35 | template<typename T> const T *as(const PyObject *node);
+[build]       |                               ^
+[build] /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyObject.cpp:1222:15: error: no matching function for call to 'as'
+[build]  1222 |         auto *type = as<PyType>(maybe_type);
+[build]       |                      ^~~~~~~~~~
+[build] /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/forward.hpp:34:25: note: candidate template ignored: invalid explicitly-specified argument for template parameter 'T'
+[build]    34 | template<typename T> T *as(PyObject *node);
+[build]       |                         ^
+[build] /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/forward.hpp:35:31: note: candidate template ignored: invalid explicitly-specified argument for template parameter 'T'
+[build]    35 | template<typename T> const T *as(const PyObject *node);
+[build]       |                               ^
+[build] /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyObject.cpp:1351:6: error: no matching function for call to 'as'
+[build]  1351 |         if (as<PyType>(this)) {
+[build]       |             ^~~~~~~~~~
+[build] /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/forward.hpp:34:25: note: candidate template ignored: invalid explicitly-specified argument for template parameter 'T'
+[build]    34 | template<typename T> T *as(PyObject *node);
+[build]       |                         ^
+[build] /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/forward.hpp:35:31: note: candidate template ignored: invalid explicitly-specified argument for template parameter 'T'
+[build]    35 | template<typename T> const T *as(const PyObject *node);
+[build]       |                               ^
+[build] /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyObject.cpp:1598:9: error: no matching function for call to 'as'
+[build]  1598 |     if (as<PyType>(this)) {
+[build]       |         ^~~~~~~~~~
+[build] /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/forward.hpp:34:25: note: candidate template ignored: invalid explicitly-specified argument for template parameter 'T'
+[build]    34 | template<typename T> T *as(PyObject *node);
+[build]       |                         ^
+[build] /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/forward.hpp:35:31: note: candidate template ignored: invalid explicitly-specified argument for template parameter 'T'
+[build]    35 | template<typename T> const T *as(const PyObject *node);
+[build]       |                               ^
+[build] /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyObject.cpp:1674:46: error: must use 'class' tag to refer to type 'PyType' in this scope
+[build]  1674 | PyResult<PyObject *> PyObject::__new__(const PyType *type, PyTuple *args, PyDict *kwargs)
+[build]       |                                              ^
+[build]       |                                              class 
+[build] /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyObject.cpp:436:10: note: class 'PyType' is hidden by a non-type declaration of 'PyType' here
+[build]   436 | PyObject(PyType* type) : Cell(), m_type_ptr(type) { ASSERT(type); }
+[build]       |          ^
+[build] /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyObject.cpp:1704:54: error: must use 'class' tag to refer to type 'PyType' in this scope
+[build]  1704 |         return type->underlying_type().__alloc__(const_cast<PyType *>(type));
+[build]       |                                                             ^
+[build]       |                                                             class 
+[build] /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyObject.cpp:436:10: note: class 'PyType' is hidden by a non-type declaration of 'PyType' here
+[build]   436 | PyObject(PyType* type) : Cell(), m_type_ptr(type) { ASSERT(type); }
+[build]       |          ^
+[build] /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyObject.cpp:1747:1: error: must use 'class' tag to refer to type 'PyType' in this scope
+[build]  1747 | PyType *PyObject::type() const
+[build]       | ^
+[build]       | class 
+[build] /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyObject.cpp:436:10: note: class 'PyType' is hidden by a non-type declaration of 'PyType' here
+[build]   436 | PyObject(PyType* type) : Cell(), m_type_ptr(type) { ASSERT(type); }
+[build]       |          ^
+[build] /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyObject.cpp:1747:19: error: redefinition of 'type'
+[build]  1747 | PyType *PyObject::type() const
+[build]       |                   ^
+[build] /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyObject.hpp:440:17: note: previous definition is here
+[build]   440 |         inline PyType *type() const { return m_type_ptr; }
+[build]       |                        ^
+[build] fatal error: too many errors emitted, stopping now [-ferror-limit=]
+[build] 20 errors generated.
+[build] ERROR:Failed to compile using given arguments: [-std=c++2

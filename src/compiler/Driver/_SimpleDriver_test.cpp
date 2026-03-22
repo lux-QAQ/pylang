@@ -44,12 +44,20 @@ class SimpleDriverTest : public ::testing::Test
 			//"-fsanitize=address",
 			"-L" + s_build_dir + "/_deps/spdlog-build",
 			"-L" + s_build_dir + "/_deps/bdwgc-build",
+			"-L" + s_build_dir + "/_deps/cpptrace-build",
+			"-L" + s_build_dir + "/_deps/libdwarf-build/src/lib/libdwarf",
 			"-lspdlogd",
 			"-lgmpxx",
 			"-lgc",
 			"-lgmp",
 			"-licuuc",
-			"-licudata" };
+			"-licudata",
+			"-lcpptrace",
+			"-ldwarf",
+			"-lzstd",
+			"-lz"
+			 
+		};
 		if (std::system("ld.lld --version > /dev/null 2>&1") == 0) {
 			opts.linker_cmd = "clang++";// 使用 clang 驱动程序
 			opts.extra_link_flags.push_back("-fuse-ld=lld");

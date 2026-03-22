@@ -93,18 +93,27 @@ PYLANG_EXPORT_SUBSCR("getitem", "obj", "obj,obj")
 py::PyObject *rt_getitem(py::PyObject *obj, py::PyObject *key)
 {
 	auto *b_obj = py::ensure_box(obj);
-	auto *b_type = b_obj->type();// [修复]：定义 b_type
+	// auto *b_type = b_obj->type();// [修复]：定义 b_type
 	py::RtValue r_key = py::RtValue::flatten(key);
 
 
-    if (b_type == py::types::dict()) {
-        auto *dict = static_cast<py::PyDict *>(b_obj);
-        // 直接在底层 std::unordered_map 中查找，绕过 getitem 虚函数和 MRO
-        auto it = dict->map().find(r_key.to_value());
-        if (it != dict->map().end()) {
-            return py::RtValue::from_value(it->second).as_pyobject_raw();
-        }
-    }
+	// if (b_type == py::types::dict()) {
+	// 	auto *dict = static_cast<py::PyDict *>(b_obj);
+	// 	// 直接在底层 std::unordered_map 中查找，绕过 getitem 虚函数和 MRO
+	// 	auto it = dict->map().find(r_key.to_value());
+	// 	if (it != dict->map().end()) {
+	// 		return py::RtValue::from_value(it->second).as_pyobject_raw();
+	// 	}
+	// }
+	if (b_obj->type() == py::types::dict()) {
+		auto *dict = static_cast<py::PyDict *>(b_obj);
+		// 如果 key 已经是 PyString*，直接用指针参与哈希比较，跳过 variant 转换
+		if (py::ensure_box(key)->type() == py::types::str()) {
+			auto it = dict->map().find(py::Value(static_cast<py::PyString *>(key)));
+			if (it != dict->map().end())
+				return py::RtValue::from_value(it->second).as_pyobject_raw();
+		}
+	}
 
 
 	if (r_key.is_tagged_int()) {
@@ -217,6 +226,15 @@ void rt_set_add(py::PyObject *set, py::PyObject *value)
 {
 	rt_unwrap_void(static_cast<py::PySet *>(py::ensure_box(set))->add(py::ensure_box(value)));
 }
+
+// PYLANG_EXPORT_SUBSCR("set_add", "void", "obj,obj")
+// void rt_set_add(py::PyObject *set, py::PyObject *value)
+// {
+// 	auto *b_set = static_cast<py::PySet *>(py::ensure_box(set));
+// 	// 碾平后再存入，确保 set 内部存储的是 Value(Number)，而不是 Value(PyObject*)
+// 	auto rt_val = py::RtValue::flatten(value);
+// 	b_set->add(rt_val.to_value());
+// }
 
 PYLANG_EXPORT_SUBSCR("list_extend", "void", "obj,obj")
 void rt_list_extend(py::PyObject *list, py::PyObject *iterable)

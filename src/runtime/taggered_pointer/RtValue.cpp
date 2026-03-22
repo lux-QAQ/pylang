@@ -105,7 +105,7 @@ RtValue RtValue::from_int_or_box(int64_t value)
 
 RtValue RtValue::add(RtValue lhs, RtValue rhs)
 {
-	if (lhs.is_tagged_int() && rhs.is_tagged_int()) {
+	if (RtValue::are_both_tagged_int(lhs, rhs)) {
 		int64_t l = lhs.as_int();
 		int64_t r = rhs.as_int();
 		int64_t result;
@@ -122,7 +122,7 @@ RtValue RtValue::add(RtValue lhs, RtValue rhs)
 
 RtValue RtValue::sub(RtValue lhs, RtValue rhs)
 {
-	if (lhs.is_tagged_int() && rhs.is_tagged_int()) {
+	if (RtValue::are_both_tagged_int(lhs, rhs)) {
 		int64_t l = lhs.as_int();
 		int64_t r = rhs.as_int();
 		int64_t result;
@@ -136,7 +136,7 @@ RtValue RtValue::sub(RtValue lhs, RtValue rhs)
 
 RtValue RtValue::mul(RtValue lhs, RtValue rhs)
 {
-	if (lhs.is_tagged_int() && rhs.is_tagged_int()) {
+	if (RtValue::are_both_tagged_int(lhs, rhs)) {
 		int64_t l = lhs.as_int();
 		int64_t r = rhs.as_int();
 		int64_t result;
@@ -150,7 +150,7 @@ RtValue RtValue::mul(RtValue lhs, RtValue rhs)
 
 RtValue RtValue::floordiv(RtValue lhs, RtValue rhs)
 {
-	if (lhs.is_tagged_int() && rhs.is_tagged_int()) {
+	if (RtValue::are_both_tagged_int(lhs, rhs)) {
 		int64_t l = lhs.as_int();
 		int64_t r = rhs.as_int();
 		if (r != 0) {
@@ -166,7 +166,7 @@ RtValue RtValue::floordiv(RtValue lhs, RtValue rhs)
 
 RtValue RtValue::mod(RtValue lhs, RtValue rhs)
 {
-	if (lhs.is_tagged_int() && rhs.is_tagged_int()) {
+	if (RtValue::are_both_tagged_int(lhs, rhs)) {
 		int64_t l = lhs.as_int();
 		int64_t r = rhs.as_int();
 		if (r != 0) {
@@ -181,7 +181,7 @@ RtValue RtValue::mod(RtValue lhs, RtValue rhs)
 
 RtValue RtValue::bit_and(RtValue lhs, RtValue rhs)
 {
-	if (lhs.is_tagged_int() && rhs.is_tagged_int()) {
+	if (RtValue::are_both_tagged_int(lhs, rhs)) {
 		return from_int(lhs.as_int() & rhs.as_int());
 	}
 	return from_ptr(lhs.box()->and_(rhs.box()).unwrap());
@@ -189,7 +189,7 @@ RtValue RtValue::bit_and(RtValue lhs, RtValue rhs)
 
 RtValue RtValue::bit_or(RtValue lhs, RtValue rhs)
 {
-	if (lhs.is_tagged_int() && rhs.is_tagged_int()) {
+	if (RtValue::are_both_tagged_int(lhs, rhs)) {
 		return from_int(lhs.as_int() | rhs.as_int());
 	}
 	return from_ptr(lhs.box()->or_(rhs.box()).unwrap());
@@ -197,7 +197,7 @@ RtValue RtValue::bit_or(RtValue lhs, RtValue rhs)
 
 RtValue RtValue::bit_xor(RtValue lhs, RtValue rhs)
 {
-	if (lhs.is_tagged_int() && rhs.is_tagged_int()) {
+	if (RtValue::are_both_tagged_int(lhs, rhs)) {
 		return from_int(lhs.as_int() ^ rhs.as_int());
 	}
 	return from_ptr(lhs.box()->xor_(rhs.box()).unwrap());
@@ -205,7 +205,7 @@ RtValue RtValue::bit_xor(RtValue lhs, RtValue rhs)
 
 RtValue RtValue::lshift(RtValue lhs, RtValue rhs)
 {
-	if (lhs.is_tagged_int() && rhs.is_tagged_int()) {
+	if (RtValue::are_both_tagged_int(lhs, rhs)) {
 		int64_t l = lhs.as_int();
 		int64_t r = rhs.as_int();
 		// Python 语义：负数位移抛出 ValueError，交由底层 Box 逻辑去抛出
@@ -222,7 +222,7 @@ RtValue RtValue::lshift(RtValue lhs, RtValue rhs)
 
 RtValue RtValue::rshift(RtValue lhs, RtValue rhs)
 {
-	if (lhs.is_tagged_int() && rhs.is_tagged_int()) {
+	if (RtValue::are_both_tagged_int(lhs, rhs)) {
 		int64_t l = lhs.as_int();
 		int64_t r = rhs.as_int();
 		if (r >= 0) {
@@ -241,20 +241,20 @@ RtValue RtValue::rshift(RtValue lhs, RtValue rhs)
 RtValue RtValue::compare_eq(RtValue lhs, RtValue rhs)
 {
 	if (lhs.m_bits == rhs.m_bits) { return from_ptr(py_true()); }
-	if (lhs.is_tagged_int() && rhs.is_tagged_int()) { return from_ptr(py_false()); }
+	if (RtValue::are_both_tagged_int(lhs, rhs)) { return from_ptr(py_false()); }
 	return from_ptr(lhs.box()->eq(rhs.box()).unwrap());
 }
 
 RtValue RtValue::compare_ne(RtValue lhs, RtValue rhs)
 {
 	if (lhs.m_bits == rhs.m_bits) { return from_ptr(py_false()); }
-	if (lhs.is_tagged_int() && rhs.is_tagged_int()) { return from_ptr(py_true()); }
+	if (RtValue::are_both_tagged_int(lhs, rhs)) { return from_ptr(py_true()); }
 	return from_ptr(lhs.box()->ne(rhs.box()).unwrap());
 }
 
 RtValue RtValue::compare_lt(RtValue lhs, RtValue rhs)
 {
-	if (lhs.is_tagged_int() && rhs.is_tagged_int()) {
+	if (RtValue::are_both_tagged_int(lhs, rhs)) {
 		return from_ptr(lhs.as_int() < rhs.as_int() ? py_true() : py_false());
 	}
 	return from_ptr(lhs.box()->lt(rhs.box()).unwrap());
@@ -262,7 +262,7 @@ RtValue RtValue::compare_lt(RtValue lhs, RtValue rhs)
 
 RtValue RtValue::compare_le(RtValue lhs, RtValue rhs)
 {
-	if (lhs.is_tagged_int() && rhs.is_tagged_int()) {
+	if (RtValue::are_both_tagged_int(lhs, rhs)) {
 		return from_ptr(lhs.as_int() <= rhs.as_int() ? py_true() : py_false());
 	}
 	return from_ptr(lhs.box()->le(rhs.box()).unwrap());
@@ -270,7 +270,7 @@ RtValue RtValue::compare_le(RtValue lhs, RtValue rhs)
 
 RtValue RtValue::compare_gt(RtValue lhs, RtValue rhs)
 {
-	if (lhs.is_tagged_int() && rhs.is_tagged_int()) {
+	if (RtValue::are_both_tagged_int(lhs, rhs)) {
 		return from_ptr(lhs.as_int() > rhs.as_int() ? py_true() : py_false());
 	}
 	return from_ptr(lhs.box()->gt(rhs.box()).unwrap());
@@ -278,7 +278,7 @@ RtValue RtValue::compare_gt(RtValue lhs, RtValue rhs)
 
 RtValue RtValue::compare_ge(RtValue lhs, RtValue rhs)
 {
-	if (lhs.is_tagged_int() && rhs.is_tagged_int()) {
+	if (RtValue::are_both_tagged_int(lhs, rhs)) {
 		return from_ptr(lhs.as_int() >= rhs.as_int() ? py_true() : py_false());
 	}
 	return from_ptr(lhs.box()->ge(rhs.box()).unwrap());

@@ -66,6 +66,8 @@ namespace {
 		static std::array<PyString *, 256> cache{ nullptr };
 		return cache;
 	}
+
+	std::mutex g_intern_mutex;// 新增全局锁
 }// namespace
 
 // PyString *PyString::intern(const char *cstr)
@@ -87,6 +89,8 @@ namespace {
 PyString *PyString::intern(const char *cstr)
 {
 	if (!cstr) return nullptr;
+
+	std::lock_guard<std::mutex> lock(g_intern_mutex);// 保护驻留过程
 
 	// 第一级：指针地址直接命中 (AOT 路径)
 	auto &p_table = ptr_table();
@@ -2064,29 +2068,27 @@ PyResult<PyObject *> PyStringIterator::__repr__() const { return PyString::creat
 
 PyObject *PyStringIterator::next_raw()
 {
-    const std::string &s = m_pystring.value();
-    if (m_current_index < s.size()) {
-        // 1. O(1) 获取当前字符的 UTF-8 字节长度
-        size_t len = utf8::codepoint_length(s[m_current_index]);
-        
-        // 2. 切分字符。如果是 ASCII (len=1)，PyString::create 内部会自动命中 256 字符缓存
-        // 这在构建 Trie 树处理 '0'-'9' 时是零分配的
-        std::string char_val = s.substr(m_current_index, len);
-        m_current_index += len;
+	const std::string &s = m_pystring.value();
+	if (m_current_index < s.size()) {
+		// 1. O(1) 获取当前字符的 UTF-8 字节长度
+		size_t len = utf8::codepoint_length(s[m_current_index]);
 
-        auto res = PyString::create(char_val);
-        return res.unwrap();
-    }
-    return nullptr;
+		// 2. 切分字符。如果是 ASCII (len=1)，PyString::create 内部会自动命中 256 字符缓存
+		// 这在构建 Trie 树处理 '0'-'9' 时是零分配的
+		std::string char_val = s.substr(m_current_index, len);
+		m_current_index += len;
+
+		auto res = PyString::create(char_val);
+		return res.unwrap();
+	}
+	return nullptr;
 }
 
 PyResult<PyObject *> PyStringIterator::__next__()
 {
-    if (auto *obj = next_raw()) {
-        return Ok(obj);
-    }
-    // 必须返回单例，消灭构建 Trie 时数十万个异常对象的分配
-    return Err(stop_iteration_empty());
+	if (auto *obj = next_raw()) { return Ok(obj); }
+	// 必须返回单例，消灭构建 Trie 时数十万个异常对象的分配
+	return Err(stop_iteration_empty());
 }
 
 PyType *PyStringIterator::static_type() const { return types::str_iterator(); }

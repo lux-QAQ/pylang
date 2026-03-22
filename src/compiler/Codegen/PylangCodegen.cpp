@@ -41,7 +41,7 @@ Result<PylangCodegen::CompileResult> PylangCodegen::compile(ast::Module *module_
 	PylangCodegen codegen(
 		ctx, linker, std::move(llvm_module), visibility, std::string(module_name));
 
-	// Step 4: 创建模块初始化函数
+	// Step 4: 创建模块初始化函数 PyInit_<module_name>
 	auto *init_func = codegen.create_module_init_function();
 
 	// Step 5: 设置 VariablesResolver scope
@@ -53,9 +53,6 @@ Result<PylangCodegen::CompileResult> PylangCodegen::compile(ast::Module *module_
 	if (it != visibility.end()) {
 		var_scope = it->second.get();
 	} else {
-		// 修复: VariablesResolver 用 AST 文件名 stem 作为根（如 "<closures>"），
-		// 而 PylangCodegen 用 module_name（如 "__test_closures__"）。
-		// 遍历 map 找 MODULE 类型的根 scope。
 		for (auto &[key, scope_ptr] : visibility) {
 			if (scope_ptr && scope_ptr->type == VariablesResolver::Scope::Type::MODULE) {
 				var_scope = scope_ptr.get();
@@ -70,20 +67,35 @@ Result<PylangCodegen::CompileResult> PylangCodegen::compile(ast::Module *module_
 	module_scope.name = std::string(module_name);
 	module_scope.mangled_name = mangled;
 	module_scope.llvm_func = init_func;
-	module_scope.module_obj = nullptr;// 稍后由 rt_add_module 设置
+	module_scope.module_obj = nullptr;
 	module_scope.var_scope = var_scope;
 	codegen.m_codegen_ctx.push_scope(std::move(module_scope));
 
-	// Step 7: 生成模块初始化函数体
-	//   %module = call ptr @rt_add_module("__main__")
+	// Step 7: 生成模块初始化函数体起始指令
 	auto *mod = codegen.m_emitter.call_add_module(module_name);
 	codegen.m_codegen_ctx.current_scope().module_obj = mod;
 
+	// [修复]：使用 Alloca 指令作为锚点，而不是会被常量折叠的 Add(0, 0)。
+	// Alloca 保证是一个 llvm::Instruction，且在函数入口块是安全的。
+	// 这确保了后续 generate_body 中发现的字符串都能通过 SetInsertPoint(anchor) 正确前插。
+	auto *anchor =
+		codegen.m_builder.CreateAlloca(codegen.m_builder.getPtrTy(), nullptr, "pystr_init_anchor");
+
 	// Step 8: 遍历 AST，生成 IR
+	// 此时 anchor 指令已在 entry block 中，generate_body 生成的指令将排在 anchor 之后。
 	codegen.generate_body(module_node->body());
 
+	// Step 8.5: [核心修复] 将常量池初始化代码回填到锚点之前
+	// 这样无论 generate_body 里有多少全局代码（如 verify() 调用），字符串常量都已初始化完毕。
+	auto body_insert_point = codegen.m_builder.saveIP();
+	codegen.m_builder.SetInsertPoint(anchor);
+
+	codegen.m_emitter.emit_interned_strings_initialization();
+
+	codegen.m_builder.restoreIP(body_insert_point);
+
 	// Step 9: 模块初始化函数返回 void
-	codegen.m_builder.CreateRetVoid();
+	if (!codegen.m_builder.GetInsertBlock()->getTerminator()) { codegen.m_builder.CreateRetVoid(); }
 
 	// Step 10: 离开模块 scope
 	codegen.m_codegen_ctx.pop_scope();
@@ -99,7 +111,8 @@ Result<PylangCodegen::CompileResult> PylangCodegen::compile(ast::Module *module_
 			ErrorKind::CodegenInternalError, "LLVM Module verification failed: {}", verify_err);
 	}
 
-	log::codegen()->info("Module '{}' compiled successfully", module_name);
+	log::codegen()->info(
+		"Module '{}' compiled successfully with interned-string-cache", module_name);
 	return CompileResult{ std::move(codegen.m_module) };
 }
 
@@ -145,13 +158,12 @@ llvm::Function *PylangCodegen::create_module_init_function()
 	auto *func =
 		llvm::Function::Create(func_type, llvm::Function::ExternalLinkage, name, m_module.get());
 
-	// 关键修复: 添加 uwtable 属性，允许 C++ 异常穿过此函数传播到 main() 的 landingpad。
-	// 没有此属性时，Itanium C++ ABI 认为此函数"不可 unwind"，
-	// 任何 runtime 调用抛出的 PylangException 都会导致 std::terminate()。
+	// 必须添加 UWTable，否则 C++ 异常无法通过该函数传播
 	func->addFnAttr(llvm::Attribute::UWTable);
 
 	auto *entry = llvm::BasicBlock::Create(m_ctx, "entry", func);
 	m_builder.SetInsertPoint(entry);
+
 	return func;
 }
 
@@ -769,7 +781,8 @@ ast::Value *PylangCodegen::visit(const ast::BoolOp *node)
 //     // 拦截无参 super() 并重写为 super(__class__, self)
 //     // 这解决了 AOT 运行时缺少解释器栈帧(PyFrame)导致无法推断参数的问题。
 //     if (auto *name_node = dynamic_cast<const ast::Name *>(node->function().get())) {
-//         if (name_node->ids().size() == 1 && name_node->ids()[0] == "super" && node->args().empty()
+//         if (name_node->ids().size() == 1 && name_node->ids()[0] == "super" &&
+//         node->args().empty()
 //             && node->keywords().empty()) {
 
 //             // 检查上下文:
@@ -792,7 +805,8 @@ ast::Value *PylangCodegen::visit(const ast::BoolOp *node)
 //                 llvm::Value *self_obj = load_variable(self_name);
 
 //                 if (super_cls && class_cell && self_obj) {
-//                     log::codegen()->debug("Rewriting super() to super(__class__, {})", self_name);
+//                     log::codegen()->debug("Rewriting super() to super(__class__, {})",
+//                     self_name);
 
 //                     // 构造参数 tuple: (__class__, self)
 //                     auto *args_tuple = m_emitter.create_tuple({ class_cell, self_obj });
@@ -877,7 +891,7 @@ ast::Value *PylangCodegen::visit(const ast::BoolOp *node)
 //             auto *arr_ty = llvm::ArrayType::get(ptr_ty, pos_args.size());
 //             auto *alloc = m_codegen_ctx.create_local("raw_args", arr_ty);
 //             args_ptr = m_builder.CreateBitCast(alloc, llvm::PointerType::getUnqual(m_ctx));
-            
+
 //             // 在当前执行块填入数据
 //             for (size_t i = 0; i < pos_args.size(); ++i) {
 //                 auto *gep = m_builder.CreateConstGEP2_32(arr_ty, alloc, 0, i);
@@ -889,7 +903,8 @@ ast::Value *PylangCodegen::visit(const ast::BoolOp *node)
 //         if (is_method) {
 //             // 方法调用：直接使用 C 风格字符串发起查找和穿透执行
 //             auto *cstr_val = m_builder.CreateGlobalStringPtr(method_name);
-//             result = m_emitter.call_method_raw_ptrs(method_owner, cstr_val, args_ptr, argc_val, kwargs_dict);
+//             result = m_emitter.call_method_raw_ptrs(method_owner, cstr_val, args_ptr, argc_val,
+//             kwargs_dict);
 //         } else {
 //             // 普通调用：传递纯数组
 //             result = m_emitter.call_function_raw_ptrs(func_val, args_ptr, argc_val, kwargs_dict);
@@ -917,162 +932,163 @@ ast::Value *PylangCodegen::visit(const ast::BoolOp *node)
 
 ast::Value *PylangCodegen::visit(const ast::Call *node)
 {
-    // 拦截无参 super() 并重写为 super(__class__, self)
-    if (auto *name_node = dynamic_cast<const ast::Name *>(node->function().get())) {
-        if (name_node->ids().size() == 1 && name_node->ids()[0] == "super" && node->args().empty()
-            && node->keywords().empty()) {
+	// 拦截无参 super() 并重写为 super(__class__, self)
+	if (auto *name_node = dynamic_cast<const ast::Name *>(node->function().get())) {
+		if (name_node->ids().size() == 1 && name_node->ids()[0] == "super" && node->args().empty()
+			&& node->keywords().empty()) {
 
-            if (!m_func_first_args.empty() && !m_func_first_args.back().empty()) {
-                const std::string &self_name = m_func_first_args.back();
-                llvm::Value *super_cls = load_variable("super");
-                llvm::Value *class_cell = load_variable("__class__");
-                llvm::Value *self_obj = load_variable(self_name);
+			if (!m_func_first_args.empty() && !m_func_first_args.back().empty()) {
+				const std::string &self_name = m_func_first_args.back();
+				llvm::Value *super_cls = load_variable("super");
+				llvm::Value *class_cell = load_variable("__class__");
+				llvm::Value *self_obj = load_variable(self_name);
 
-                if (super_cls && class_cell && self_obj) {
-                    auto *args_tuple = m_emitter.create_tuple({ class_cell, self_obj });
-                    auto *res = m_emitter.call_function(super_cls, args_tuple, nullptr);
-                    return make_value(res);
-                }
-            }
-        }
-    }
+				if (super_cls && class_cell && self_obj) {
+					auto *args_tuple = m_emitter.create_tuple({ class_cell, self_obj });
+					auto *res = m_emitter.call_function(super_cls, args_tuple, nullptr);
+					return make_value(res);
+				}
+			}
+		}
+	}
 
-    // === 优化：识别 Method 调用 ===
-    bool is_method = false;
-    llvm::Value *method_owner = nullptr;
-    std::string method_name;
+	// === 优化：识别 Method 调用 ===
+	bool is_method = false;
+	llvm::Value *method_owner = nullptr;
+	std::string method_name;
 
-    // 1. 严格求值顺序：先求值 Callable/Owner
-    if (auto *attr_node = dynamic_cast<const ast::Attribute *>(node->function().get())) {
-        method_owner = generate(attr_node->value().get());
-        if (!method_owner) { return nullptr; }
-        method_name = attr_node->attr();
-        is_method = true;
-    }
+	// 1. 严格求值顺序：先求值 Callable/Owner
+	if (auto *attr_node = dynamic_cast<const ast::Attribute *>(node->function().get())) {
+		method_owner = generate(attr_node->value().get());
+		if (!method_owner) { return nullptr; }
+		method_name = attr_node->attr();
+		is_method = true;
+	}
 
-    llvm::Value *func_val = nullptr;
-    if (!is_method) {
-        func_val = generate(node->function().get());
-        if (!func_val) { return nullptr; }
-    }
+	llvm::Value *func_val = nullptr;
+	if (!is_method) {
+		func_val = generate(node->function().get());
+		if (!func_val) { return nullptr; }
+	}
 
-    // 检查是否有 *args 拆包
-    bool has_starred = false;
-    for (const auto &arg : node->args()) {
-        if (dynamic_cast<const ast::Starred *>(arg.get())) {
-            has_starred = true;
-            break;
-        }
-    }
+	// 检查是否有 *args 拆包
+	bool has_starred = false;
+	for (const auto &arg : node->args()) {
+		if (dynamic_cast<const ast::Starred *>(arg.get())) {
+			has_starred = true;
+			break;
+		}
+	}
 
-    // === 生成超高性能调用路径 ===
-    if (!has_starred) {
-        // 无 *args: 绝对零拷贝 (Zero-allocation)
-        
-        // 2. 严格求值顺序：求值位置参数
-        std::vector<llvm::Value *> pos_args;
-        for (const auto &arg : node->args()) {
-            auto *val = generate(arg.get());
-            if (val) { pos_args.push_back(val); }
-        }
+	// === 生成超高性能调用路径 ===
+	if (!has_starred) {
+		// 无 *args: 绝对零拷贝 (Zero-allocation)
 
-        // 3. 严格求值顺序：最后求值关键字参数
-        llvm::Value *kwargs_dict = nullptr;
-        bool has_kwargs = false;
-        for (const auto &kw : node->keywords()) {
-            auto *kw_node = dynamic_cast<const ast::Keyword *>(kw.get());
-            if (!kw_node) continue;
+		// 2. 严格求值顺序：求值位置参数
+		std::vector<llvm::Value *> pos_args;
+		for (const auto &arg : node->args()) {
+			auto *val = generate(arg.get());
+			if (val) { pos_args.push_back(val); }
+		}
 
-            auto *kw_value = generate(kw_node->value().get());
-            if (!kw_value) continue;
+		// 3. 严格求值顺序：最后求值关键字参数
+		llvm::Value *kwargs_dict = nullptr;
+		bool has_kwargs = false;
+		for (const auto &kw : node->keywords()) {
+			auto *kw_node = dynamic_cast<const ast::Keyword *>(kw.get());
+			if (!kw_node) continue;
 
-            if (!kwargs_dict) {
-                kwargs_dict = m_emitter.create_dict({}, {});
-                has_kwargs = true;
-            }
+			auto *kw_value = generate(kw_node->value().get());
+			if (!kw_value) continue;
 
-            if (!kw_node->arg().has_value()) {
-                m_emitter.call_dict_merge(kwargs_dict, kw_value);
-            } else {
-                m_emitter.call_dict_setitem_str(kwargs_dict, *kw_node->arg(), kw_value);
-            }
-        }
-        if (!has_kwargs) { kwargs_dict = m_emitter.null_pyobject(); }
+			if (!kwargs_dict) {
+				kwargs_dict = m_emitter.create_dict({}, {});
+				has_kwargs = true;
+			}
 
-        auto *argc_val = m_builder.getInt32(pos_args.size());
-        llvm::Value *args_ptr = nullptr;
+			if (!kw_node->arg().has_value()) {
+				m_emitter.call_dict_merge(kwargs_dict, kw_value);
+			} else {
+				m_emitter.call_dict_setitem_str(kwargs_dict, *kw_node->arg(), kw_value);
+			}
+		}
+		if (!has_kwargs) { kwargs_dict = m_emitter.null_pyobject(); }
 
-        if (pos_args.empty()) {
-            args_ptr = llvm::ConstantPointerNull::get(llvm::PointerType::getUnqual(m_ctx));
-        } else {
-            // [安全修复] 必须在入口块分配，且不经过 symbol table (避免多次调用的变量名/类型冲突)
-            auto *ptr_ty = m_emitter.pyobject_ptr_type();
-            auto *arr_ty = llvm::ArrayType::get(ptr_ty, pos_args.size());
-            
-            auto &entry_bb = m_codegen_ctx.current_function()->getEntryBlock();
-            llvm::IRBuilder<> entry_builder(&entry_bb, entry_bb.begin());
-            auto *alloc = entry_builder.CreateAlloca(arr_ty, nullptr, "raw_args");
-            
-            args_ptr = m_builder.CreateBitCast(alloc, llvm::PointerType::getUnqual(m_ctx));
-            
-            // 在当前执行块填入数据
-            for (size_t i = 0; i < pos_args.size(); ++i) {
-                auto *gep = m_builder.CreateConstGEP2_32(arr_ty, alloc, 0, i);
-                m_builder.CreateStore(pos_args[i], gep);
-            }
-        }
+		auto *argc_val = m_builder.getInt32(pos_args.size());
+		llvm::Value *args_ptr = nullptr;
 
-        llvm::Value *result = nullptr;
-        if (is_method) {
-            // 方法调用：直接使用 C 风格字符串发起查找和穿透执行
-            auto *cstr_val = m_builder.CreateGlobalStringPtr(method_name);
-            result = m_emitter.call_method_raw_ptrs(method_owner, cstr_val, args_ptr, argc_val, kwargs_dict);
-        } else {
-            // 普通调用：传递纯数组
-            result = m_emitter.call_function_raw_ptrs(func_val, args_ptr, argc_val, kwargs_dict);
-        }
-        return make_value(result);
-    } else {
-        // === 有 *args: 回退到 Tuple 分配逻辑 ===
-        
-        if (is_method) { func_val = m_emitter.call_getattr(method_owner, method_name); }
+		if (pos_args.empty()) {
+			args_ptr = llvm::ConstantPointerNull::get(llvm::PointerType::getUnqual(m_ctx));
+		} else {
+			// [安全修复] 必须在入口块分配，且不经过 symbol table (避免多次调用的变量名/类型冲突)
+			auto *ptr_ty = m_emitter.pyobject_ptr_type();
+			auto *arr_ty = llvm::ArrayType::get(ptr_ty, pos_args.size());
 
-        auto *tmp_list = m_emitter.create_list({});
-        for (const auto &arg : node->args()) {
-            if (auto *starred = dynamic_cast<const ast::Starred *>(arg.get())) {
-                auto *iterable = generate(starred->value().get());
-                if (iterable) { m_emitter.call_list_extend(tmp_list, iterable); }
-            } else {
-                auto *val = generate(arg.get());
-                if (val) { m_emitter.call_list_append(tmp_list, val); }
-            }
-        }
-        llvm::Value *args_tuple = m_emitter.call_list_to_tuple(tmp_list);
+			auto &entry_bb = m_codegen_ctx.current_function()->getEntryBlock();
+			llvm::IRBuilder<> entry_builder(&entry_bb, entry_bb.begin());
+			auto *alloc = entry_builder.CreateAlloca(arr_ty, nullptr, "raw_args");
 
-        // Slow Path 也需保证 kwargs 最后求值
-        llvm::Value *kwargs_dict = nullptr;
-        bool has_kwargs = false;
-        for (const auto &kw : node->keywords()) {
-            auto *kw_node = dynamic_cast<const ast::Keyword *>(kw.get());
-            if (!kw_node) continue;
-            auto *kw_value = generate(kw_node->value().get());
-            if (!kw_value) continue;
+			args_ptr = m_builder.CreateBitCast(alloc, llvm::PointerType::getUnqual(m_ctx));
 
-            if (!kwargs_dict) {
-                kwargs_dict = m_emitter.create_dict({}, {});
-                has_kwargs = true;
-            }
-            if (!kw_node->arg().has_value()) {
-                m_emitter.call_dict_merge(kwargs_dict, kw_value);
-            } else {
-                m_emitter.call_dict_setitem_str(kwargs_dict, *kw_node->arg(), kw_value);
-            }
-        }
-        if (!has_kwargs) { kwargs_dict = m_emitter.null_pyobject(); }
+			// 在当前执行块填入数据
+			for (size_t i = 0; i < pos_args.size(); ++i) {
+				auto *gep = m_builder.CreateConstGEP2_32(arr_ty, alloc, 0, i);
+				m_builder.CreateStore(pos_args[i], gep);
+			}
+		}
 
-        auto *result = m_emitter.call_function(func_val, args_tuple, kwargs_dict);
-        return make_value(result);
-    }
+		llvm::Value *result = nullptr;
+		if (is_method) {
+			// 方法调用：直接使用 C 风格字符串发起查找和穿透执行
+			auto *cstr_val = m_builder.CreateGlobalString(method_name);
+			result = m_emitter.call_method_raw_ptrs(
+				method_owner, cstr_val, args_ptr, argc_val, kwargs_dict);
+		} else {
+			// 普通调用：传递纯数组
+			result = m_emitter.call_function_raw_ptrs(func_val, args_ptr, argc_val, kwargs_dict);
+		}
+		return make_value(result);
+	} else {
+		// === 有 *args: 回退到 Tuple 分配逻辑 ===
+
+		if (is_method) { func_val = m_emitter.call_getattr(method_owner, method_name); }
+
+		auto *tmp_list = m_emitter.create_list({});
+		for (const auto &arg : node->args()) {
+			if (auto *starred = dynamic_cast<const ast::Starred *>(arg.get())) {
+				auto *iterable = generate(starred->value().get());
+				if (iterable) { m_emitter.call_list_extend(tmp_list, iterable); }
+			} else {
+				auto *val = generate(arg.get());
+				if (val) { m_emitter.call_list_append(tmp_list, val); }
+			}
+		}
+		llvm::Value *args_tuple = m_emitter.call_list_to_tuple(tmp_list);
+
+		// Slow Path 也需保证 kwargs 最后求值
+		llvm::Value *kwargs_dict = nullptr;
+		bool has_kwargs = false;
+		for (const auto &kw : node->keywords()) {
+			auto *kw_node = dynamic_cast<const ast::Keyword *>(kw.get());
+			if (!kw_node) continue;
+			auto *kw_value = generate(kw_node->value().get());
+			if (!kw_value) continue;
+
+			if (!kwargs_dict) {
+				kwargs_dict = m_emitter.create_dict({}, {});
+				has_kwargs = true;
+			}
+			if (!kw_node->arg().has_value()) {
+				m_emitter.call_dict_merge(kwargs_dict, kw_value);
+			} else {
+				m_emitter.call_dict_setitem_str(kwargs_dict, *kw_node->arg(), kw_value);
+			}
+		}
+		if (!has_kwargs) { kwargs_dict = m_emitter.null_pyobject(); }
+
+		auto *result = m_emitter.call_function(func_val, args_tuple, kwargs_dict);
+		return make_value(result);
+	}
 }
 
 ast::Value *PylangCodegen::visit(const ast::Attribute *node)
@@ -1630,42 +1646,42 @@ llvm::Value *PylangCodegen::compile_function_body(const std::string &func_name,
 	// 如果有默认值或有 free vars，需要 closure
 	bool has_closure = !free_vars.empty() || (defaults_tuple != nullptr);
 
-    // === Step 3: 创建 LLVM 函数 ===
-    auto *ptr_ty = m_emitter.pyobject_ptr_type();
-    auto *i32_ty = m_builder.getInt32Ty();
+	// === Step 3: 创建 LLVM 函数 ===
+	auto *ptr_ty = m_emitter.pyobject_ptr_type();
+	auto *i32_ty = m_builder.getInt32Ty();
 
-    std::vector<llvm::Type *> param_types;
-    param_types.push_back(ptr_ty);// %module
-    
-    // ✅ [关键修复]：取消 if (has_closure)，强制占位。
-    // 所有 AOT 函数必须符合 AOTRawFuncPtr 签名
-    param_types.push_back(ptr_ty);// %closure (即使不用也占位，保证寄存器对齐)
+	std::vector<llvm::Type *> param_types;
+	param_types.push_back(ptr_ty);// %module
 
-    // 修改签名：使用 VECTORCALL 约定
-    param_types.push_back(ptr_ty);// %args_array (Value*)
-    param_types.push_back(i32_ty);// %argc
-    param_types.push_back(ptr_ty);// %kwargs (PyDict*)
+	// ✅ [关键修复]：取消 if (has_closure)，强制占位。
+	// 所有 AOT 函数必须符合 AOTRawFuncPtr 签名
+	param_types.push_back(ptr_ty);// %closure (即使不用也占位，保证寄存器对齐)
 
-    auto *func_ty = llvm::FunctionType::get(ptr_ty, param_types, false);
-    auto *func =
-        llvm::Function::Create(func_ty, llvm::Function::InternalLinkage, mangled, m_module.get());
+	// 修改签名：使用 VECTORCALL 约定
+	param_types.push_back(ptr_ty);// %args_array (Value*)
+	param_types.push_back(i32_ty);// %argc
+	param_types.push_back(ptr_ty);// %kwargs (PyDict*)
 
-    ensure_personality(func);
+	auto *func_ty = llvm::FunctionType::get(ptr_ty, param_types, false);
+	auto *func =
+		llvm::Function::Create(func_ty, llvm::Function::InternalLinkage, mangled, m_module.get());
 
-    auto arg_it = func->arg_begin();
-    arg_it->setName("module");
-    auto *module_arg = &*arg_it++;
+	ensure_personality(func);
 
-    // ✅ [关键修复]：取消 if (has_closure)
-    arg_it->setName("closure");
-    auto *closure_arg = &*arg_it++;
+	auto arg_it = func->arg_begin();
+	arg_it->setName("module");
+	auto *module_arg = &*arg_it++;
 
-    arg_it->setName("args_array");
-    auto *args_array_arg = &*arg_it++;
-    arg_it->setName("argc");
-    auto *argc_arg = &*arg_it++;
-    arg_it->setName("kwargs");
-    auto *kwargs_arg = &*arg_it++;
+	// ✅ [关键修复]：取消 if (has_closure)
+	arg_it->setName("closure");
+	auto *closure_arg = &*arg_it++;
+
+	arg_it->setName("args_array");
+	auto *args_array_arg = &*arg_it++;
+	arg_it->setName("argc");
+	auto *argc_arg = &*arg_it++;
+	arg_it->setName("kwargs");
+	auto *kwargs_arg = &*arg_it++;
 
 	// === Step 4: 保存当前插入点 ===
 	auto saved_ip = m_builder.saveIP();

@@ -272,6 +272,11 @@ class IREmitter
 	void set_unwind_dest(llvm::BasicBlock *bb) { m_unwind_dest = bb; }
 	llvm::BasicBlock *unwind_dest() const { return m_unwind_dest; }
 
+	// 获取属性名的全局 PyObject* 指针
+	llvm::Value *get_interned_string_obj(std::string_view name);
+	// 在模块初始化时生成所有缓存对象的初始化代码
+	void emit_interned_strings_initialization();
+
   private:
 	/// 创建全局字符串常量（带缓存）
 	llvm::Constant *create_global_string(std::string_view str);
@@ -292,6 +297,9 @@ class IREmitter
 
 	// 当前 unwind 目标（try 块内非 null）
 	llvm::BasicBlock *m_unwind_dest = nullptr;
+
+	// 缓存：属性名 -> 全局变量 (ptr @.pystr.xxxx)
+	std::unordered_map<std::string, llvm::GlobalVariable *> m_interned_string_objects;
 };
 
 }// namespace pylang

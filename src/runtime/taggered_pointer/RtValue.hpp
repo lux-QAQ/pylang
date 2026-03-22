@@ -71,6 +71,20 @@ class RtValue
 		return v >= kTaggedIntMin && v <= kTaggedIntMax;
 	}
 
+	/// [新增]：一词位运算同时检查两个原始指针是否都是 Tagged Integer
+	/// 避免了在导出层分别调用 is_tagged_int() 导致的两次分支检查
+	[[nodiscard]] static inline bool are_both_tagged_int(const PyObject *a,
+		const PyObject *b) noexcept
+	{
+		return (reinterpret_cast<uintptr_t>(a) & reinterpret_cast<uintptr_t>(b) & kIntTag);
+	}
+
+	/// [新增]：重载版本，用于直接检查 RtValue 包装对象，避免在 RtValue.cpp 中调用 as_ptr()
+	[[nodiscard]] static inline bool are_both_tagged_int(RtValue a, RtValue b) noexcept
+	{
+		return (a.m_bits & b.m_bits & kIntTag);
+	}
+
 	// --- 值提取 (极致内联) ---
 
 	[[nodiscard]] constexpr PyObject *as_ptr() const noexcept

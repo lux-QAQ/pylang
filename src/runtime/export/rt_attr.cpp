@@ -66,6 +66,35 @@ try_instance_dict:
 	return rt_unwrap(b_obj->getattribute(py::PyString::intern(name)));
 }
 
+
+PYLANG_EXPORT_ATTR("getattr_fast", "obj", "obj,obj")
+py::PyObject *rt_getattr_fast(py::PyObject *obj, py::PyObject *name_obj)
+{
+	if (!name_obj) {
+		spdlog::critical(
+			"Runtime Error: getattr_fast received NULL name_obj. "
+			"This usually means PyInit failed to initialize string constants.");
+		std::abort();
+	}
+	auto *b_obj = py::ensure_box(obj);
+	auto *name = static_cast<py::PyString *>(name_obj);
+
+	// [符合 Python 3.9 语义的快速路径]
+	// 1. 如果是普通对象（没有覆盖 __getattribute__），先查实例属性
+	// 这是 test.py 中 Node 对象最频繁的路径
+	if (auto *inst_dict = b_obj->attributes()) {
+		auto &map = inst_dict->map();
+		// 因为 name 是预 intern 的，这里的 map.find 是 O(1) 的指针比较
+		auto it = map.find(py::Value(name));
+		if (it != map.end()) { return py::RtValue::from_value(it->second).as_pyobject_raw(); }
+	}
+
+	// 2. 否则，调用虚函数 getattribute。
+	// 如果 Python 类定义了 __getattribute__，生成的 C++ 代码会覆盖此虚函数，
+	// 从而保证多态语义正确。
+	return rt_unwrap(b_obj->getattribute(name));
+}
+
 // PYLANG_EXPORT_ATTR("load_global", "obj", "obj,str")
 // py::PyObject *rt_load_global(py::PyObject *module, const char *name)
 // {
@@ -97,26 +126,30 @@ py::PyObject *rt_load_global(py::PyObject *module, const char *name)
 	}
 
 	// 2. 慢速路径：标准查找
-    py::PyObject *found = nullptr;
-    auto result = mod->find_symbol_cstr(name);
-    if (result.is_ok()) {
-        found = result.unwrap();
-    } else {
-        auto &reg = py::ModuleRegistry::instance();
-        if (auto *builtins_mod = reg.find("builtins")) {
-            auto builtin_result = builtins_mod->find_symbol_cstr(name);
-            if (builtin_result.is_ok()) found = builtin_result.unwrap();
-        }
-    }
+	py::PyObject *found = nullptr;
+	auto result = mod->find_symbol_cstr(name);
+	if (result.is_ok()) {
+		found = result.unwrap();
+	} else {
+		auto &reg = py::ModuleRegistry::instance();
+		if (auto *builtins_mod = reg.find("builtins")) {
+			auto builtin_result = builtins_mod->find_symbol_cstr(name);
+			if (builtin_result.is_ok()) found = builtin_result.unwrap();
+		}
+	}
 
-    if (found) {
-        py::GlobalCache::update(mod, name, found, globals_dict->version(), builtins_dict ? builtins_dict->version() : 0);
-        return found;
-    }
+	if (found) {
+		py::GlobalCache::update(mod,
+			name,
+			found,
+			globals_dict->version(),
+			builtins_dict ? builtins_dict->version() : 0);
+		return found;
+	}
 
-    // 只有最后确定找不到，才分配一次异常
-    rt_raise(py::name_error("name '{}' is not defined", name));
-    return nullptr;
+	// 只有最后确定找不到，才分配一次异常
+	rt_raise(py::name_error("name '{}' is not defined", name));
+	return nullptr;
 }
 
 // =============================================================================
@@ -139,6 +172,14 @@ void rt_setattr(py::PyObject *obj, const char *name, py::PyObject *value)
 {
 	rt_unwrap_void(
 		py::ensure_box(obj)->setattribute(py::PyString::intern(name), py::ensure_box(value)));
+}
+
+PYLANG_EXPORT_ATTR("setattr_fast", "void", "obj,obj,obj")
+void rt_setattr_fast(py::PyObject *obj, py::PyObject *name_obj, py::PyObject *value)
+{
+	auto *b_obj = py::ensure_box(obj);
+	auto *name = static_cast<py::PyString *>(name_obj);
+	rt_unwrap_void(b_obj->setattribute(name, py::ensure_box(value)));
 }
 
 PYLANG_EXPORT_ATTR("delattr", "void", "obj,str")
