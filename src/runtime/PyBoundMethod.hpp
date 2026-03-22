@@ -27,7 +27,7 @@ class PyBoundMethod : public PyBaseObject
 
 	PyResult<PyObject *> __repr__() const;
 	PyResult<PyObject *> __call__(PyTuple *args, PyDict *kwargs);
-	PyResult<PyObject *> call_raw(std::span<Value> args, PyDict *kwargs) override;
+	PyResult<PyObject *> call_raw(std::span<const Value> args, PyDict *kwargs) override;
 
 	void visit_graph(Visitor &visitor) override;
 

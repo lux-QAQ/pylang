@@ -121,6 +121,7 @@ class PySlotWrapper : public PyBaseObject
 
 	PyResult<PyObject *> __repr__() const;
 	PyResult<PyObject *> __call__(PyTuple *args, PyDict *kwargs);
+	PyResult<PyObject *> call_raw(std::span<const Value> args, PyDict *kwargs) override;
 	PyResult<PyObject *> __get__(PyObject *, PyObject *) const;
 
 	void visit_graph(Visitor &visitor) override;
@@ -212,6 +213,7 @@ constexpr void Slot::initialize(
 			auto fn = [&fn_](
 						  PyObject *self, PyTuple *args, PyDict *kwargs) -> PyResult<PyObject *> {
 				auto &native_fn = std::get<FnType>(fn_);
+				// [修复] 显式指定返回类型，解决 PyInteger::create 导致的类型推导失败
 				auto wrap_result = [](auto result) -> PyResult<PyObject *> {
 					using ResultType = typename FnType::result_type;
 					static_assert(detail::is_pyresult<ResultType>{},
@@ -224,8 +226,26 @@ constexpr void Slot::initialize(
 					} else if constexpr (std::is_same_v<typename ResultType::OkType, bool>) {
 						return result.and_then(
 							[](bool value) { return Ok(value ? py_true() : py_false()); });
-					} else if constexpr (std::is_integral_v<typename ResultType::OkType>) {
-						return result.and_then([](auto value) { return PyInteger::create(value); });
+					} /* else if constexpr (std::is_integral_v<typename ResultType::OkType>) {
+						// 核心优化：拦截 __init__ 返回的 0，返回 None 而不是 PyInteger(0)
+						return result.and_then([](auto value) -> PyResult<PyObject *> {
+							if constexpr (std::is_same_v<typename ResultType::OkType, int32_t>) {
+								if (value == 0) return Ok(py_none());
+							}
+							auto int_res = PyInteger::create(value);
+							if (int_res.is_err()) return Err(int_res.unwrap_err());
+							return Ok(static_cast<PyObject *>(int_res.unwrap()));
+						});
+					} */
+					else if constexpr (std::is_integral_v<typename ResultType::OkType>) {
+						return result.and_then([](auto value) -> PyResult<PyObject *> {
+							// [优化]：tp_init 返回 0 是成功，对应 Python 语义返回 None
+							if constexpr (std::is_same_v<typename ResultType::OkType, int32_t>) {
+								if (value == 0) return Ok(py_none());
+							}
+							return PyInteger::create(value).and_then(
+								[](auto *i) { return Ok(static_cast<PyObject *>(i)); });
+						});
 					} else {
 						[]<bool flag = false>() {
 							static_assert(flag, "unsupported native return type");

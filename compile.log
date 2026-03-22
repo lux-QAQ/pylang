@@ -1,87 +1,33 @@
-[main] 正在生成文件夹: /home/lux/code/language/python-cpp/build/debug 
-[build] 正在启动生成
-[proc] 正在执行命令: /home/lux/soft/cmake/bin/cmake --build /home/lux/code/language/python-cpp/build/debug --config Debug --target all --
-[build] [0/2] Re-checking globbed directories...
-[build] [1/193] wllvm: runtime/AttributeCache.hpp
-[build] WARNING:Did not recognize the compiler flag "/home/lux/code/language/python-cpp/src/runtime/export/../../runtime/AttributeCache.hpp"
-[build] [2/193] wllvm: runtime/export/rt_attr.cpp
-[build] FAILED: [code=1] bitcode_obj/runtime_export_rt_attr.o /home/lux/code/language/python-cpp/build/debug/bitcode_obj/runtime_export_rt_attr.o 
-[build] cd /home/lux/code/language/python-cpp/build/debug/src/runtime/export && /home/lux/soft/cmake/bin/cmake -E env LLVM_COMPILER=clang LLVM_COMPILER_PATH=/usr/bin /home/lux/miniconda3/bin/wllvm++ -std=c++23 -O1 -g -c  -o /home/lux/code/language/python-cpp/build/debug/bitcode_obj/runtime_export_rt_attr.o /home/lux/code/language/python-cpp/src/runtime/export/rt_attr.cpp
-[build] /home/lux/code/language/python-cpp/src/runtime/export/rt_attr.cpp:22:31: error: no member named 'global_version' in 'py::PyType'
-[build]    22 |     uint64_t gv = py::PyType::global_version();
-[build]       |                   ~~~~~~~~~~~~^
-[build] 1 error generated.
-[build] ERROR:Failed to compile using given arguments: [-std=c++23 -O1 -g -c  -o /home/lux/code/language/python-cpp/build/debug/bitcode_obj/runtime_export_rt_attr.o /home/lux/code/language/python-cpp/src/runtime/export/rt_attr.cpp]
-[build] [3/193] extract-bc: runtime_AttributeCache.hpp.bc
-[build] ERROR:File "/home/lux/code/language/python-cpp/build/debug/bitcode_obj/runtime_AttributeCache.hpp.o" of type UNKNOWN cannot be used
-[build] [4/193] Building CXX object src/CMakeFiles/python-cpp.dir/runtime/modules/MarshalModule.cpp.o
-[build] [5/193] Building CXX object src/CMakeFiles/python-cpp.dir/runtime/modules/collections/module.cpp.o
-[build] [6/193] Building CXX object src/CMakeFiles/python-cpp.dir/runtime/modules/time/module.cpp.o
-[build] [7/193] Building CXX object src/CMakeFiles/python-cpp.dir/runtime/modules/math/module.cpp.o
-[build] [8/193] Building CXX object src/CMakeFiles/python-cpp.dir/runtime/modules/itertools/module.cpp.o
-[build] [9/193] Building CXX object src/CMakeFiles/python-cpp.dir/executable/bytecode/instructions/YieldValue.cpp.o
-[build] [10/193] Building CXX object src/CMakeFiles/python-cpp.dir/runtime/CustomPyObject.cpp.o
-[build] [11/193] Building CXX object src/CMakeFiles/python-cpp.dir/runtime/modules/errno/module.cpp.o
-[build] [12/193] Building CXX object src/CMakeFiles/python-cpp.dir/runtime/modules/weakref/PyCallableProxyType.cpp.o
-[build] [13/193] Building CXX object src/CMakeFiles/python-cpp.dir/runtime/modules/itertools/Count.cpp.o
-[build] [14/193] Building CXX object src/CMakeFiles/python-cpp.dir/runtime/modules/CodecsModule.cpp.o
-[build] [15/193] Building CXX object src/CMakeFiles/python-cpp.dir/runtime/modules/itertools/Repeat.cpp.o
-[build] [16/193] Building CXX object src/CMakeFiles/python-cpp.dir/runtime/modules/weakref/module.cpp.o
-[build] [17/193] Building CXX object src/CMakeFiles/python-cpp.dir/executable/bytecode/instructions/YieldLoad.cpp.o
-[build] [18/193] Building CXX object src/CMakeFiles/python-cpp.dir/runtime/modules/itertools/ISlice.cpp.o
-[build] [19/193] wllvm: runtime/PyObject.cpp
-[build] FAILED: [code=1] bitcode_obj/runtime_PyObject.o /home/lux/code/language/python-cpp/build/debug/bitcode_obj/runtime_PyObject.o 
-[build] cd /home/lux/code/language/python-cpp/build/debug/src/runtime/export && /home/lux/soft/cmake/bin/cmake -E env LLVM_COMPILER=clang LLVM_COMPILER_PATH=/usr/bin /home/lux/miniconda3/bin/wllvm++ -std=c++23 -O1 -g -c  -o /home/lux/code/language/python-cpp/build/debug/bitcode_obj/runtime_PyObject.o /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyObject.cpp
-[build] In file included from /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyObject.cpp:3:
-[build] In file included from /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/AttributeError.hpp:3:
-[build] In file included from /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/Exception.hpp:4:
-[build] In file included from /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyString.hpp:4:
-[build] /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyTuple.hpp:79:26: error: no matching constructor for initialization of 'py::GCVector<Value>' (aka 'vector<variant<Number, String, Bytes, Ellipsis, NameConstant, Tuple, PyObject *>, GCTracingAllocator<variant<Number, String, Bytes, Ellipsis, NameConstant, Tuple, PyObject *>>>')
-[build]    79 |                 return PyTuple::create(py::GCVector<Value>{ std::forward<Args>(args)... });
-[build]       |                                        ^                  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-[build] /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyObject.cpp:1210:51: note: in instantiation of function template specialization 'py::PyTuple::create<std::span<std::variant<py::Number, py::String, py::Bytes, py::Ellipsis, py::NameConstant, py::Tuple, py::PyObject *>> &>' requested here
-[build]  1210 |     return call(args.empty() ? nullptr : PyTuple::create(args).unwrap(), kwargs);
-[build]       |                                                   ^
-[build] /usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/bits/stl_vector.h:542:7: note: candidate constructor not viable: no known conversion from 'std::span<std::variant<py::Number, py::String, py::Bytes, py::Ellipsis, py::NameConstant, py::Tuple, py::PyObject *>>' to 'const allocator_type' (aka 'const py::GCTracingAllocator<std::variant<py::Number, py::String, py::Bytes, py::Ellipsis, py::NameConstant, py::Tuple, py::PyObject *>>') for 1st argument
-[build]   542 |       vector(const allocator_type& __a) _GLIBCXX_NOEXCEPT
-[build]       |       ^      ~~~~~~~~~~~~~~~~~~~~~~~~~
-[build] /usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/bits/stl_vector.h:556:7: note: candidate constructor not viable: no known conversion from 'std::span<std::variant<py::Number, py::String, py::Bytes, py::Ellipsis, py::NameConstant, py::Tuple, py::PyObject *>>' to 'size_type' (aka 'unsigned long') for 1st argument
-[build]   556 |       vector(size_type __n, const allocator_type& __a = allocator_type())
-[build]       |       ^      ~~~~~~~~~~~~~
-[build] /usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/bits/stl_vector.h:601:7: note: candidate constructor not viable: no known conversion from 'std::span<std::variant<py::Number, py::String, py::Bytes, py::Ellipsis, py::NameConstant, py::Tuple, py::PyObject *>>' to 'const vector<variant<Number, String, Bytes, Ellipsis, NameConstant, Tuple, PyObject *>, GCTracingAllocator<variant<Number, String, Bytes, Ellipsis, NameConstant, Tuple, PyObject *>>>' for 1st argument
-[build]   601 |       vector(const vector& __x)
-[build]       |       ^      ~~~~~~~~~~~~~~~~~
-[build] /usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/bits/stl_vector.h:620:7: note: candidate constructor not viable: no known conversion from 'std::span<std::variant<py::Number, py::String, py::Bytes, py::Ellipsis, py::NameConstant, py::Tuple, py::PyObject *>>' to 'vector<variant<Number, String, Bytes, Ellipsis, NameConstant, Tuple, PyObject *>, GCTracingAllocator<variant<Number, String, Bytes, Ellipsis, NameConstant, Tuple, PyObject *>>>' for 1st argument
-[build]   620 |       vector(vector&&) noexcept = default;
-[build]       |       ^      ~~~~~~~~
-[build] /usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/bits/stl_vector.h:678:7: note: candidate constructor not viable: no known conversion from 'std::span<std::variant<py::Number, py::String, py::Bytes, py::Ellipsis, py::NameConstant, py::Tuple, py::PyObject *>>' to 'initializer_list<value_type>' (aka 'initializer_list<std::variant<py::Number, py::String, py::Bytes, py::Ellipsis, py::NameConstant, py::Tuple, py::PyObject *>>') for 1st argument
-[build]   678 |       vector(initializer_list<value_type> __l,
-[build]       |       ^      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-[build] /usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/bits/stl_vector.h:531:7: note: candidate constructor not viable: requires 0 arguments, but 1 was provided
-[build]   531 |       vector() = default;
-[build]       |       ^
-[build] /usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/bits/stl_vector.h:624:7: note: candidate constructor not viable: requires 2 arguments, but 1 was provided
-[build]   624 |       vector(const vector& __x, const __type_identity_t<allocator_type>& __a)
-[build]       |       ^      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-[build] /usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/bits/stl_vector.h:659:7: note: candidate constructor not viable: requires 2 arguments, but 1 was provided
-[build]   659 |       vector(vector&& __rv, const __type_identity_t<allocator_type>& __m)
-[build]       |       ^      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-[build] /usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/bits/stl_vector.h:569:7: note: candidate constructor not viable: requires at least 2 arguments, but 1 was provided
-[build]   569 |       vector(size_type __n, const value_type& __value,
-[build]       |       ^      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-[build]   570 |              const allocator_type& __a = allocator_type())
-[build]       |              ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-[build] /usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/bits/stl_vector.h:635:7: note: candidate constructor not viable: requires 3 arguments, but 1 was provided
-[build]   635 |       vector(vector&& __rv, const allocator_type& __m, true_type) noexcept
-[build]       |       ^      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-[build] /usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/bits/stl_vector.h:640:7: note: candidate constructor not viable: requires 3 arguments, but 1 was provided
-[build]   640 |       vector(vector&& __rv, const allocator_type& __m, false_type)
-[build]       |       ^      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-[build] /usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/bits/stl_vector.h:707:2: note: candidate constructor template not viable: requires at least 2 arguments, but 1 was provided
-[build]   707 |         vector(_InputIterator __first, _InputIterator __last,
-[build]       |         ^      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-[build]   708 |                const allocator_type& __a = allocator_type())
-[build]       |                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-[build] 1 error generated.
-[build] ERROR:Failed to compile using given arguments: [-std=c++23 -O1 -g -c  -o /home/lux/code/language/python-cpp/build/debug/bitcode_obj/runtime_PyObject.o /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyObject.cpp]
-
+[build] [1/19] wllvm: runtime/PySlotWrapper.cpp
+[build] FAILED: [code=1] bitcode_obj/runtime_PySlotWrapper.o /home/lux/code/language/python-cpp/build/debug/bitcode_obj/runtime_PySlotWrapper.o 
+[build] cd /home/lux/code/language/python-cpp/build/debug/src/runtime/export && /home/lux/soft/cmake/bin/cmake -E env LLVx86_64-linux-gnu -Wno-everything -o /home/lux/code/language/python-cpp/build/debug/bitcode_obj/runtime_PySlotWrapper.o /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PySlotWrapper.cpp
+[build] /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PySlotWrapper.cpp:51:38: error: no member named 'as_pyobject_raw' in 'std::variant<py::Number, py::String, py::Bytes, py::Ellipsis, py::NameConstant, py::Tuple, py::PyObject *>'
+[build]    51 |     auto *self = args->elements()[0].as_pyobject_raw();
+[build]       |                  ~~~~~~~~~~~~~~~~~~~ ^
+[build] /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PySlotWrapper.cpp:74:26: error: no member named 'as_pyobject_raw' in 'std::variant<py::Number, py::String, py::Bytes, py::Ellipsis, py::NameConstant, py::Tuple, py::PyObject *>'
+[build]    74 |     auto* self = args[0].as_pyobject_raw();
+[build]       |                  ~~~~~~~ ^
+[build] /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PySlotWrapper.cpp:81:51: error: no matching member function for call to 'and_then'
+[build]    81 |     return PyTuple::create(std::move(slice_args)).and_then([this, self, kwargs](PyTuple* t) {
+[build]       |            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~
+[build] /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/Value.hpp:294:25: note: candidate template ignored: substitution failure [with FunctorType = (lambda at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PySlotWrapper.cpp:81:60)]: no type named 'type' in 'std::invoke_result<(lambda at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PySlotWrapper.cpp:81:60), py::PyTuple *>'
+[build]   294 |         PyResult<PyResultType> and_then(FunctorType &&op) const;
+[build]       |                                ^
+[build] 3 errors generated.
+[build] ERROR:Failed to compile using given arguments: [-std=c++23 -O1 -g -c -fno-discard-value-names -DSPDLOG_COMPILED_LIB -DDEBUG -DPYLANG_AOT_MODE -DPYLANG_USE_ARENA -DPYLANG_USE_Boehm_GC -DGC_THREADS yalantinglibs/f7f2/include/ylt/thirdparty -I /usr/include/x86_64-linux-gnu -Wno-everything -o /home/lux/code/language/python-cpp/build/debug/bitcode_obj/runtime_PySlotWrapper.o /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PySlotWrapper.cpp]
+[build] [2/19] Building CXX object src/CMakeFiles/python-cpp.dir/runtime/PySlotWrapper.cpp.o
+[build] FAILED: [code=1] src/CMakeFiles/python-cpp.dir/runtime/PySlotWrapper.cpp.o 
+[build] /usr/bin/ccache /usr/lib/ccache/c++ -DCMAKE_BINARY_DIR=\"/home/lux/code/language/python-cpp/build/debug\" -DCPPTRACE_STATIC_DEFINE -DGC_THREADS -DPYLANG_HAS_LLD=1 -DPYLANG_USE_ARENA -DPYLANG_USE_Boehm_GC -DSPDLOG_COMPILED_LIB -DALWAYS_SMALL_CLEAR_STACK -DSMALL_CLEAR_SIZE=4 -g -std=c++23 -fcolor-diagnostics -fno-omit-frame-pointer -fsanitize=address -Wall -Wextra -Wextra-semi -Wshadow -Wnon-virtual-dtor -Wold-style-cast -Wcast-align -Wunused -Woverloaded-virtual -Wpedantic -Wconversion -Wsign-conversion -Wnull-dereference -Wdouble-promotion -Wformat=2 -Wimplicit-fallthrough -Werror -Wno-sign-conversion -Wno-shadow -Wno-implicit-fallthrough -Wno-old-style-cast -Wno-deprecated-copy -Wno-missing-field-initializers -Wno-null-dereference -Wno-unknown-warning-option -MD -MT src/CMakeFiles/python-cpp.dir/runtime/PySlotWrapper.cpp.o -MF src/CMakeFiles/python-cpp.dir/runtime/PySlotWrapper.cpp.o.d -o src/CMakeFiles/python-cpp.dir/runtime/PySlotWrapper.cpp.o -c /home/lux/code/language/python-cpp/src/runtime/PySlotWrapper.cpp
+[build] /home/lux/code/language/python-cpp/src/runtime/PySlotWrapper.cpp:51:38: error: no member named 'as_pyobject_raw' in 'std::variant<py::Number, py::String, py::Bytes, py::Ellipsis, py::NameConstant, py::Tuple, py::PyObject *>'
+[build]    51 |     auto *self = args->elements()[0].as_pyobject_raw();
+[build]       |                  ~~~~~~~~~~~~~~~~~~~ ^
+[build] /home/lux/code/language/python-cpp/src/runtime/PySlotWrapper.cpp:74:26: error: no member named 'as_pyobject_raw' in 'std::variant<py::Number, py::String, py::Bytes, py::Ellipsis, py::NameConstant, py::Tuple, py::PyObject *>'
+[build]    74 |     auto* self = args[0].as_pyobject_raw();
+[build]       |                  ~~~~~~~ ^
+[build] /home/lux/code/language/python-cpp/src/runtime/PySlotWrapper.cpp:81:51: error: no matching member function for call to 'and_then'
+[build]    81 |     return PyTuple::create(std::move(slice_args)).and_then([this, self, kwargs](PyTuple* t) {
+[build]       |            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~
+[build] /home/lux/code/language/python-cpp/src/runtime/Value.hpp:294:25: note: candidate template ignored: substitution failure [with FunctorType = (lambda at /home/lux/code/language/python-cpp/src/runtime/PySlotWrapper.cpp:81:60)]: no type named 'type' in 'std::invoke_result<(lambda at /home/lux/code/language/python-cpp/src/runtime/PySlotWrapper.cpp:81:60), py::PyTuple *>'
+[build]   294 |         PyResult<PyResultType> and_then(FunctorType &&op) const;
+[build]       |                                ^
+[build] 3 errors generated.

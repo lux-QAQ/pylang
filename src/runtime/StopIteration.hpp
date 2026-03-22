@@ -36,11 +36,23 @@ class StopIteration : public Exception
 	static PyType *class_type();
 };
 
+// template<typename... Args> inline BaseException *stop_iteration(Args &&...args)
+// {
+// 	auto args_tuple = PyTuple::create(std::forward<Args>(args)...);
+// 	if (args_tuple.is_err()) { TODO(); }
+// 	return StopIteration::create(args_tuple.unwrap());
+// }
+
+BaseException *stop_iteration_empty();
+
 template<typename... Args> inline BaseException *stop_iteration(Args &&...args)
 {
-	auto args_tuple = PyTuple::create(std::forward<Args>(args)...);
-	if (args_tuple.is_err()) { TODO(); }
-	return StopIteration::create(args_tuple.unwrap());
+    if constexpr (sizeof...(Args) == 0) {
+        // [修复] 调用 cpp 中实现的单例获取函数
+        return stop_iteration_empty();
+    }
+    auto args_tuple = PyTuple::create(std::forward<Args>(args)...);
+    if (args_tuple.is_err()) { TODO(); }
+    return StopIteration::create(args_tuple.unwrap());
 }
-
 }// namespace py

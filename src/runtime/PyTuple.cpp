@@ -40,11 +40,17 @@ namespace {
 		return result;
 	}
 
-	PyTuple *&get_empty_tuple()
-	{
-		static PyTuple *empty = nullptr;
-		return empty;
-	}
+    PyTuple *get_empty_tuple_singleton()
+    {
+        // C++11 保证局部静态变量初始化是线程安全的
+        static PyTuple *empty = []() {
+            auto *t = PYLANG_ALLOC_IMMORTAL(PyTuple, py::GCVector<Value>{});
+            // 必须确保它被 GC 识别为根（如果 intern_roots_push_extra 可用）
+            // intern_roots_push_extra(t); 
+            return t;
+        }();
+        return empty;
+    }
 
 	std::vector<Value> make_value_vector(std::vector<PyObject *> &&elements)
 	{
@@ -92,26 +98,24 @@ PyTuple::PyTuple(PyType *type, const std::vector<PyObject *> &elements)
 	: PyTuple(type, make_value_vector(elements))
 {}
 
+// PyResult<PyTuple *> PyTuple::create()
+// {
+
+// 	if (auto *obj = PYLANG_ALLOC(PyTuple, )) { return Ok(obj); }
+// 	return Err(memory_error(sizeof(PyTuple)));
+// }
+
 PyResult<PyTuple *> PyTuple::create()
 {
-
-	if (auto *obj = PYLANG_ALLOC(PyTuple, )) { return Ok(obj); }
-	return Err(memory_error(sizeof(PyTuple)));
+    return PyTuple::create(py::GCVector<Value>{});
 }
 
 PyResult<PyTuple *> PyTuple::create(py::GCVector<Value> &&elements)
 {
 	// 如果要创建的是0元素元组，永远复用单例！极大减缓冲击。
-	if (elements.empty()) {
-		auto *&empty = get_empty_tuple();
-		if (!empty) {
-			empty = PYLANG_ALLOC(PyTuple, std::move(elements));
-			// 注：由于空元组没有子指针，也不怕被收，或者在 lifecycle 顶层保活。
-			// 保险起见加进去内部的永久根机制（如果是必须），但Boehm通常对空指针对象也无伤大雅。
-			// 这里是可以允许原子分配的?
-		}
-		return Ok(empty);
-	}
+    if (elements.empty()) {
+        return Ok(get_empty_tuple_singleton());
+    }
 
 	auto *obj = PYLANG_ALLOC(PyTuple, std::move(elements));
 	if (!obj) return Err(memory_error(sizeof(PyTuple)));

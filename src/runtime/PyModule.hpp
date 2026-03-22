@@ -57,7 +57,8 @@ class PyModule : public PyBaseObject
 
 	std::string to_string() const override;
 
-	PyDict *symbol_table() const { return m_attributes; }
+	PyDict *dict() const { return m_dict; }
+	PyDict *symbol_table() const { return m_dict; }
 
 	/// 添加/更新符号 — 同时递增 dict_version 和 key_version
 	void add_symbol(PyString *key, const Value &value);

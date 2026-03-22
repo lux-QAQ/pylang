@@ -42,6 +42,7 @@ class PyDict : public PyBaseObject
 	friend PyDictItemsIterator;
 
 	MapType m_map;
+	std::atomic<uint64_t> m_version{ 0 };// 修改为原子类型
 
 	PyDict(MapType &&map);
 	PyDict(const MapType &map);
@@ -68,6 +69,7 @@ class PyDict : public PyBaseObject
 	PyResult<size_t> __len__() const;
 
 	const MapType &map() const { return m_map; }
+	uint64_t version() const { return m_version.load(std::memory_order_acquire); }
 
 	void insert(const Value &key, const Value &value);
 	void remove(const Value &key);

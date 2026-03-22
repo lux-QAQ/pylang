@@ -494,12 +494,12 @@ class PyObject : public Cell
 	PyResult<PyObject *> call(PyTuple *args, PyDict *kwargs);
 
 	// 新增：接受原始 Value 序列的调用接口
-	virtual PyResult<PyObject *> call_raw(std::span<Value> args, PyDict *kwargs);
-
-
+	virtual PyResult<PyObject *> call_raw(std::span<const Value> args, PyDict *kwargs);
 
 	virtual PyResult<PyObject *> new_(PyTuple *args, PyDict *kwargs) const;
 	PyResult<int32_t> init(PyTuple *args, PyDict *kwargs);
+	// [新增]：绕过 Tuple 打包的初始化接口
+	PyResult<int32_t> init_raw(std::span<const Value> args, PyDict *kwargs);
 
 	PyResult<PyObject *> getitem(PyObject *key);
 	PyResult<PyObject *> getitem(size_t index);

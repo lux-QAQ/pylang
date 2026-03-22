@@ -166,6 +166,9 @@ class PyStringIterator : public PyBaseObject
 	PyResult<PyObject *> __repr__() const;
 	PyResult<PyObject *> __next__();
 
+	// 快速迭代接口：返回原始指针，不分配 StopIteration
+	PyObject *next_raw();
+
 	static std::function<std::unique_ptr<TypePrototype>()> type_factory();
 	PyType *static_type() const override;
 };

@@ -21,8 +21,8 @@
 #include "StopIteration.hpp"
 #include "TypeError.hpp"
 #include "ValueError.hpp"
-#include "memory/GCVectorUtils.hpp"
 #include "interpreter/InterpreterCore.hpp"
+#include "memory/GCVectorUtils.hpp"
 #include "runtime/PyTuple.hpp"
 #include "runtime/RuntimeContext.hpp"
 #include "runtime/compat.hpp"
@@ -36,6 +36,26 @@
 
 
 namespace py {
+
+// 使用局部静态原子变量，防止 LLVM 优化掉全局符号，并保证线程安全的初始化
+static std::atomic<uint64_t> &get_global_version_ref()
+{
+	static std::atomic<uint64_t> s_global_version{ 0 };
+	return s_global_version;
+}
+
+uint64_t PyType::global_version()
+{
+	// 使用 acquire 语义确保看到引起版本增加的内存变更
+	return get_global_version_ref().load(std::memory_order_acquire);
+}
+
+void PyType::inc_global_version()
+{
+	// 使用 release 语义确保变更对其他线程可见
+	get_global_version_ref().fetch_add(1, std::memory_order_release);
+}
+
 template<> PyType *as(PyObject *obj)
 {
 	if (obj->type()->underlying_type().is_type) { return static_cast<PyType *>(obj); }
@@ -333,8 +353,6 @@ namespace {
 }// namespace
 
 
-
-
 PyResult<PyObject *> PyType::__getattribute__(PyObject *attribute) const
 {
 	auto *name = as<PyString>(attribute);
@@ -394,11 +412,64 @@ std::optional<PyResult<PyObject *>> PyType::lookup(PyObject *name) const
 	return std::nullopt;
 }
 
+// PyResult<PyObject *> PyType::heap_object_allocation(PyType *type)
+// {
+// 	return type->mro()
+// 		.and_then([type](PyList *mro) -> PyResult<PyObject *> {
+// 			for (const auto &el : mro->elements()) {
+// 				ASSERT(std::holds_alternative<PyObject *>(el));
+// 				ASSERT(as<PyType>(std::get<PyObject *>(el)));
+// 				auto *t = as<PyType>(std::get<PyObject *>(el));
+// 				if (!t->underlying_type().is_heaptype) {
+// 					return t->underlying_type().__alloc__(type);
+// 				}
+// 			}
+// 			return types::object()->underlying_type().__alloc__(type);
+// 		})
+// 		.and_then([](PyObject *obj) -> PyResult<PyObject *> {
+// 			if (!obj->attributes()) {
+// 				if (auto dict = PyDict::create(); dict.is_ok()) {
+// 					obj->m_attributes = dict.unwrap();
+// 				} else {
+// 					return dict;
+// 				}
+// 			}
+// 			return Ok(obj);
+// 		});
+// }
+
+
+// PyResult<PyObject *> PyType::heap_object_allocation(PyType *type)
+// {
+//     return type->mro_internal()
+//         .and_then([type](PyTuple *mro_tuple) -> PyResult<PyObject *> {
+//             for (const auto &el : mro_tuple->elements()) {
+// 				ASSERT(std::holds_alternative<PyObject *>(el));
+// 				ASSERT(as<PyType>(std::get<PyObject *>(el)));
+// 				auto *t = as<PyType>(std::get<PyObject *>(el));
+// 				if (!t->underlying_type().is_heaptype) {
+// 					return t->underlying_type().__alloc__(type);
+// 				}
+// 			}
+// 			return types::object()->underlying_type().__alloc__(type);
+// 		})
+// 		.and_then([](PyObject *obj) -> PyResult<PyObject *> {
+// 			if (!obj->attributes()) {
+// 				if (auto dict = PyDict::create(); dict.is_ok()) {
+// 					obj->m_attributes = dict.unwrap();
+// 				} else {
+// 					return dict;
+// 				}
+// 			}
+// 			return Ok(obj);
+// 		});
+// }
+
 PyResult<PyObject *> PyType::heap_object_allocation(PyType *type)
 {
-	return type->mro()
-		.and_then([type](PyList *mro) -> PyResult<PyObject *> {
-			for (const auto &el : mro->elements()) {
+    return type->mro_internal()
+        .and_then([type](PyTuple *mro_tuple) -> PyResult<PyObject *> {
+            for (const auto &el : mro_tuple->elements()) {
 				ASSERT(std::holds_alternative<PyObject *>(el));
 				ASSERT(as<PyType>(std::get<PyObject *>(el)));
 				auto *t = as<PyType>(std::get<PyObject *>(el));
@@ -407,16 +478,6 @@ PyResult<PyObject *> PyType::heap_object_allocation(PyType *type)
 				}
 			}
 			return types::object()->underlying_type().__alloc__(type);
-		})
-		.and_then([](PyObject *obj) -> PyResult<PyObject *> {
-			if (!obj->attributes()) {
-				if (auto dict = PyDict::create(); dict.is_ok()) {
-					obj->m_attributes = dict.unwrap();
-				} else {
-					return dict;
-				}
-			}
-			return Ok(obj);
 		});
 }
 
@@ -612,232 +673,252 @@ PyResult<std::monostate> PyType::initialize(const std::string &name,
 
 static auto &get_slotdefs()
 {
-static std::array slotdefs_inst = {
-	Slot{ "__getattribute__", &TypePrototype::__getattribute__ },
-	Slot{ "__getattr__", &TypePrototype::__getattribute__ },
-	Slot{ "__setattr__", &TypePrototype::__setattribute__ },
-	// Slot{"__delattr__", &TypePrototype::__delattribute__},
-	Slot{ "__repr__", &TypePrototype::__repr__, "__repr__($self, /)\n--\n\nReturn repr(self)." },
-	Slot{ "__hash__", &TypePrototype::__hash__, "__hash__($self, /)\n--\n\nReturn hash(self)." },
-	Slot::with_keyword("__call__",
-		&TypePrototype::__call__,
-		"__call__($self, /, *args, **kwargs)\n--\n\nCall self as a function."),
-	Slot{ "__str__", &TypePrototype::__str__, "__str__($self, /)\n--\n\nReturn str(self)." },
-	Slot{ "__lt__", &TypePrototype::__lt__, "__lt__($self, value, /)\n--\n\nReturn self<value." },
-	Slot{ "__le__", &TypePrototype::__le__, "__le__($self, value, /)\n--\n\nReturn self<=value." },
-	Slot{ "__eq__", &TypePrototype::__eq__, "__eq__($self, value, /)\n--\n\nReturn self==value." },
-	Slot{ "__ne__", &TypePrototype::__ne__, "__ne__($self, value, /)\n--\n\nReturn self!=value." },
-	Slot{ "__gt__", &TypePrototype::__gt__, "__gt__($self, value, /)\n--\n\nReturn self>value." },
-	Slot{ "__ge__", &TypePrototype::__ge__, "__ge__($self, value, /)\n--\n\nReturn self>=value." },
-	Slot{ "__iter__", &TypePrototype::__iter__, "__iter__($self, /)\n--\n\nImplement iter(self)." },
-	Slot{ "__next__", &TypePrototype::__next__, "__next__($self, /)\n--\n\nImplement next(self)." },
-	Slot{ "__get__",
-		&TypePrototype::__get__,
-		"__get__($self, instance, owner, /)\n--\n\nReturn an attribute of instance, which is "
-		"of "
-		"type owner." },
-	Slot{ "__set__",
-		&TypePrototype::__set__,
-		"__set__($self, instance, value, /)\n--\n\nSet an attribute of instance to value." },
-	// Slot{ "__delete__",
-	// 	&TypePrototype::__delete__,
-	// 	"__delete__($self, instance, /)\n--\n\nDelete an attribute of instance." },
-	Slot::with_keyword("__init__",
-		&TypePrototype::__init__,
-		"__init__($self, /, *args, **kwargs)\n--\n\n Initialize self.  See help(type(self)) "
-		"for "
-		"accurate signature."),
-	Slot::with_new("__new__",
-		&TypePrototype::__new__,
-		"__new__(type, /, *args, **kwargs)\n--\n\n Create and return new object.  See "
-		"help(type) "
-		"for accurate signature."),
-	// Slot{ "__del__", &TypePrototype::__del__ },
+	static std::array slotdefs_inst = {
+		Slot{ "__getattribute__", &TypePrototype::__getattribute__ },
+		Slot{ "__getattr__", &TypePrototype::__getattribute__ },
+		Slot{ "__setattr__", &TypePrototype::__setattribute__ },
+		// Slot{"__delattr__", &TypePrototype::__delattribute__},
+		Slot{
+			"__repr__", &TypePrototype::__repr__, "__repr__($self, /)\n--\n\nReturn repr(self)." },
+		Slot{
+			"__hash__", &TypePrototype::__hash__, "__hash__($self, /)\n--\n\nReturn hash(self)." },
+		Slot::with_keyword("__call__",
+			&TypePrototype::__call__,
+			"__call__($self, /, *args, **kwargs)\n--\n\nCall self as a function."),
+		Slot{ "__str__", &TypePrototype::__str__, "__str__($self, /)\n--\n\nReturn str(self)." },
+		Slot{
+			"__lt__", &TypePrototype::__lt__, "__lt__($self, value, /)\n--\n\nReturn self<value." },
+		Slot{ "__le__",
+			&TypePrototype::__le__,
+			"__le__($self, value, /)\n--\n\nReturn self<=value." },
+		Slot{ "__eq__",
+			&TypePrototype::__eq__,
+			"__eq__($self, value, /)\n--\n\nReturn self==value." },
+		Slot{ "__ne__",
+			&TypePrototype::__ne__,
+			"__ne__($self, value, /)\n--\n\nReturn self!=value." },
+		Slot{
+			"__gt__", &TypePrototype::__gt__, "__gt__($self, value, /)\n--\n\nReturn self>value." },
+		Slot{ "__ge__",
+			&TypePrototype::__ge__,
+			"__ge__($self, value, /)\n--\n\nReturn self>=value." },
+		Slot{ "__iter__",
+			&TypePrototype::__iter__,
+			"__iter__($self, /)\n--\n\nImplement iter(self)." },
+		Slot{ "__next__",
+			&TypePrototype::__next__,
+			"__next__($self, /)\n--\n\nImplement next(self)." },
+		Slot{ "__get__",
+			&TypePrototype::__get__,
+			"__get__($self, instance, owner, /)\n--\n\nReturn an attribute of instance, which is "
+			"of "
+			"type owner." },
+		Slot{ "__set__",
+			&TypePrototype::__set__,
+			"__set__($self, instance, value, /)\n--\n\nSet an attribute of instance to value." },
+		// Slot{ "__delete__",
+		// 	&TypePrototype::__delete__,
+		// 	"__delete__($self, instance, /)\n--\n\nDelete an attribute of instance." },
+		Slot::with_keyword("__init__",
+			&TypePrototype::__init__,
+			"__init__($self, /, *args, **kwargs)\n--\n\n Initialize self.  See help(type(self)) "
+			"for "
+			"accurate signature."),
+		Slot::with_new("__new__",
+			&TypePrototype::__new__,
+			"__new__(type, /, *args, **kwargs)\n--\n\n Create and return new object.  See "
+			"help(type) "
+			"for accurate signature."),
+		// Slot{ "__del__", &TypePrototype::__del__ },
 
-	// await
-	// Slot{ "__await__",
-	// 	&TypePrototype::__await__,
-	// 	"__await__($self, /)\n--\n\nReturn an iterator to be used in await expression." },
-	// Slot{ "__aiter__",
-	// 	&TypePrototype::__aiter__,
-	// 	"__aiter__($self, /)\n--\n\nReturn an awaitable, that resolves in asynchronous
-	// iterator." }, Slot{ "__anext__", 	&TypePrototype::__anext__,
-	// 	"__anext__($self, /)\n--\n\nReturn a value or raise StopAsyncIteration." },
+		// await
+		// Slot{ "__await__",
+		// 	&TypePrototype::__await__,
+		// 	"__await__($self, /)\n--\n\nReturn an iterator to be used in await expression." },
+		// Slot{ "__aiter__",
+		// 	&TypePrototype::__aiter__,
+		// 	"__aiter__($self, /)\n--\n\nReturn an awaitable, that resolves in asynchronous
+		// iterator." }, Slot{ "__anext__", 	&TypePrototype::__anext__,
+		// 	"__anext__($self, /)\n--\n\nReturn a value or raise StopAsyncIteration." },
 
-	// number
-	Slot{ "__add__",
-		&TypePrototype::__add__,
-		"__add__($self, value, /)\n--\n\nReturn self + value." },
-	// Slot{ "__radd__",
-	// 	&TypePrototype::__add__,
-	// 	"__add__($self, value, /)\n--\n\nReturn value + self." },
-	Slot{ "__sub__",
-		&TypePrototype::__sub__,
-		"__sub__($self, value, /)\n--\n\nReturn self - value." },
-	// Slot{ "__rsub__",
-	// 	&TypePrototype::__sub__,
-	// 	"__rsub__($self, value, /)\n--\n\nReturn value - self." },
-	Slot{ "__mul__",
-		&TypePrototype::__mul__,
-		"__mul__($self, value, /)\n--\n\nReturn self * value." },
-	// Slot{ "__rmul__",
-	// 	&TypePrototype::__rmul__,
-	// 	"__rmul__($self, value, /)\n--\n\nReturn value * self." },
-	Slot{ "__mod__",
-		&TypePrototype::__mod__,
-		"__mod__($self, value, /)\n--\n\nReturn self % value." },
-	// Slot{ "__rmod__",
-	// 	&TypePrototype::__rmod__,
-	// 	"__rmod__($self, value, /)\n--\n\nReturn value % self." },
-	// Slot{ "__divmod__", &TypePrototype::__divmod__, "Return divmod(self, value)." },
-	// Slot{ "__rdivmod__", &TypePrototype::__rdivmod__, "Return divmod(value, self)." },
-	Slot{ "__pow__",
-		&TypePrototype::__pow__,
-		"__pow__($self, value, mod=None, /)\n--\n\nReturn pow(self, value, mod)." },
-	// Slot{ "__rpow__",
-	// 	&TypePrototype::__rpow__,
-	// 	"__pow__($self, value, mod=None, /)\n--\n\nReturn pow(value, self, mod)." },
-	Slot{ "__neg__", &TypePrototype::__neg__, "__neg__($self, /)\n--\n\n-self" },
-	Slot{ "__pos__", &TypePrototype::__pos__, "__pos__($self, /)\n--\n\n+self" },
-	Slot{ "__abs__", &TypePrototype::__abs__, "__abs__($self, /)\n--\n\nabs(self)" },
-	Slot{ "__bool__", &TypePrototype::__bool__, "__bool__($self, /)\n--\n\nself != 0" },
-	Slot{ "__invert__", &TypePrototype::__invert__, "__invert__($self, /)\n--\n\n~self" },
-	Slot{ "__lshift__",
-		&TypePrototype::__lshift__,
-		"__lshift__($self, value, /)\n--\n\nReturn self << value." },
-	// Slot{ "__rlshift__",
-	// 	&TypePrototype::__lshift__,
-	// 	"__lshift__($self, value, /)\n--\n\nReturn value << self." },
-	Slot{ "__rshift__",
-		&TypePrototype::__rshift__,
-		"__rshift__($self, value, /)\n--\n\nReturn self >> value." },
-	// Slot{ "__rrshift__",
-	// 	&TypePrototype::__rshift__,
-	// 	"__rshift__($self, value, /)\n--\n\nReturn value >> self." },
-	Slot{ "__and__",
-		&TypePrototype::__and__,
-		"__and__($self, value, /)\n--\n\nReturn self & value." },
-	// Slot{ "__rand__",
-	// 	&TypePrototype::__and__,
-	// 	"__and__($self, value, /)\n--\n\nReturn value & self." },
-	Slot{ "__xor__",
-		&TypePrototype::__xor__,
-		"__xor__F($self, value, /)\n--\n\nReturn self ^ value." },
-	// Slot{ "__rxor__",
-	// 	&TypePrototype::__xor__,
-	// 	"__xor__($self, value, /)\n--\n\nReturn value ^ self." },
-	Slot{ "__or__", &TypePrototype::__or__, "__or__($self, value, /)\n--\n\nReturn self | value." },
-	// Slot{ "__ror__",
-	// 	&TypePrototype::__or__,
-	// 	"__or__($self, value, /)\n--\n\nReturn value | self." },
-	// Slot{ "__int__", &TypePrototype::__int__, "__int__($self, /)\n--\n\n-int(self)" },
-	// Slot{ "__float__", &TypePrototype::__float__, "__float__($self, /)\n--\n\n-float(self)"
-	// }, Slot{ "__iadd__", 	&TypePrototype::__iadd__,
-	// 	"__iadd__($self, value, /)\n--\n\nReturn self+=value." },
-	// Slot{ "__isub__",
-	// 	&TypePrototype::__isub__,
-	// 	"__isub__($self, value, /)\n--\n\nReturn self-=value." },
-	// Slot{ "__imul__",
-	// 	&TypePrototype::__imul__,
-	// 	"__imul__($self, value, /)\n--\n\nReturn self*=value." },
-	// Slot{ "__imod__",
-	// 	&TypePrototype::__imod__,
-	// 	"__imod__($self, value, /)\n--\n\nReturn self%=value." },
-	// Slot{ "__ipow__",
-	// 	&TypePrototype::__ipow__,
-	// 	"__ipow__($self, value, /)\n--\n\nReturn self**=value." },
-	// Slot{ "__ilshift__",
-	// 	&TypePrototype::__ilshift__,
-	// 	"__ilshift__($self, value, /)\n--\n\nReturn self<<=value." },
-	// Slot{ "__irshift__",
-	// 	&TypePrototype::__irshift__,
-	// 	"__irshift__($self, value, /)\n--\n\nReturn self>>=value." },
-	// Slot{ "__iand__",
-	// 	&TypePrototype::__iand__,
-	// 	"__iand__($self, value, /)\n--\n\nReturn self&=value." },
-	// Slot{ "__ixor__",
-	// 	&TypePrototype::__ixor__,
-	// 	"__ixor__($self, value, /)\n--\n\nReturn self^=value." },
-	// Slot{ "__ior__",
-	// 	&TypePrototype::__ior__,
-	// 	"__ior__($self, value, /)\n--\n\nReturn self|=value." },
-	Slot{ "__floordiv__",
-		&TypePrototype::__floordiv__,
-		"__floordiv__($self, value, /)\n--\n\nReturn self//value." },
-	// Slot{ "__rfloordiv__",
-	// 	&TypePrototype::__floordiv__,
-	// 	"__floordiv__($self, value, /)\n--\n\nReturn value//self." },
-	Slot{ "__truediv__",
-		&TypePrototype::__truediv__,
-		"__truediv__($self, value, /)\n--\n\nReturn self/value." },
-	// Slot{ "__rtruediv__",
-	// 	&TypePrototype::__truediv__,
-	// 	"__truediv__($self, value, /)\n--\n\nReturn value/self." },
-	// Slot{ "__ifloordiv__",
-	// 	&TypePrototype::__ifloordiv__,
-	// 	"__ifloordiv__($self, value, /)\n--\n\nReturn self//=value." },
-	// Slot{ "__itruediv__",
-	// 	&TypePrototype::__itruediv__,
-	// 	"__itruediv__($self, value, /)\n--\n\nReturn self/=value." },
-	// Slot{ "__index__",
-	// 	&TypePrototype::__index__,
-	// 	"__index__($self, /)\n--\n\n"
-	// 	"Return self converted to an integer, if self is suitable for use as an index into a "
-	// 	"list." },
-	// Slot{ "__matmul__",
-	// 	&TypePrototype::__matmul__,
-	// 	"__matmul__($self, value, /)\n--\n\nReturn self@value." },
-	// Slot{ "__rmatmul__",
-	// 	&TypePrototype::__rmatmul__,
-	// 	"__rmatmul__($self, value, /)\n--\n\nReturn value@self." },
-	// Slot{ "__imatmul__",
-	// 	&TypePrototype::__imatmul__,
-	// 	"__imatmul__($self, value, /)\n--\n\nReturn value@=self." },
+		// number
+		Slot{ "__add__",
+			&TypePrototype::__add__,
+			"__add__($self, value, /)\n--\n\nReturn self + value." },
+		// Slot{ "__radd__",
+		// 	&TypePrototype::__add__,
+		// 	"__add__($self, value, /)\n--\n\nReturn value + self." },
+		Slot{ "__sub__",
+			&TypePrototype::__sub__,
+			"__sub__($self, value, /)\n--\n\nReturn self - value." },
+		// Slot{ "__rsub__",
+		// 	&TypePrototype::__sub__,
+		// 	"__rsub__($self, value, /)\n--\n\nReturn value - self." },
+		Slot{ "__mul__",
+			&TypePrototype::__mul__,
+			"__mul__($self, value, /)\n--\n\nReturn self * value." },
+		// Slot{ "__rmul__",
+		// 	&TypePrototype::__rmul__,
+		// 	"__rmul__($self, value, /)\n--\n\nReturn value * self." },
+		Slot{ "__mod__",
+			&TypePrototype::__mod__,
+			"__mod__($self, value, /)\n--\n\nReturn self % value." },
+		// Slot{ "__rmod__",
+		// 	&TypePrototype::__rmod__,
+		// 	"__rmod__($self, value, /)\n--\n\nReturn value % self." },
+		// Slot{ "__divmod__", &TypePrototype::__divmod__, "Return divmod(self, value)." },
+		// Slot{ "__rdivmod__", &TypePrototype::__rdivmod__, "Return divmod(value, self)." },
+		Slot{ "__pow__",
+			&TypePrototype::__pow__,
+			"__pow__($self, value, mod=None, /)\n--\n\nReturn pow(self, value, mod)." },
+		// Slot{ "__rpow__",
+		// 	&TypePrototype::__rpow__,
+		// 	"__pow__($self, value, mod=None, /)\n--\n\nReturn pow(value, self, mod)." },
+		Slot{ "__neg__", &TypePrototype::__neg__, "__neg__($self, /)\n--\n\n-self" },
+		Slot{ "__pos__", &TypePrototype::__pos__, "__pos__($self, /)\n--\n\n+self" },
+		Slot{ "__abs__", &TypePrototype::__abs__, "__abs__($self, /)\n--\n\nabs(self)" },
+		Slot{ "__bool__", &TypePrototype::__bool__, "__bool__($self, /)\n--\n\nself != 0" },
+		Slot{ "__invert__", &TypePrototype::__invert__, "__invert__($self, /)\n--\n\n~self" },
+		Slot{ "__lshift__",
+			&TypePrototype::__lshift__,
+			"__lshift__($self, value, /)\n--\n\nReturn self << value." },
+		// Slot{ "__rlshift__",
+		// 	&TypePrototype::__lshift__,
+		// 	"__lshift__($self, value, /)\n--\n\nReturn value << self." },
+		Slot{ "__rshift__",
+			&TypePrototype::__rshift__,
+			"__rshift__($self, value, /)\n--\n\nReturn self >> value." },
+		// Slot{ "__rrshift__",
+		// 	&TypePrototype::__rshift__,
+		// 	"__rshift__($self, value, /)\n--\n\nReturn value >> self." },
+		Slot{ "__and__",
+			&TypePrototype::__and__,
+			"__and__($self, value, /)\n--\n\nReturn self & value." },
+		// Slot{ "__rand__",
+		// 	&TypePrototype::__and__,
+		// 	"__and__($self, value, /)\n--\n\nReturn value & self." },
+		Slot{ "__xor__",
+			&TypePrototype::__xor__,
+			"__xor__F($self, value, /)\n--\n\nReturn self ^ value." },
+		// Slot{ "__rxor__",
+		// 	&TypePrototype::__xor__,
+		// 	"__xor__($self, value, /)\n--\n\nReturn value ^ self." },
+		Slot{ "__or__",
+			&TypePrototype::__or__,
+			"__or__($self, value, /)\n--\n\nReturn self | value." },
+		// Slot{ "__ror__",
+		// 	&TypePrototype::__or__,
+		// 	"__or__($self, value, /)\n--\n\nReturn value | self." },
+		// Slot{ "__int__", &TypePrototype::__int__, "__int__($self, /)\n--\n\n-int(self)" },
+		// Slot{ "__float__", &TypePrototype::__float__, "__float__($self, /)\n--\n\n-float(self)"
+		// }, Slot{ "__iadd__", 	&TypePrototype::__iadd__,
+		// 	"__iadd__($self, value, /)\n--\n\nReturn self+=value." },
+		// Slot{ "__isub__",
+		// 	&TypePrototype::__isub__,
+		// 	"__isub__($self, value, /)\n--\n\nReturn self-=value." },
+		// Slot{ "__imul__",
+		// 	&TypePrototype::__imul__,
+		// 	"__imul__($self, value, /)\n--\n\nReturn self*=value." },
+		// Slot{ "__imod__",
+		// 	&TypePrototype::__imod__,
+		// 	"__imod__($self, value, /)\n--\n\nReturn self%=value." },
+		// Slot{ "__ipow__",
+		// 	&TypePrototype::__ipow__,
+		// 	"__ipow__($self, value, /)\n--\n\nReturn self**=value." },
+		// Slot{ "__ilshift__",
+		// 	&TypePrototype::__ilshift__,
+		// 	"__ilshift__($self, value, /)\n--\n\nReturn self<<=value." },
+		// Slot{ "__irshift__",
+		// 	&TypePrototype::__irshift__,
+		// 	"__irshift__($self, value, /)\n--\n\nReturn self>>=value." },
+		// Slot{ "__iand__",
+		// 	&TypePrototype::__iand__,
+		// 	"__iand__($self, value, /)\n--\n\nReturn self&=value." },
+		// Slot{ "__ixor__",
+		// 	&TypePrototype::__ixor__,
+		// 	"__ixor__($self, value, /)\n--\n\nReturn self^=value." },
+		// Slot{ "__ior__",
+		// 	&TypePrototype::__ior__,
+		// 	"__ior__($self, value, /)\n--\n\nReturn self|=value." },
+		Slot{ "__floordiv__",
+			&TypePrototype::__floordiv__,
+			"__floordiv__($self, value, /)\n--\n\nReturn self//value." },
+		// Slot{ "__rfloordiv__",
+		// 	&TypePrototype::__floordiv__,
+		// 	"__floordiv__($self, value, /)\n--\n\nReturn value//self." },
+		Slot{ "__truediv__",
+			&TypePrototype::__truediv__,
+			"__truediv__($self, value, /)\n--\n\nReturn self/value." },
+		// Slot{ "__rtruediv__",
+		// 	&TypePrototype::__truediv__,
+		// 	"__truediv__($self, value, /)\n--\n\nReturn value/self." },
+		// Slot{ "__ifloordiv__",
+		// 	&TypePrototype::__ifloordiv__,
+		// 	"__ifloordiv__($self, value, /)\n--\n\nReturn self//=value." },
+		// Slot{ "__itruediv__",
+		// 	&TypePrototype::__itruediv__,
+		// 	"__itruediv__($self, value, /)\n--\n\nReturn self/=value." },
+		// Slot{ "__index__",
+		// 	&TypePrototype::__index__,
+		// 	"__index__($self, /)\n--\n\n"
+		// 	"Return self converted to an integer, if self is suitable for use as an index into a "
+		// 	"list." },
+		// Slot{ "__matmul__",
+		// 	&TypePrototype::__matmul__,
+		// 	"__matmul__($self, value, /)\n--\n\nReturn self@value." },
+		// Slot{ "__rmatmul__",
+		// 	&TypePrototype::__rmatmul__,
+		// 	"__rmatmul__($self, value, /)\n--\n\nReturn value@self." },
+		// Slot{ "__imatmul__",
+		// 	&TypePrototype::__imatmul__,
+		// 	"__imatmul__($self, value, /)\n--\n\nReturn value@=self." },
 
-	// mapping
-	Slot{ "__len__", &MappingTypePrototype::__len__, "__len__($self, /)\n--\n\nReturn len(self)." },
-	Slot{ "__getitem__",
-		&MappingTypePrototype::__getitem__,
-		"__getitem__($self, key, /)\n--\n\nReturn self[key]." },
-	Slot{ "__setitem__",
-		&MappingTypePrototype::__setitem__,
-		"__setitem__($self, key, value, /)\n--\n\nSet self[key] to value." },
-	Slot{ "__delitem__",
-		&MappingTypePrototype::__delitem__,
-		"__delitem__($self, key, /)\n--\n\nDelete self[key]." },
+		// mapping
+		Slot{ "__len__",
+			&MappingTypePrototype::__len__,
+			"__len__($self, /)\n--\n\nReturn len(self)." },
+		Slot{ "__getitem__",
+			&MappingTypePrototype::__getitem__,
+			"__getitem__($self, key, /)\n--\n\nReturn self[key]." },
+		Slot{ "__setitem__",
+			&MappingTypePrototype::__setitem__,
+			"__setitem__($self, key, value, /)\n--\n\nSet self[key] to value." },
+		Slot{ "__delitem__",
+			&MappingTypePrototype::__delitem__,
+			"__delitem__($self, key, /)\n--\n\nDelete self[key]." },
 
-	Slot{ "__len__",
-		&SequenceTypePrototype::__len__,
-		"__len__($self, /)\n--\n\nReturn len(self)." },
-	Slot{ "__getitem__",
-		&SequenceTypePrototype::__getitem__,
-		"__getitem__($self, key, /)\n--\n\nReturn self[key]." },
-	Slot{ "__setitem__",
-		&SequenceTypePrototype::__setitem__,
-		"__setitem__($self, key, value, /)\n--\n\nSet self[key] to value." },
-	Slot{ "__delitem__",
-		&SequenceTypePrototype::__delitem__,
-		"__delitem__($self, key, /)\n--\n\nDelete self[key]." },
-	Slot{ "__contains__",
-		&SequenceTypePrototype::__contains__,
-		"__contains__($self, key, /)\n--\n\nReturn key in self." },
+		Slot{ "__len__",
+			&SequenceTypePrototype::__len__,
+			"__len__($self, /)\n--\n\nReturn len(self)." },
+		Slot{ "__getitem__",
+			&SequenceTypePrototype::__getitem__,
+			"__getitem__($self, key, /)\n--\n\nReturn self[key]." },
+		Slot{ "__setitem__",
+			&SequenceTypePrototype::__setitem__,
+			"__setitem__($self, key, value, /)\n--\n\nSet self[key] to value." },
+		Slot{ "__delitem__",
+			&SequenceTypePrototype::__delitem__,
+			"__delitem__($self, key, /)\n--\n\nDelete self[key]." },
+		Slot{ "__contains__",
+			&SequenceTypePrototype::__contains__,
+			"__contains__($self, key, /)\n--\n\nReturn key in self." },
 
-	// Slot{ "__add__",
-	// 	&SequenceTypePrototype::__concat__,
-	// 	"__add__($self, value, /)\n--\n\nReturn self+value." },
+		// Slot{ "__add__",
+		// 	&SequenceTypePrototype::__concat__,
+		// 	"__add__($self, value, /)\n--\n\nReturn self+value." },
 
-	// SQSLOT("__mul__", sq_repeat, NULL, wrap_indexargfunc,
-	//        "__mul__($self, value, /)\n--\n\nReturn self*value."),
-	// SQSLOT("__rmul__", sq_repeat, NULL, wrap_indexargfunc,
-	//        "__rmul__($self, value, /)\n--\n\nReturn value*self."),
-	// SQSLOT("__iadd__", sq_inplace_concat, NULL,
-	//        wrap_binaryfunc,
-	//        "__iadd__($self, value, /)\n--\n\nImplement self+=value."),
-	// SQSLOT("__imul__", sq_inplace_repeat, NULL,
-	//        wrap_indexargfunc,
-	//        "__imul__($self, value, /)\n--\n\nImplement self*=value."),
-};
-return slotdefs_inst;
+		// SQSLOT("__mul__", sq_repeat, NULL, wrap_indexargfunc,
+		//        "__mul__($self, value, /)\n--\n\nReturn self*value."),
+		// SQSLOT("__rmul__", sq_repeat, NULL, wrap_indexargfunc,
+		//        "__rmul__($self, value, /)\n--\n\nReturn value*self."),
+		// SQSLOT("__iadd__", sq_inplace_concat, NULL,
+		//        wrap_binaryfunc,
+		//        "__iadd__($self, value, /)\n--\n\nImplement self+=value."),
+		// SQSLOT("__imul__", sq_inplace_repeat, NULL,
+		//        wrap_indexargfunc,
+		//        "__imul__($self, value, /)\n--\n\nImplement self*=value."),
+	};
+	return slotdefs_inst;
 }
 
 namespace {
@@ -903,6 +984,7 @@ namespace {
 
 PyResult<std::monostate> PyType::add_operators()
 {
+	PyType::inc_global_version();// 类型变更，版本递增
 	for (auto &&slot : get_slotdefs()) {
 		if (!slot.has_member) { continue; }// ?
 		if (slot.name == "__new__") { continue; }
@@ -1624,7 +1706,7 @@ PyResult<const PyType *> PyType::calculate_metaclass(const PyType *type_,
 //         if (args->size() == 1 && (!kwargs || kwargs->map().empty())) {
 //             auto obj = PyObject::from(args->elements()[0]);
 //             if (obj.is_err()) return obj;
-//             return Ok(obj.unwrap()->type());
+//             return Ok(static_cast<PyObject *>(obj.unwrap()->type()));
 //         }
 //         // type() 只接受 1 个或 3 个参数
 //         if (args->size() != 3) {
@@ -1635,57 +1717,58 @@ PyResult<const PyType *> PyType::calculate_metaclass(const PyType *type_,
 //     auto obj_res = new_(args, kwargs);
 //     if (obj_res.is_err()) { return obj_res; }
 //     auto *obj = obj_res.unwrap();
-    
-//     // 遵循 Python 3.9 语义：只有当 returned_object 确实是期望的 type 的实例（或其子类）时，才调用 __init__
-//     if (obj->type()->issubclass(const_cast<PyType *>(this))) {
+
+//     // 遵循 Python 3.9 语义：只有当 returned_object 确实是期望的 type
+//     的实例（或其子类）时，才调用 __init__ if (obj->type()->issubclass(const_cast<PyType
+//     *>(this))) {
 //         auto init_res = obj->init(args, kwargs);
 //         if (init_res.is_err()) { return Err(init_res.unwrap_err()); }
 //     }
-    
+
 //     return Ok(obj);
 // }
 
 PyResult<PyObject *> PyType::__call__(PyTuple *args, PyDict *kwargs) const
 {
-    // =====================================================================
-    // Python 3.9 语义: type.__call__(cls, *args, **kwargs)
-    // =====================================================================
+	// =====================================================================
+	// Python 3.9 语义: type.__call__(cls, *args, **kwargs)
+	// =====================================================================
 
-    // 1. 特殊处理 type(x) 和 type(name, bases, dict)
-    if (this == types::type()) {
-        if (args->size() == 1 && (!kwargs || kwargs->map().empty())) {
-            auto obj = PyObject::from(args->elements()[0]);
-            if (obj.is_err()) return obj;
-            return Ok(static_cast<PyObject *>(obj.unwrap()->type()));
-        }
-        if (args->size() != 3) {
-            return Err(type_error("type() takes 1 or 3 arguments, got {}", args->size()));
-        }
-    }
+	// 1. 特殊处理 type(x) 和 type(name, bases, dict)
+	if (this == types::type()) {
+		if (args->size() == 1 && (!kwargs || kwargs->map().empty())) {
+			auto obj = PyObject::from(args->elements()[0]);
+			if (obj.is_err()) return obj;
+			return Ok(static_cast<PyObject *>(obj.unwrap()->type()));
+		}
+		if (args->size() != 3) {
+			return Err(type_error("type() takes 1 or 3 arguments, got {}", args->size()));
+		}
+	}
 
-    // 2. 调用 cls.__new__(cls, *args, **kwargs)
-    // PyType::new_ (即 tp_new) 负责将 cls 传递给 slot。
-    // 如果是 PyType::__new__，它期望 strict 的 3 个参数 (name, bases, dict)。
-    auto obj_res = new_(args, kwargs);
-    if (obj_res.is_err()) { return obj_res; }
-    auto *obj = obj_res.unwrap();
+	// 2. 调用 cls.__new__(cls, *args, **kwargs)
+	// PyType::new_ (即 tp_new) 负责将 cls 传递给 slot。
+	// 如果是 PyType::__new__，它期望 strict 的 3 个参数 (name, bases, dict)。
+	auto obj_res = new_(args, kwargs);
+	if (obj_res.is_err()) { return obj_res; }
+	auto *obj = obj_res.unwrap();
 
-    // 3. 调用 type(obj).__init__(obj, *args, **kwargs)
-    // 仅当 obj 是 cls 的实例或子类实例时才调用
-    if (obj->type()->issubclass(const_cast<PyType *>(this))) {
-        // init() 内部会处理 method binding (手动 prepend self)，这里只需传原始 args
-        if (const auto res = obj->init(args, kwargs); res.is_ok()) {
-            if (res.unwrap() < 0) {
-                // __init__ 应该返回 None (0)
-                TODO();
-                return Err(nullptr);
-            }
-        } else {
-            return Err(res.unwrap_err());
-        }
-    }
+	// 3. 调用 type(obj).__init__(obj, *args, **kwargs)
+	// 仅当 obj 是 cls 的实例或子类实例时才调用
+	if (obj->type()->issubclass(const_cast<PyType *>(this))) {
+		// init() 内部会处理 method binding (手动 prepend self)，这里只需传原始 args
+		if (const auto res = obj->init(args, kwargs); res.is_ok()) {
+			if (res.unwrap() < 0) {
+				// __init__ 应该返回 None (0)
+				TODO();
+				return Err(nullptr);
+			}
+		} else {
+			return Err(res.unwrap_err());
+		}
+	}
 
-    return Ok(obj);
+	return Ok(obj);
 }
 
 std::string PyType::to_string() const

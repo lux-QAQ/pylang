@@ -38,12 +38,17 @@ class PyType : public PyBaseObject
 	static PyType *initialize(TypePrototype &type_prototype);
 	static PyType *initialize(std::unique_ptr<TypePrototype> &&type_prototype);
 
+	static uint64_t global_version();
+	static void inc_global_version();
+
 	std::string name() const;
 
-	
+
 	PyResult<PyObject *> __call__(PyTuple *args, PyDict *kwargs) const;
 	PyResult<PyObject *> __repr__() const;
 	PyResult<PyObject *> __getattribute__(PyObject *attribute) const;
+
+	PyResult<PyObject *> call_raw(std::span<const Value> args, PyDict *kwargs) override;
 
 	PyResult<PyObject *> new_(PyTuple *args, PyDict *kwargs) const override;
 

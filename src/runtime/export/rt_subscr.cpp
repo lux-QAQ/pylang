@@ -40,6 +40,19 @@ py::PyObject *rt_iter_next(py::PyObject *iter, bool *has_value)
 		}
 	}
 
+
+	// 2. 字符串迭代快速路径 (消灭 StopIteration 和 PyString 碎片)
+	if (b_iter->type() == py::types::str_iterator()) {
+		auto *s_iter = static_cast<py::PyStringIterator *>(b_iter);
+		if (auto *val = s_iter->next_raw()) {
+			*has_value = true;
+			return val;
+		}
+		*has_value = false;
+		return nullptr;
+	}
+
+
 	auto result = b_iter->next();
 	if (result.is_ok()) {
 		*has_value = true;
@@ -80,7 +93,19 @@ PYLANG_EXPORT_SUBSCR("getitem", "obj", "obj,obj")
 py::PyObject *rt_getitem(py::PyObject *obj, py::PyObject *key)
 {
 	auto *b_obj = py::ensure_box(obj);
+	auto *b_type = b_obj->type();// [修复]：定义 b_type
 	py::RtValue r_key = py::RtValue::flatten(key);
+
+
+    if (b_type == py::types::dict()) {
+        auto *dict = static_cast<py::PyDict *>(b_obj);
+        // 直接在底层 std::unordered_map 中查找，绕过 getitem 虚函数和 MRO
+        auto it = dict->map().find(r_key.to_value());
+        if (it != dict->map().end()) {
+            return py::RtValue::from_value(it->second).as_pyobject_raw();
+        }
+    }
+
 
 	if (r_key.is_tagged_int()) {
 		int64_t index = r_key.as_int();

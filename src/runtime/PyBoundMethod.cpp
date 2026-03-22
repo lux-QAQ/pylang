@@ -75,16 +75,22 @@ PyResult<PyObject *> PyBoundMethod::__call__(PyTuple *args, PyDict *kwargs)
 //     return result;
 // }
 
-PyResult<PyObject *> PyBoundMethod::call_raw(std::span<Value> args, PyDict *kwargs)
+PyResult<PyObject *> PyBoundMethod::call_raw(std::span<const Value> args, PyDict *kwargs)
 {
+    // 在栈上准备空间：[self, arg0, arg1, ...]
     size_t total_argc = args.size() + 1;
-    py::GCVector<Value> new_args;
-    new_args.reserve(total_argc);
-    new_args.push_back(m_self);
-    for(auto& arg : args) new_args.push_back(arg);
+    Value* stack_args = static_cast<Value*>(alloca(sizeof(Value) * total_argc));
 
-    // 透传给底层方法的 call_raw，如果是 AOT 函数将进入快速路径
-    return m_method->call_raw(std::span<Value>(new_args.data(), total_argc), kwargs);
+    new (&stack_args[0]) Value(m_self);
+    for (size_t i = 0; i < args.size(); ++i) {
+        new (&stack_args[i + 1]) Value(args[i]);
+    }
+
+    // 穿透调用底层函数的 call_raw
+    auto result = m_method->call_raw(std::span<const Value>(stack_args, total_argc), kwargs);
+
+    for (size_t i = 0; i < total_argc; ++i) std::destroy_at(&stack_args[i]);
+    return result;
 }
 
 PyType *PyBoundMethod::static_type() const { return types::bound_method(); }

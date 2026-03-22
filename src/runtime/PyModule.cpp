@@ -194,18 +194,31 @@ PyResult<PyModule *> PyModule::create(PyDict *symbol_table, PyString *module_nam
 	return Ok(result);
 }
 
+// PyResult<PyObject *> PyModule::find_symbol_cstr(const char *name) const
+// {
+//     if (!m_attributes) {
+//         return Err(name_error("name '{}' is not defined", name));
+//     }
+//     // 直接用 String key 查找，避免 PyString 堆分配
+//     String key{ std::string(name) };
+//     auto it = m_attributes->map().find(key);
+//     if (it != m_attributes->map().end()) {
+//         return PyObject::from(it->second);
+//     }
+//     return Err(name_error("name '{}' is not defined", name));
+// }
+
 PyResult<PyObject *> PyModule::find_symbol_cstr(const char *name) const
 {
     if (!m_attributes) {
-        return Err(name_error("name '{}' is not defined", name));
+        return Err(nullptr); // 返回空错误，不分配异常对象
     }
-    // 直接用 String key 查找，避免 PyString 堆分配
-    String key{ std::string(name) };
-    auto it = m_attributes->map().find(key);
+    // 直接用 String 视图查找，避免 PyString 堆分配
+    auto it = m_attributes->map().find(String{ std::string(name) });
     if (it != m_attributes->map().end()) {
         return PyObject::from(it->second);
     }
-    return Err(name_error("name '{}' is not defined", name));
+    return Err(nullptr); // 没找到直接返回 Err，由调用者决定是否抛出 NameError
 }
 
 PyType *PyModule::static_type() const { return types::module(); }

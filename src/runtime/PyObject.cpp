@@ -1180,30 +1180,28 @@ PyResult<PyObject *> PyObject::get(PyObject *instance, PyObject *owner) const
 // {
 //     // 默认实现：回退到打包为 Tuple
 //     auto tuple_res = PyTuple::create(py::GCVector<Value>(args.begin(), args.end()));
-//     if (tuple_res.is_err()) { return Err(tuple_res.unwrap_err()); } 
-    
+//     if (tuple_res.is_err()) { return Err(tuple_res.unwrap_err()); }
+
 //     return call(tuple_res.unwrap(), kwargs);
 // }
 
-PyResult<PyObject *> PyObject::call_raw(std::span<Value> args, PyDict *kwargs)
+PyResult<PyObject *> PyObject::call_raw(std::span<const Value> args, PyDict *kwargs)
 {
-    // [极致优化]：全局静态缓存空元组单例。
-    // 彻底消灭诸如 `Node()` 这类无参调用时疯狂产生空 PyTuple 的现象！
-    if (args.empty()) {
-        static PyTuple* empty_tuple = nullptr;
-        if (!empty_tuple) {
-            auto res = PyTuple::create(py::GCVector<Value>{});
-            if (res.is_err()) return Err(res.unwrap_err());
-            empty_tuple = res.unwrap();
-        }
-        return call(empty_tuple, kwargs);
+    // [极致优化]：Node() 路径。如果子类（如 PySlotWrapper）覆盖了 call_raw，
+    // 这里就不应该再进行默认的 PyTuple 打包。
+    
+    if (args.empty() && (!kwargs || kwargs->map().empty())) {
+        return call(PyTuple::create().unwrap(), kwargs);
     }
 
-    // 默认实现：回退到打包为 Tuple
-    auto tuple_res = PyTuple::create(py::GCVector<Value>(args.begin(), args.end()));
-    if (tuple_res.is_err()) { return Err(tuple_res.unwrap_err()); }
-    
-    return call(tuple_res.unwrap(), kwargs);
+    // 只有必须打包时，才使用 GCVector
+    py::GCVector<Value> elements;
+    elements.reserve(args.size());
+    for(auto& v : args) elements.push_back(v);
+
+    return PyTuple::create(std::move(elements)).and_then([this, kwargs](PyTuple* t) {
+        return this->call(t, kwargs);
+    });
 }
 PyResult<PyObject *> PyObject::new_(PyTuple *args, PyDict *kwargs) const
 {
@@ -1242,39 +1240,100 @@ PyResult<PyObject *> PyObject::new_(PyTuple *args, PyDict *kwargs) const
 
 PyResult<int32_t> PyObject::init(PyTuple *args, PyDict *kwargs)
 {
-	auto init_str_ = PyString::create("__init__");
-	if (init_str_.is_err()) { return Err(init_str_.unwrap_err()); }
-	auto *init_str = init_str_.unwrap();
-
-	// type()->lookup() 返回的是原始描述符（PyFunction），不是 bound method
-	// 因为 lookup 不触发 __get__
-	// 所以我们需要手动 prepend self
-	auto descriptor_ = type()->lookup(init_str);
-	if (descriptor_.has_value() && descriptor_->is_ok()) {
-		auto *init_fn = descriptor_->unwrap();
-
-		// [Fix] 构造 init_args = (self, *args)
-		// lookup() 返回的是未绑定的函数，需要手动传 self
-		std::vector<Value> init_elements;
-		init_elements.reserve(1 + args->size());
-		init_elements.push_back(this);
-		init_elements.insert(init_elements.end(), args->elements().begin(), args->elements().end());
-		auto init_args = PyTuple::create(init_elements);
-		if (init_args.is_err()) { return Err(init_args.unwrap_err()); }
-
-		auto result = init_fn->call(init_args.unwrap(), kwargs);
-		if (result.is_err()) { return Err(result.unwrap_err()); }
-		return Ok(0);
-	}
-
-	// 回退到 C++ slot
-	if (type_prototype().__init__.has_value()) {
-		return call_slot(
-			*type_prototype().__init__, "__init__() should return None", this, args, kwargs);
-	}
-
-	return Ok(0);
+	// 重构：复用 init_raw 逻辑
+	return init_raw(args->elements(), kwargs);
 }
+
+PyResult<PyObject *> PyType::call_raw(std::span<const Value> args, PyDict *kwargs)
+{
+	// 1. 特殊处理 type(x)
+	if (this == types::type() && args.size() == 1 && (!kwargs || kwargs->map().empty())) {
+		return Ok(PyObject::from(args[0]).unwrap()->type());
+	}
+
+	// 2. [性能优化]：如果是无参构造且无关键字参数，使用空元组单例避免分配
+	PyTuple *tuple_args = nullptr;
+	if (args.empty() && (!kwargs || kwargs->map().empty())) {
+		tuple_args = PyTuple::create().unwrap();
+	} else {
+		auto tuple_res = PyTuple::create(py::GCVector<Value>(args.begin(), args.end()));
+		if (tuple_res.is_err()) return Err(tuple_res.unwrap_err());
+		tuple_args = tuple_res.unwrap();
+	}
+
+	auto obj_res = new_(tuple_args, kwargs);
+	if (obj_res.is_err()) return obj_res;
+	auto *obj = obj_res.unwrap();
+
+	// 3. 调用 obj.__init__
+	if (obj->type()->issubclass(const_cast<PyType *>(this))) {
+		auto init_res = obj->init_raw(args, kwargs);
+		if (init_res.is_err()) return Err(init_res.unwrap_err());
+	}
+
+	return Ok(obj);
+}
+
+// PyResult<int32_t> PyObject::init_raw(std::span<const Value> args, PyDict *kwargs)
+// {
+// 	auto *init_str = PyString::intern("__init__");
+// 	auto [res, found] = type()->lookup_attribute(init_str);
+
+// 	if (found == LookupAttrResult::FOUND) {
+// 		if (res.is_err()) return Err(res.unwrap_err());
+// 		auto *init_method = res.unwrap();
+
+// 		// 准备参数：[self, ...args]
+// 		size_t total_argc = args.size() + 1;
+// 		Value *stack_args = static_cast<Value *>(alloca(sizeof(Value) * total_argc));
+
+// 		new (&stack_args[0]) Value(this);
+// 		for (size_t i = 0; i < args.size(); ++i) { new (&stack_args[i + 1]) Value(args[i]); }
+
+// 		auto call_res =
+// 			init_method->call_raw(std::span<const Value>(stack_args, total_argc), kwargs);
+
+// 		for (size_t i = 0; i < total_argc; ++i) std::destroy_at(&stack_args[i]);
+
+// 		if (call_res.is_err()) return Err(call_res.unwrap_err());
+// 		return Ok(0);
+// 	}
+
+// 	// 回退到 C++ slot
+// 	if (type_prototype().__init__.has_value()) {
+// 		// 注意：Slot 接口目前仍需要 Tuple，但绝大多数 AOT 类不走这里
+// 		auto args_tuple = PyTuple::create(py::GCVector<Value>(args.begin(), args.end()));
+// 		if (args_tuple.is_err()) return Err(args_tuple.unwrap_err());
+// 		return call_slot(*type_prototype().__init__, "", this, args_tuple.unwrap(), kwargs);
+// 	}
+
+// 	return Ok(0);
+// }
+PyResult<int32_t> PyObject::init_raw(std::span<const Value> args, PyDict *kwargs)
+{
+	auto *init_str = PyString::intern("__init__");
+	auto [res, found] = type()->lookup_attribute(init_str);
+
+	if (found == LookupAttrResult::FOUND) {
+		auto *init_method = res.unwrap();
+		size_t total_argc = args.size() + 1;
+		// 使用 alloca 在栈上分配，不触发 GC 分配
+		Value *stack_args = static_cast<Value *>(alloca(sizeof(Value) * total_argc));
+		new (&stack_args[0]) Value(this);
+		for (size_t i = 0; i < args.size(); ++i) new (&stack_args[i + 1]) Value(args[i]);
+
+		auto call_res =
+			init_method->call_raw(std::span<const Value>(stack_args, total_argc), kwargs);
+
+        for (size_t i = 0; i < total_argc; ++i) std::destroy_at(&stack_args[i]);
+
+        // 显式转换返回类型
+        if (call_res.is_err()) return Err(call_res.unwrap_err());
+        return Ok(static_cast<int32_t>(0));
+    }
+    return Ok(static_cast<int32_t>(0));
+}
+
 
 PyResult<PyObject *> PyObject::getitem(PyObject *key)
 {
@@ -1494,36 +1553,83 @@ PyResult<PyObject *> PyObject::get_method(PyObject *name) const
 		"'{}' object has no attribute '{}'", type_prototype().__name__, name->to_string()));
 }
 
+// PyResult<std::monostate> PyObject::__setattribute__(PyObject *attribute, PyObject *value)
+// {
+// 	if (!as<PyString>(attribute)) {
+// 		return Err(
+// 			type_error("attribute name must be string, not '{}'", attribute->type()->to_string()));
+// 	}
+
+// 	if (as<PyType>(this)) { PyType::inc_global_version(); }
+
+// 	auto descriptor_ = type()->lookup(attribute);
+
+// 	if (descriptor_.has_value() && descriptor_->is_ok()) {
+// 		auto *descriptor = descriptor_->unwrap();
+// 		const auto &descriptor_set = descriptor->type()->underlying_type().__set__;
+// 		if (descriptor_set.has_value()) {
+// 			return call_slot(*descriptor_set, "", descriptor, this, value);
+// 		}
+// 	}
+
+// 	if (!m_attributes) {
+// 		if (descriptor_.has_value() && descriptor_->is_ok()) {
+// 			return Err(attribute_error(
+// 				"'{}' object attribute '{}' is read-only", type()->name(), attribute->to_string()));
+// 		} else {
+// 			return Err(attribute_error(
+// 				"'{}' object has no attribute '{}'", type()->name(), attribute->to_string()));
+// 		}
+// 	}
+
+// 	m_attributes->insert(attribute, value);
+
+// 	return Ok(std::monostate{});
+// }
+
 PyResult<std::monostate> PyObject::__setattribute__(PyObject *attribute, PyObject *value)
 {
-	if (!as<PyString>(attribute)) {
-		return Err(
-			type_error("attribute name must be string, not '{}'", attribute->type()->to_string()));
-	}
+    if (!as<PyString>(attribute)) {
+        return Err(
+            type_error("attribute name must be string, not '{}'", attribute->type()->name()));
+    }
 
-	auto descriptor_ = type()->lookup(attribute);
+    // Python 3.9 语义：如果是修改 Type 对象（类属性），必须使全局缓存失效
+    if (as<PyType>(this)) {
+        PyType::inc_global_version();
+    }
 
-	if (descriptor_.has_value() && descriptor_->is_ok()) {
-		auto *descriptor = descriptor_->unwrap();
-		const auto &descriptor_set = descriptor->type()->underlying_type().__set__;
-		if (descriptor_set.has_value()) {
-			return call_slot(*descriptor_set, "", descriptor, this, value);
-		}
-	}
+    auto descriptor_ = type()->lookup(attribute);
+    if (descriptor_.has_value() && descriptor_->is_err()) {
+        return Err(descriptor_->unwrap_err());
+    }
 
-	if (!m_attributes) {
-		if (descriptor_.has_value() && descriptor_->is_ok()) {
-			return Err(attribute_error(
-				"'{}' object attribute '{}' is read-only", type()->name(), attribute->to_string()));
-		} else {
-			return Err(attribute_error(
-				"'{}' object has no attribute '{}'", type()->name(), attribute->to_string()));
-		}
-	}
+    if (descriptor_.has_value() && descriptor_->is_ok()) {
+        auto *descriptor = descriptor_->unwrap();
+        // 数据描述符（Data Descriptor）具有最高优先级，优先于实例字典
+        if (descriptor_is_data(descriptor->type())) {
+            const auto &descriptor_set = descriptor->type()->underlying_type().__set__;
+            if (descriptor_set.has_value()) {
+                return call_slot(*descriptor_set, "", descriptor, this, value);
+            }
+        }
+    }
 
-	m_attributes->insert(attribute, value);
+    // [核心优化]：延迟分配 m_attributes
+    if (!m_attributes) {
+        // 检查是否在描述符中被标记为只读（如非数据描述符但无 __set__）
+        if (descriptor_.has_value() && descriptor_->is_ok()) {
+            // 如果是只读描述符且没有 __set__，在没有 __dict__ 的情况下通常不允许设置
+            // 但对于普通实例，通常直接进入 __dict__。这里保持 Python 默认行为：
+            // 如果不是数据描述符，则尝试写入实例字典。
+        }
+        
+        auto dict_res = PyDict::create();
+        if (dict_res.is_err()) return Err(dict_res.unwrap_err());
+        m_attributes = dict_res.unwrap();
+    }
 
-	return Ok(std::monostate{});
+    return m_attributes->__setitem__(attribute, value);
 }
 
 
@@ -1640,12 +1746,12 @@ std::string PyObject::to_string() const
 
 PyType *PyObject::type() const
 {
-    // 直接通过地址特征判断 Tagged Pointer 类型，跳过 variant 访问
-    uintptr_t addr = reinterpret_cast<uintptr_t>(this);
-    if (addr & 1) {
-        return types::integer(); // Tagged Integer 永远是 int 类型
-    }
-    if (!addr) return nullptr;
+	// 直接通过地址特征判断 Tagged Pointer 类型，跳过 variant 访问
+	uintptr_t addr = reinterpret_cast<uintptr_t>(this);
+	if (addr & 1) {
+		return types::integer();// Tagged Integer 永远是 int 类型
+	}
+	if (!addr) return nullptr;
 	if (std::holds_alternative<std::reference_wrapper<const TypePrototype>>(m_type)) {
 		return static_type();
 	} else {

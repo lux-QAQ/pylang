@@ -144,7 +144,7 @@ class PyNativeFunction : public PyBaseObject
 		if (!result) { return Err(memory_error(sizeof(PyNativeFunction))); }
 		return Ok(result);
 	}
-	PyResult<PyObject *> call_raw(std::span<Value> args, PyDict *kwargs) override;
+	PyResult<PyObject *> call_raw(std::span<const Value> args, PyDict *kwargs) override;
 	// AOT 编译器工厂
 	/// 从原生函数指针创建 Python 可调用对象
 	///

@@ -35,13 +35,25 @@ class AttributeError : public Exception
 };
 
 
+// template<typename... Args>
+// inline BaseException *attribute_error(const std::string &message, Args &&...args)
+// {
+// 	auto msg = PyString::create(fmt::format(message, std::forward<Args>(args)...));
+// 	ASSERT(msg.is_ok());
+// 	auto args_tuple = PyTuple::create(msg.unwrap());
+// 	ASSERT(args_tuple.is_ok());
+// 	return AttributeError::create(args_tuple.unwrap());
+// }
+
+
 template<typename... Args>
 inline BaseException *attribute_error(const std::string &message, Args &&...args)
 {
-	auto msg = PyString::create(fmt::format(message, std::forward<Args>(args)...));
-	ASSERT(msg.is_ok());
-	auto args_tuple = PyTuple::create(msg.unwrap());
-	ASSERT(args_tuple.is_ok());
-	return AttributeError::create(args_tuple.unwrap());
+    // 只有真正报错时才格式化字符串
+    std::string formatted = fmt::format(message, std::forward<Args>(args)...);
+    auto msg_res = PyString::create(std::move(formatted));
+	ASSERT(msg_res.is_ok());
+    auto args_tuple = PyTuple::create(msg_res.unwrap());
+    return AttributeError::create(args_tuple.unwrap());
 }
 }// namespace py

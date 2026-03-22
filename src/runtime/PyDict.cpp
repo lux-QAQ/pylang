@@ -19,12 +19,12 @@
 
 namespace py {
 
-//static std::unordered_set<PyObject *> visited_dict_values;
-// 防止runtime.bc中全局静态变量visited_dict_values的构造函数尚未执行导致的SIGFPE
+// static std::unordered_set<PyObject *> visited_dict_values;
+//  防止runtime.bc中全局静态变量visited_dict_values的构造函数尚未执行导致的SIGFPE
 static std::unordered_set<PyObject *> &visited_dict_values_set()
 {
-    static std::unordered_set<PyObject *> s;
-    return s;
+	static std::unordered_set<PyObject *> s;
+	return s;
 }
 template<> PyDict *as(PyObject *obj)
 {
@@ -150,6 +150,7 @@ PyResult<PyObject *> PyDict::__getitem__(PyObject *key)
 PyResult<std::monostate> PyDict::__setitem__(PyObject *key, PyObject *value)
 {
 	m_map.insert_or_assign(key, value);
+	m_version.fetch_add(1, std::memory_order_release);// 原子递增
 	return Ok(std::monostate{});
 }
 
@@ -157,6 +158,7 @@ PyResult<std::monostate> PyDict::__delitem__(PyObject *key)
 {
 	if (auto it = m_map.find(key); it != m_map.end()) {
 		m_map.erase(it);
+		m_version.fetch_add(1, std::memory_order_release);// 原子递增
 		return Ok(std::monostate{});
 	}
 	return Err(key_error("{}", key->to_string()));
@@ -182,9 +184,17 @@ std::optional<Value> PyDict::operator[](Value key) const
 	}
 }
 
-void PyDict::insert(const Value &key, const Value &value) { m_map.insert_or_assign(key, value); }
+void PyDict::insert(const Value &key, const Value &value)
+{
+	m_map.insert_or_assign(key, value);
+	m_version.fetch_add(1, std::memory_order_release);
+}
 
-void PyDict::remove(const Value &key) { m_map.erase(key); }
+void PyDict::remove(const Value &key)
+{
+	m_map.erase(key);
+	m_version.fetch_add(1, std::memory_order_release);
+}
 
 PyResult<PyObject *> PyDict::merge(PyTuple *args, PyDict *kwargs)
 {
@@ -541,8 +551,8 @@ PyResult<PyObject *> PyDictItems::__iter__() const { return PyDictItemsIterator:
 
 PyResult<size_t> PyDictItems::__len__() const
 {
-    ASSERT(m_pydict);
-    return Ok(m_pydict->get().map().size());
+	ASSERT(m_pydict);
+	return Ok(m_pydict->get().map().size());
 }
 
 PyDictItemsIterator PyDictItems::begin() const { return PyDictItemsIterator(*this); }
@@ -618,8 +628,8 @@ PyResult<PyObject *> PyDictKeys::__iter__() const { return PyDictKeyIterator::cr
 
 PyResult<size_t> PyDictKeys::__len__() const
 {
-    ASSERT(m_pydict);
-    return Ok(m_pydict->get().map().size());
+	ASSERT(m_pydict);
+	return Ok(m_pydict->get().map().size());
 }
 
 PyDictKeyIterator PyDictKeys::begin() const { return PyDictKeyIterator(*this); }
@@ -690,34 +700,34 @@ PyDictValues::PyDictValues(const PyDict &pydict)
 
 PyResult<PyObject *> PyDictValues::__repr__() const
 {
-    std::ostringstream os;
+	std::ostringstream os;
 
-    [[maybe_unused]] struct Cleanup
-    {
-        const PyDictValues *dict_values;
-        bool do_cleanup;
+	[[maybe_unused]] struct Cleanup
+	{
+		const PyDictValues *dict_values;
+		bool do_cleanup;
 
-        ~Cleanup()
-        {
-            if (do_cleanup) {
-                auto it = visited_dict_values_set().find(const_cast<PyDictValues *>(dict_values));
-                if (it != visited_dict_values_set().end()) { visited_dict_values_set().erase(it); }
-            }
-        }
-    } cleanup{ this, !visited_dict_values_set().contains(const_cast<PyDictValues *>(this)) };
-    visited_dict_values_set().insert(const_cast<PyDictValues *>(this));
+		~Cleanup()
+		{
+			if (do_cleanup) {
+				auto it = visited_dict_values_set().find(const_cast<PyDictValues *>(dict_values));
+				if (it != visited_dict_values_set().end()) { visited_dict_values_set().erase(it); }
+			}
+		}
+	} cleanup{ this, !visited_dict_values_set().contains(const_cast<PyDictValues *>(this)) };
+	visited_dict_values_set().insert(const_cast<PyDictValues *>(this));
 
-    auto repr = [](const auto &el) -> PyResult<PyString *> {
-        return std::visit(overloaded{
-                              [](const auto &value) { return PyString::create(value.to_string()); },
-                              [](PyObject *value) {
-                                  if (visited_dict_values_set().contains(value)) {
-                                      return PyString::create("...");
-                                  }
-                                  return value->repr();
-                              },
-                          },
-            el);
+	auto repr = [](const auto &el) -> PyResult<PyString *> {
+		return std::visit(overloaded{
+							  [](const auto &value) { return PyString::create(value.to_string()); },
+							  [](PyObject *value) {
+								  if (visited_dict_values_set().contains(value)) {
+									  return PyString::create("...");
+								  }
+								  return value->repr();
+							  },
+						  },
+			el);
 	};
 	os << "dict_values([";
 	if (!m_pydict->get().map().empty()) {
@@ -741,8 +751,8 @@ PyResult<PyObject *> PyDictValues::__iter__() const { return PyDictValueIterator
 
 PyResult<size_t> PyDictValues::__len__() const
 {
-    ASSERT(m_pydict);
-    return Ok(m_pydict->get().map().size());
+	ASSERT(m_pydict);
+	return Ok(m_pydict->get().map().size());
 }
 
 PyDictValueIterator PyDictValues::begin() const { return PyDictValueIterator(*this); }
