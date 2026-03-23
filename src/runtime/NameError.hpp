@@ -26,7 +26,7 @@ class NameError : public Exception
   public:
 	static std::function<std::unique_ptr<TypePrototype>()> type_factory();
 
-	PyType *static_type() const override;
+	// PyType *static_type() const override;;
 };
 
 

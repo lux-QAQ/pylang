@@ -1309,7 +1309,9 @@ std::optional<uint32_t> PyString::codepoint() const
 	}
 }
 
+/*
 PyType *PyString::static_type() const { return types::str(); }
+*/
 
 PyResult<PyObject *> PyString::__iter__() const
 {
@@ -2091,7 +2093,9 @@ PyResult<PyObject *> PyStringIterator::__next__()
 	return Err(stop_iteration_empty());
 }
 
+/*
 PyType *PyStringIterator::static_type() const { return types::str_iterator(); }
+*/
 
 namespace {
 

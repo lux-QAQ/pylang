@@ -73,43 +73,43 @@ PyResult<PyObject *> PyModule::__new__(const PyType *type, PyTuple *args, PyDict
 
 PyResult<int32_t> PyModule::__init__(PyTuple *args, PyDict *kwargs)
 {
-    ASSERT(args);
-    ASSERT(!kwargs || kwargs->map().empty());
+	ASSERT(args);
+	ASSERT(!kwargs || kwargs->map().empty());
 
-    auto *name = args->size() > 0 ? PyObject::from(args->elements()[0]).unwrap() : nullptr;
-    auto *doc = args->size() > 1 ? PyObject::from(args->elements()[1]).unwrap() : py_none();
-    if (!name) { TODO(); }
-    if (!as<PyString>(name)) { TODO(); }
+	auto *name = args->size() > 0 ? PyObject::from(args->elements()[0]).unwrap() : nullptr;
+	auto *doc = args->size() > 1 ? PyObject::from(args->elements()[1]).unwrap() : py_none();
+	if (!name) { TODO(); }
+	if (!as<PyString>(name)) { TODO(); }
 
-    m_module_name = as<PyString>(name);
-    m_doc = doc;
+	m_module_name = as<PyString>(name);
+	m_doc = doc;
 
-    auto attr = PyDict::create();
-    if (attr.is_err()) return Err(attr.unwrap_err());
-    m_attributes = attr.unwrap();
-    m_dict = m_attributes;
+	auto attr = PyDict::create();
+	if (attr.is_err()) return Err(attr.unwrap_err());
+	m_attributes = attr.unwrap();
+	m_dict = m_attributes;
 
-    // 使用 String key，与构造函数一致
-    m_attributes->insert(String{ "__name__" }, m_module_name);
-    m_attributes->insert(String{ "__doc__" }, m_doc);
+	// 使用 String key，与构造函数一致
+	m_attributes->insert(String{ "__name__" }, m_module_name);
+	m_attributes->insert(String{ "__doc__" }, m_doc);
 
-    return Ok(0);
+	return Ok(0);
 }
 
 /// 添加符号并递增版本号
 void PyModule::add_symbol(PyString *key, const Value &value)
 {
-    // 必须使用 String key（不是 PyObject* key）！
-    // 原因：PyDict 的 ValueEq 在比较两个 PyObject* key 时会调用
-    // richcompare → py_true() → truthy() → true_()
-    // 如果 py_true() 所在的 Arena block 已被释放，会导致 use-after-free。
-    // 使用 String key 后，比较路径是 String==String → 返回 bool，
-    // 永远不调用 true_()。
-    m_attributes->insert(String{ key->value() }, value);
-    // 粗粒度: 全局 dict version 递增
-    m_dict_version = s_global_version.fetch_add(1, std::memory_order_relaxed);
-    // 细粒度: 该 key 的 version 递增
-    m_key_versions.bump(key->value());
+	// 必须使用 String key（不是 PyObject* key）！
+	// 原因：PyDict 的 ValueEq 在比较两个 PyObject* key 时会调用
+	// richcompare → py_true() → truthy() → true_()
+	// 如果 py_true() 所在的 Arena block 已被释放，会导致 use-after-free。
+	// 使用 String key 后，比较路径是 String==String → 返回 bool，
+	// 永远不调用 true_()。
+	m_attributes->insert(String{ key->value() }, value);
+	// 粗粒度: 全局 dict version 递增
+	m_dict_version = s_global_version.fetch_add(1, std::memory_order_relaxed);
+	// 细粒度: 该 key 的 version 递增
+	m_key_versions.bump(key->value());
 }
 
 namespace {
@@ -210,18 +210,18 @@ PyResult<PyModule *> PyModule::create(PyDict *symbol_table, PyString *module_nam
 
 PyResult<PyObject *> PyModule::find_symbol_cstr(const char *name) const
 {
-    if (!m_attributes) {
-        return Err(nullptr); // 返回空错误，不分配异常对象
-    }
-    // 直接用 String 视图查找，避免 PyString 堆分配
-    auto it = m_attributes->map().find(String{ std::string(name) });
-    if (it != m_attributes->map().end()) {
-        return PyObject::from(it->second);
-    }
-    return Err(nullptr); // 没找到直接返回 Err，由调用者决定是否抛出 NameError
+	if (!m_attributes) {
+		return Err(nullptr);// 返回空错误，不分配异常对象
+	}
+	// 直接用 String 视图查找，避免 PyString 堆分配
+	auto it = m_attributes->map().find(String{ std::string(name) });
+	if (it != m_attributes->map().end()) { return PyObject::from(it->second); }
+	return Err(nullptr);// 没找到直接返回 Err，由调用者决定是否抛出 NameError
 }
 
+/*
 PyType *PyModule::static_type() const { return types::module(); }
+*/
 
 void PyModule::set_program(std::shared_ptr<Program> program) { m_program = std::move(program); }
 

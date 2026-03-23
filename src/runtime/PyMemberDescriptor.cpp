@@ -4,9 +4,9 @@
 #include "PyType.hpp"
 #include "TypeError.hpp"
 
+#include "runtime/compat.hpp"
 #include "types/api.hpp"
 #include "types/builtin.hpp"
-#include "runtime/compat.hpp"
 
 namespace py {
 
@@ -91,7 +91,9 @@ PyResult<std::monostate> PyMemberDescriptor::__set__(PyObject *obj, PyObject *va
 }
 
 
+/*
 PyType *PyMemberDescriptor::static_type() const { return types::member_descriptor(); }
+*/
 
 namespace {
 

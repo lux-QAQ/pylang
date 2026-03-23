@@ -13,6 +13,7 @@
 #include "runtime/TypeError.hpp"
 #include "runtime/Value.hpp"
 #include "runtime/ValueError.hpp"
+#include "runtime/compat.hpp"
 #include "runtime/forward.hpp"
 #include "types/api.hpp"
 #include "types/builtin.hpp"
@@ -24,7 +25,6 @@
 #include <iterator>
 #include <memory>
 #include <string_view>
-#include "runtime/compat.hpp"
 
 namespace py {
 
@@ -221,8 +221,7 @@ PyResult<PyObject *> PyMemoryView::create(PyObject *object)
 	if (auto view = as<PyMemoryView>(object)) {
 		auto other_view = create_view(view->m_view);
 
-		auto obj =
-			PYLANG_ALLOC(PyMemoryView, std::move(other_view).unwrap());
+		auto obj = PYLANG_ALLOC(PyMemoryView, std::move(other_view).unwrap());
 		if (!obj) { return Err(memory_error(sizeof(PyMemoryView))); }
 
 		obj->m_managed_buffer = view->m_managed_buffer;
@@ -362,7 +361,9 @@ std::function<std::unique_ptr<TypePrototype>()> PyMemoryView::type_factory()
 	};
 }
 
+/*
 PyType *PyMemoryView::static_type() const { return types::memoryview(); }
+*/
 
 void PyMemoryView::visit_graph(Visitor &visitor)
 {

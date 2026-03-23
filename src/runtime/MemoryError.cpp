@@ -35,11 +35,13 @@ PyResult<PyObject *> MemoryError::__new__(const PyType *type, PyTuple *args, PyD
 	}
 }
 
+/*
 PyType *MemoryError::static_type() const
 {
 	ASSERT(types::memory_error());
 	return types::memory_error();
 }
+*/
 
 PyType *MemoryError::this_type()
 {

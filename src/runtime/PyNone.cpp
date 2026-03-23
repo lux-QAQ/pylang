@@ -27,7 +27,9 @@ PyResult<bool> PyNone::true_() { return Ok(false); }
 
 PyNone *PyNone::create() { return PYLANG_ALLOC(PyNone, ); }
 
+/*
 PyType *PyNone::static_type() const { return types::none(); }
+*/
 
 namespace {
 
@@ -58,14 +60,14 @@ std::function<std::unique_ptr<TypePrototype>()> PyNone::type_factory()
 // }
 PyObject *py_none()
 {
-    static PyObject *value = nullptr;
-    if (!value) {
-        Arena *saved = Arena::has_current() ? &Arena::current() : nullptr;
-        Arena::set_current(&ArenaManager::program_arena());
-        value = PyNone::create();
-        if (saved) Arena::set_current(saved);
-    }
-    return value;
+	static PyObject *value = nullptr;
+	if (!value) {
+		Arena *saved = Arena::has_current() ? &Arena::current() : nullptr;
+		Arena::set_current(&ArenaManager::program_arena());
+		value = PyNone::create();
+		if (saved) Arena::set_current(saved);
+	}
+	return value;
 }
 
 }// namespace py

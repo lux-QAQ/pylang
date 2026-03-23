@@ -55,7 +55,7 @@ class PySet : public PyBaseObject
 	PyResult<PyObject *> union_(PyTuple *others, PyDict *kwargs) const;
 
 	static std::function<std::unique_ptr<TypePrototype>()> type_factory();
-	PyType *static_type() const override;
+	// PyType *static_type() const override;;
 
   private:
 	PyResult<std::monostate>
@@ -93,7 +93,7 @@ class PySetIterator : public PyBaseObject
 	PyResult<PyObject *> __next__();
 
 	static std::function<std::unique_ptr<TypePrototype>()> type_factory();
-	PyType *static_type() const override;
+	// PyType *static_type() const override;;
 };
 
 }// namespace py

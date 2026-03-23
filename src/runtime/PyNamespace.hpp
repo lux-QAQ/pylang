@@ -34,7 +34,7 @@ class PyNamespace : public PyBaseObject
 	PyResult<PyObject *> __lt__(const PyObject *obj) const;
 
 	static std::function<std::unique_ptr<TypePrototype>()> type_factory();
-	PyType *static_type() const override;
+	// PyType *static_type() const override;;
 	std::string to_string() const override;
 };
 

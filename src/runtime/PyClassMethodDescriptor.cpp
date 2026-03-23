@@ -117,7 +117,9 @@ PyResult<PyObject *> PyClassMethodDescriptor::__get__(PyObject *object, PyObject
 }
 
 
+/*
 PyType *PyClassMethodDescriptor::static_type() const { return types::classmethod_descriptor(); }
+*/
 
 namespace {
 

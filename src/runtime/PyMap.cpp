@@ -1,8 +1,8 @@
 #include "PyMap.hpp"
 #include "PyList.hpp"
+#include "runtime/compat.hpp"
 #include "types/api.hpp"
 #include "types/builtin.hpp"
-#include "runtime/compat.hpp"
 
 namespace py {
 
@@ -49,8 +49,7 @@ PyResult<PyObject *> PyMap::__new__(const PyType *type, PyTuple *args, PyDict *k
 	if (iters_.is_err()) { return iters_; }
 	auto *iters = iters_.unwrap();
 
-	auto obj =
-		PYLANG_ALLOC(PyMap, const_cast<PyType *>(type), func, iters);
+	auto obj = PYLANG_ALLOC(PyMap, const_cast<PyType *>(type), func, iters);
 	if (!obj) { return Err(memory_error(sizeof(PyMap))); }
 	return Ok(obj);
 }
@@ -96,7 +95,9 @@ std::function<std::unique_ptr<TypePrototype>()> PyMap::type_factory()
 	};
 }
 
+/*
 PyType *PyMap::static_type() const { return types::map(); }
+*/
 
 void PyMap::visit_graph(Visitor &visitor)
 {

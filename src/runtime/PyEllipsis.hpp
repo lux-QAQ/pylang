@@ -25,7 +25,7 @@ class PyEllipsis : public PyBaseObject
 	const Ellipsis &value() const { return m_value; }
 
 	static std::function<std::unique_ptr<TypePrototype>()> type_factory();
-	PyType *static_type() const override;
+	// PyType *static_type() const override;;
 
   private:
 	static PyResult<PyEllipsis *> create();

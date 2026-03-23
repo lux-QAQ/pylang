@@ -103,7 +103,9 @@ PyResult<std::monostate> PyGetSetDescriptor::__set__(PyObject *obj, PyObject *va
 }
 
 
+/*
 PyType *PyGetSetDescriptor::static_type() const { return types::getset_descriptor(); }
+*/
 
 namespace {
 

@@ -64,11 +64,13 @@ PyResult<int32_t> BaseException::__init__(PyTuple *args, PyDict *kwargs)
 	return Ok(0);
 }
 
+/*
 PyType *BaseException::static_type() const
 {
 	ASSERT(types::base_exception());
 	return types::base_exception();
 }
+*/
 
 PyType *BaseException::class_type()
 {
@@ -169,28 +171,28 @@ std::function<std::unique_ptr<TypePrototype>()> BaseException::type_factory()
 
 bool check_exception_match(PyObject *exc, PyObject *exc_type)
 {
-    if (!exc || !exc_type) { return false; }
+	if (!exc || !exc_type) { return false; }
 
-    // exc_type 可能是 tuple of types: except (TypeError, ValueError)
-    if (auto *tuple = as<PyTuple>(exc_type)) {
-        for (const auto &elem : tuple->elements()) {
-            if (!std::holds_alternative<PyObject *>(elem)) { continue; }
-            auto *type_obj = std::get<PyObject *>(elem);
-            if (check_exception_match(exc, type_obj)) { return true; }
-        }
-        return false;
-    }
+	// exc_type 可能是 tuple of types: except (TypeError, ValueError)
+	if (auto *tuple = as<PyTuple>(exc_type)) {
+		for (const auto &elem : tuple->elements()) {
+			if (!std::holds_alternative<PyObject *>(elem)) { continue; }
+			auto *type_obj = std::get<PyObject *>(elem);
+			if (check_exception_match(exc, type_obj)) { return true; }
+		}
+		return false;
+	}
 
-    // exc_type 是单个类型
-    auto *exc_actual_type = exc->type();
-    if (!exc_actual_type) { return false; }
+	// exc_type 是单个类型
+	auto *exc_actual_type = exc->type();
+	if (!exc_actual_type) { return false; }
 
-    // isinstance(exc, exc_type) — 检查 MRO
-    if (auto *target_type = as<PyType>(exc_type)) {
-        return exc_actual_type->issubclass(target_type);
-    }
+	// isinstance(exc, exc_type) — 检查 MRO
+	if (auto *target_type = as<PyType>(exc_type)) {
+		return exc_actual_type->issubclass(target_type);
+	}
 
-    return false;
+	return false;
 }
 
 }// namespace py

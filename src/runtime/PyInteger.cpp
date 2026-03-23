@@ -157,14 +157,14 @@ PyResult<int64_t> PyInteger::__hash__() const
 
 PyResult<PyObject *> PyInteger::__and__(PyObject *obj)
 {
-    if (!obj->type()->issubclass(types::integer())) {
-        return Err(
-            type_error("unsupported operand type(s) for &: 'int' and '{}'", obj->type()->name()));
-    }
+	if (!obj->type()->issubclass(types::integer())) {
+		return Err(
+			type_error("unsupported operand type(s) for &: 'int' and '{}'", obj->type()->name()));
+	}
 
-    mpz_class result = std::get<BigIntType>(m_value.value);
-    result &= std::get<BigIntType>(static_cast<const PyInteger &>(*obj).value().value);
-    return PyInteger::create(std::move(result));
+	mpz_class result = std::get<BigIntType>(m_value.value);
+	result &= std::get<BigIntType>(static_cast<const PyInteger &>(*obj).value().value);
+	return PyInteger::create(std::move(result));
 }
 
 // PyResult<PyObject *> PyInteger::__or__(PyObject *obj)
@@ -179,14 +179,14 @@ PyResult<PyObject *> PyInteger::__and__(PyObject *obj)
 
 PyResult<PyObject *> PyInteger::__or__(PyObject *obj)
 {
-    if (!obj->type()->issubclass(types::integer())) {
-        return Err(
-            type_error("unsupported operand type(s) for |: 'int' and '{}'", obj->type()->name()));
-    }
+	if (!obj->type()->issubclass(types::integer())) {
+		return Err(
+			type_error("unsupported operand type(s) for |: 'int' and '{}'", obj->type()->name()));
+	}
 
-    mpz_class result = std::get<BigIntType>(m_value.value);
-    result |= std::get<BigIntType>(static_cast<const PyInteger &>(*obj).value().value);
-    return PyInteger::create(std::move(result));
+	mpz_class result = std::get<BigIntType>(m_value.value);
+	result |= std::get<BigIntType>(static_cast<const PyInteger &>(*obj).value().value);
+	return PyInteger::create(std::move(result));
 }
 
 PyResult<PyObject *> PyInteger::__xor__(PyObject *obj)
@@ -380,7 +380,9 @@ BigIntType PyInteger::as_big_int() const
 	return std::get<BigIntType>(m_value.value);
 }
 
+/*
 PyType *PyInteger::static_type() const { return types::integer(); }
+*/
 
 namespace {
 

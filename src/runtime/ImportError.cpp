@@ -49,11 +49,13 @@ PyType *ImportError::class_type()
 	return types::import_error();
 }
 
+/*
 PyType *ImportError::static_type() const
 {
 	ASSERT(types::import_error());
 	return types::import_error();
 }
+*/
 
 void ImportError::visit_graph(Visitor &visitor)
 {

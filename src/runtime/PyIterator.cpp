@@ -3,10 +3,10 @@
 #include "runtime/StopIteration.hpp"
 #include "runtime/Value.hpp"
 #include "runtime/ValueError.hpp"
+#include "runtime/compat.hpp"
 #include "types/api.hpp"
 #include "types/builtin.hpp"
 #include <limits>
-#include "runtime/compat.hpp"
 
 
 using namespace py;
@@ -66,7 +66,9 @@ void PyIterator::visit_graph(Visitor &visitor)
 	if (m_iterator) { visitor.visit(*m_iterator); }
 }
 
+/*
 PyType *PyIterator::static_type() const { return types::iterator(); }
+*/
 
 
 namespace {

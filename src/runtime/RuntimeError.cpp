@@ -35,11 +35,13 @@ PyResult<RuntimeError *> RuntimeError::create(PyTuple *args)
 	return Ok(obj);
 }
 
+/*
 PyType *RuntimeError::static_type() const
 {
 	ASSERT(types::runtime_error());
 	return types::runtime_error();
 }
+*/
 
 namespace {
 

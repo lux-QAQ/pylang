@@ -342,5 +342,8 @@ namespace types {
 	PyType *memory_error();
 	PyType *stop_iteration();
 	PyType *unbound_local_error();
+
+	// 用于在 PyObject 构造函数中将 Prototype 映射为已初始化的 PyType
+	PyType *lookup_type_by_prototype(const TypePrototype *proto);
 }// namespace types
 }// namespace py

@@ -40,11 +40,13 @@ PyResult<PyObject *> ValueError::__new__(const PyType *type, PyTuple *args, PyDi
 	return ValueError::create(args);
 }
 
+/*
 PyType *ValueError::static_type() const
 {
 	ASSERT(types::value_error());
 	return types::value_error();
 }
+*/
 
 PyType *ValueError::class_type()
 {

@@ -25,11 +25,13 @@ PyResult<PyObject *> ResourceWarning::__new__(const PyType *type, PyTuple *args,
 	return ResourceWarning::create(const_cast<PyType *>(type), args);
 }
 
+/*
 PyType *ResourceWarning::static_type() const
 {
 	ASSERT(types::resource_warning());
 	return types::resource_warning();
 }
+*/
 
 PyType *ResourceWarning::class_type()
 {

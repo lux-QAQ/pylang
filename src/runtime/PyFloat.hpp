@@ -17,7 +17,7 @@ class PyFloat final : public PyNumber
 	static PyResult<PyObject *> __new__(const PyType *type, PyTuple *args, PyDict *kwargs);
 
 	static PyResult<PyFloat *> create(double);
-	PyType *static_type() const override;
+	// PyType *static_type() const override;;
 
 	double as_f64() const;
 

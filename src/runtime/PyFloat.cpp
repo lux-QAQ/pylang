@@ -81,7 +81,9 @@ PyResult<PyObject *> PyFloat::__round__(PyObject *ndigits_obj) const
 }
 
 
+/*
 PyType *PyFloat::static_type() const { return types::float_(); }
+*/
 
 double PyFloat::as_f64() const
 {

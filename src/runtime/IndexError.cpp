@@ -27,11 +27,13 @@ PyType *IndexError::class_type()
 	return types::index_error();
 }
 
+/*
 PyType *IndexError::static_type() const
 {
 	ASSERT(types::index_error());
 	return types::index_error();
 }
+*/
 
 namespace {
 

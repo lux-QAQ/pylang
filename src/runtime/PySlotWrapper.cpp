@@ -47,28 +47,24 @@ PyResult<PyObject *> PySlotWrapper::__repr__() const { return PyString::create(t
 
 PyResult<PyObject *> PySlotWrapper::__call__(PyTuple *args, PyDict *kwargs)
 {
-    ASSERT(args->size() > 0);
-    // [修复]：Value 是 std::variant，需通过 PyObject::from 获取 PyObject*
-    auto self_res = PyObject::from(args->elements()[0]);
-    if (self_res.is_err()) return self_res;
-    auto *self = self_res.unwrap();
+	ASSERT(args->size() > 0);
+	// [修复]：Value 是 std::variant，需通过 PyObject::from 获取 PyObject*
+	auto self_res = PyObject::from(args->elements()[0]);
+	if (self_res.is_err()) return self_res;
+	auto *self = self_res.unwrap();
 
-    // 1. 无参优化：如果是 Node() 调用（仅含 self），复用空元组单例
-    if (args->size() == 1) {
-        return m_slot(self, PyTuple::create().unwrap(), kwargs);
-    }
+	// 1. 无参优化：如果是 Node() 调用（仅含 self），复用空元组单例
+	if (args->size() == 1) { return m_slot(self, PyTuple::create().unwrap(), kwargs); }
 
-    // 2. 切片优化：使用 GCVector 触发移动语义，避免 O(N) 内存拷贝
-    py::GCVector<Value> new_args_vector;
-    new_args_vector.reserve(args->size() - 1);
-    for (size_t i = 1; i < args->size(); ++i) { 
-        new_args_vector.push_back(args->elements()[i]); 
-    }
-    
-    auto args_res = PyTuple::create(std::move(new_args_vector));
-    if (args_res.is_err()) return args_res;
-    
-    return m_slot(self, args_res.unwrap(), kwargs);
+	// 2. 切片优化：使用 GCVector 触发移动语义，避免 O(N) 内存拷贝
+	py::GCVector<Value> new_args_vector;
+	new_args_vector.reserve(args->size() - 1);
+	for (size_t i = 1; i < args->size(); ++i) { new_args_vector.push_back(args->elements()[i]); }
+
+	auto args_res = PyTuple::create(std::move(new_args_vector));
+	if (args_res.is_err()) return args_res;
+
+	return m_slot(self, args_res.unwrap(), kwargs);
 }
 
 // PyResult<PyObject *> PySlotWrapper::call_raw(std::span<const Value> args, PyDict *kwargs)
@@ -90,27 +86,26 @@ PyResult<PyObject *> PySlotWrapper::__call__(PyTuple *args, PyDict *kwargs)
 
 PyResult<PyObject *> PySlotWrapper::call_raw(std::span<const Value> args, PyDict *kwargs)
 {
-    if (args.empty()) return Err(type_error("slot wrapper requires self"));
-    
-    auto self_res = PyObject::from(args[0]);
-    if (self_res.is_err()) return self_res;
-    auto *self = self_res.unwrap();
+	if (args.empty()) return Err(type_error("slot wrapper requires self"));
 
-    // [核心优化]：拦截 Node() 这种无参调用
-    if (args.size() == 1 && (!kwargs || kwargs->map().empty())) {
-        // PyTuple::create() 内部已经实现了 get_empty_tuple_singleton()
-        return m_slot(self, PyTuple::create().unwrap(), kwargs);
-    }
+	auto self_res = PyObject::from(args[0]);
+	if (self_res.is_err()) return self_res;
+	auto *self = self_res.unwrap();
 
-    // 仅在确实有参数时，才进入昂贵的 GCVector 打包流程
-    py::GCVector<Value> slice_args;
-    slice_args.reserve(args.size() - 1);
-    for (size_t i = 1; i < args.size(); ++i) { slice_args.push_back(args[i]); }
+	// [核心优化]：拦截 Node() 这种无参调用
+	if (args.size() == 1 && (!kwargs || kwargs->map().empty())) {
+		// PyTuple::create() 内部已经实现了 get_empty_tuple_singleton()
+		return m_slot(self, PyTuple::create().unwrap(), kwargs);
+	}
 
-    return PyTuple::create(std::move(slice_args))
-        .and_then([this, self, kwargs](PyTuple *t) -> PyResult<PyObject *> {
-            return m_slot(self, t, kwargs);
-        });
+	// 仅在确实有参数时，才进入昂贵的 GCVector 打包流程
+	py::GCVector<Value> slice_args;
+	slice_args.reserve(args.size() - 1);
+	for (size_t i = 1; i < args.size(); ++i) { slice_args.push_back(args[i]); }
+
+	return PyTuple::create(std::move(slice_args))
+		.and_then([this, self, kwargs](
+					  PyTuple *t) -> PyResult<PyObject *> { return m_slot(self, t, kwargs); });
 }
 
 PyResult<PyObject *> PySlotWrapper::__get__(PyObject *instance, PyObject * /*owner*/) const
@@ -155,7 +150,9 @@ PyResult<PySlotWrapper *>
 	return Ok(obj);
 }
 
+/*
 PyType *PySlotWrapper::static_type() const { return types::slot_wrapper(); }
+*/
 
 namespace {
 

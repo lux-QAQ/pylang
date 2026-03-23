@@ -37,7 +37,7 @@ class PyMemoryView : public PyBaseObject
 	PyResult<PyObject *> tolist();
 
 	static std::function<std::unique_ptr<TypePrototype>()> type_factory();
-	PyType *static_type() const override;
+	// PyType *static_type() const override;;
 
 	void visit_graph(Visitor &) override;
 	std::string to_string() const override;

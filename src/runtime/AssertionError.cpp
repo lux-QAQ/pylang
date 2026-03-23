@@ -22,11 +22,11 @@ PyResult<PyObject *> AssertionError::__new__(const PyType *type, PyTuple *args, 
 	}
 }
 
-PyType *AssertionError::static_type() const
-{
-	ASSERT(types::assertion_error());
-	return types::assertion_error();
-}
+// PyType *AssertionError::static_type() const
+// {
+// 	ASSERT(types::assertion_error());
+// 	return types::assertion_error();
+// }
 
 PyType *AssertionError::this_type()
 {

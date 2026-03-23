@@ -27,7 +27,7 @@ class PyAsyncGenerator : public GeneratorInterface<PyAsyncGenerator>
 		create(PyFrame *frame, std::unique_ptr<StackFrame> &&, PyString *name, PyString *qualname);
 
 	static std::function<std::unique_ptr<TypePrototype>()> type_factory();
-	PyType *static_type() const override;
+	// PyType *static_type() const override;;
 	void visit_graph(Visitor &visitor) override;
 };
 }// namespace py

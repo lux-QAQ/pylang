@@ -113,7 +113,7 @@ class PyCode : public PyBaseObject
 	const std::shared_ptr<Program> &program() const { return m_program; }
 
 	static std::function<std::unique_ptr<TypePrototype>()> type_factory();
-	PyType *static_type() const override;
+	// PyType *static_type() const override;;
 
 	void visit_graph(Visitor &) override;
 

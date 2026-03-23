@@ -50,7 +50,7 @@ class PyInteger : public Interface<PyNumber, PyInteger>
 	static PyResult<PyObject *> from_bytes(PyType *type, PyTuple *args, PyDict *kwargs);
 
 	static std::function<std::unique_ptr<TypePrototype>()> type_factory();
-	PyType *static_type() const override;
+	// PyType *static_type() const override;;
 
 	int64_t as_i64() const;
 	size_t as_size_t() const;

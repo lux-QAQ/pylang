@@ -1,8 +1,8 @@
 #include "PyMappingProxy.hpp"
 #include "MemoryError.hpp"
+#include "runtime/compat.hpp"
 #include "types/api.hpp"
 #include "types/builtin.hpp"
-#include "runtime/compat.hpp"
 
 namespace py {
 PyMappingProxy::PyMappingProxy(PyType *type) : PyBaseObject(type) {}
@@ -99,7 +99,9 @@ PyResult<PyObject *> PyMappingProxy::values() const
 	});
 }
 
+/*
 PyType *PyMappingProxy::static_type() const { return types::mappingproxy(); }
+*/
 
 void PyMappingProxy::visit_graph(Visitor &visitor)
 {

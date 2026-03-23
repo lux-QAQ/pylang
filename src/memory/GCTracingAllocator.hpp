@@ -59,10 +59,33 @@ namespace gc {
 		{
 		};
 
-		// 反射安全计数代理，斩断越界特化引发的 sizeof 断言死锁
+		// [新增]: 安全探测 std::pair 的助手，避免直接访问 T::first_type
+		template<typename T> struct is_pair_helper : std::false_type
+		{
+		};
+		template<typename U, typename V> struct is_pair_helper<std::pair<U, V>> : std::true_type
+		{
+		};
+
+		// [修复]: 探测并拦截标准库内部节点
+		template<typename T> struct is_std_internal : std::false_type
+		{
+		};
+
+		// 针对 libstdc++ 和 libc++ 的常见内部节点特征进行模糊匹配或直接拦截
+		template<typename T>
+			requires(
+				requires { typename T::__node_type; } || requires { typename T::value_type; })
+		struct is_std_internal<T>
+			: std::bool_constant<std::is_scoped_enum_v<T> == false
+								 && !is_pair_helper<T>::value>// 使用助手替代 std::is_same_v
+		{
+		};
+
 		template<typename T,
 			bool IsReflectable = (std::is_aggregate_v<T> || ylt::reflection::is_ylt_refl_v<T>)
-								 && !std::is_array_v<T> && !std::is_union_v<T>>
+								 && !std::is_array_v<T> && !std::is_union_v<T>
+								 && !is_std_internal<T>::value>// [修复]: 拦截标准库内部节点
 		struct safe_members_count : std::integral_constant<std::size_t, 0>
 		{
 		};

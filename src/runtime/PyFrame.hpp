@@ -94,12 +94,11 @@ class PyFrame : public PyBaseObject
 
 	static std::function<std::unique_ptr<TypePrototype>()> type_factory();
 
-	PyType *static_type() const override;
+	// PyType *static_type() const override;;
 
   private:
 	PyFrame();
 };
-
 
 
 }// namespace py

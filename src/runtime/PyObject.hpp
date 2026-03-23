@@ -421,7 +421,8 @@ class PyObject : public Cell
 	friend class PyType;
 
   protected:
-	std::variant<std::reference_wrapper<const TypePrototype>, PyType *> m_type;
+	// std::variant<std::reference_wrapper<const TypePrototype>, PyType *> m_type;
+	PyType *m_bits_type{ nullptr };
 	PyDict *m_attributes{ nullptr };
 
   public:
@@ -431,8 +432,13 @@ class PyObject : public Cell
 
 	virtual ~PyObject() = default;
 
-	virtual PyType *static_type() const;
-	PyType *type() const;
+	inline PyType *static_type() const
+	{
+		ASSERT(m_bits_type && "m_bits_type ptr is NULL !!");
+		return m_bits_type;
+	}
+
+	inline PyType *type() const { return m_bits_type; }
 
 	template<typename T> static PyResult<PyObject *> from(const T &value);
 
@@ -971,7 +977,8 @@ std::unique_ptr<TypePrototype> TypePrototype::create(std::string_view name, Args
 class PyBaseObject : public PyObject
 {
   public:
-	PyBaseObject(const TypePrototype &type) : PyObject(type) {}
+	// PyBaseObject(const TypePrototype &type) : PyObject(type) {}
+	PyBaseObject(const TypePrototype &type);
 	PyBaseObject(PyType *type) : PyObject(type) {}
 };
 

@@ -114,11 +114,11 @@ class RLock : public PyBaseObject
 
 	PyResult<PyObject *> __exit__(PyTuple *, PyDict *) { return release(); }
 
-	PyType *static_type() const override
-	{
-		ASSERT(s_rlock);
-		return s_rlock;
-	}
+	// PyType *static_type() const override;
+	// {
+	// 	ASSERT(s_rlock);
+	// 	return s_rlock;
+	// }
 
 	static PyType *register_type(PyModule *module)
 	{

@@ -37,7 +37,9 @@ PyResult<PyTraceback *>
 	return Ok(obj);
 }
 
+/*
 PyType *PyTraceback::static_type() const { return types::traceback(); }
+*/
 
 namespace {
 

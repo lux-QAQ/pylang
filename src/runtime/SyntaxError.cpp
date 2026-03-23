@@ -17,11 +17,13 @@ PyResult<PyObject *> SyntaxError::__new__(const PyType *type, PyTuple *args, PyD
 	return Ok(SyntaxError::create(args));
 }
 
+/*
 PyType *SyntaxError::static_type() const
 {
 	ASSERT(types::syntax_error());
 	return types::syntax_error();
 }
+*/
 
 namespace {
 

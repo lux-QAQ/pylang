@@ -18,7 +18,9 @@ PyResult<NotImplemented *> NotImplemented::create()
 	return Ok(result);
 }
 
+/*
 PyType *NotImplemented::static_type() const { return types::not_implemented(); }
+*/
 
 std::string NotImplemented::to_string() const { return "NotImplemented"; }
 

@@ -1,10 +1,12 @@
 #include "runtime/BaseException.hpp"
-#include "runtime/BaseException.hpp"
 #include "runtime/Import.hpp"
 #include "runtime/KeyError.hpp"
 #include "runtime/NameError.hpp"
+#include "runtime/NotImplemented.hpp"
+#include "runtime/PyBool.hpp"
 #include "runtime/PyCode.hpp"
 #include "runtime/PyDict.hpp"
+#include "runtime/PyEllipsis.hpp"
 #include "runtime/PyFrame.hpp"
 #include "runtime/PyFunction.hpp"
 #include "runtime/PyList.hpp"
@@ -14,9 +16,6 @@
 #include "runtime/PyString.hpp"
 #include "runtime/PyTuple.hpp"
 #include "runtime/PyType.hpp"
-#include "runtime/PyBool.hpp"
-#include "runtime/PyEllipsis.hpp"
-#include "runtime/NotImplemented.hpp"
 #include "runtime/Value.hpp"
 #include "runtime/modules/Modules.hpp"
 #include "runtime/modules/config.hpp"
@@ -31,8 +30,17 @@ void initialize_types()
 		VirtualMachine::the().heap().scoped_static_allocation();
 
 #endif
-	types::object();
+	// 优先级 1: 基础设施类型 (被其他类型的 ready() 所依赖)
+	types::slot_wrapper();// 必须在所有 ready() 之前，因为 ready 需要创建 SlotWrapper
+	types::str();// 必须在所有 ready() 之前，因为 ready 需要创建属性名字符串
+	types::tuple();// 必须在所有 ready() 之前，因为 ready 需要创建 MRO 元组
+	types::dict();// 必须在所有 ready() 之前，因为 ready 需要创建 __dict__
+
+
+	// 然后是核心元类和基类
 	types::type();
+	types::object();
+
 	types::super();
 	types::bool_();
 	types::bytes();
@@ -40,7 +48,7 @@ void initialize_types()
 	types::bytearray();
 	types::bytearray_iterator();
 	types::ellipsis();
-	types::str();
+	//types::str();
 	types::str_iterator();
 	types::float_();
 	types::integer();
@@ -58,7 +66,7 @@ void initialize_types()
 	types::list();
 	types::list_iterator();
 	types::list_reverseiterator();
-	types::tuple();
+	//types::tuple();
 	types::tuple_iterator();
 	types::set();
 	types::frozenset();
@@ -77,7 +85,7 @@ void initialize_types()
 	types::code();
 	types::cell();
 	types::builtin_method();
-	types::slot_wrapper();
+	//types::slot_wrapper();
 	types::bound_method();
 	types::method_wrapper();
 	types::classmethod_descriptor();
@@ -118,7 +126,6 @@ void initialize_types()
 	types::unbound_local_error();
 
 
-	
 	(void)py_none();
 	(void)py_true();
 	(void)py_false();
@@ -126,4 +133,4 @@ void initialize_types()
 	(void)not_implemented();
 }
 
-} // namespace py
+}// namespace py

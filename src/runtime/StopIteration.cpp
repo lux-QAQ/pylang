@@ -32,11 +32,13 @@ PyResult<PyObject *> StopIteration::__new__(const PyType *type, PyTuple *args, P
 	return Ok(StopIteration::create(args));
 }
 
+/*
 PyType *StopIteration::static_type() const
 {
 	ASSERT(types::stop_iteration());
 	return types::stop_iteration();
 }
+*/
 
 PyType *StopIteration::class_type()
 {
@@ -45,12 +47,10 @@ PyType *StopIteration::class_type()
 }
 
 
-
-
 namespace {
 
 	std::once_flag stop_iteration_flag;
-	//static BaseException *stop_iteration_instance = nullptr;
+	// static BaseException *stop_iteration_instance = nullptr;
 
 
 	GCVector<PyObject *> &immortal_roots()
@@ -67,20 +67,20 @@ namespace {
 
 BaseException *stop_iteration_empty()
 {
-    static BaseException *instance = nullptr;
-    static std::once_flag flag;
-    std::call_once(flag, []() {
-        // 1. 使用空元组作为参数
-        auto args = PyTuple::create().unwrap();
+	static BaseException *instance = nullptr;
+	static std::once_flag flag;
+	std::call_once(flag, []() {
+		// 1. 使用空元组作为参数
+		auto args = PyTuple::create().unwrap();
 
-        // 2. 显式调用 PYLANG_ALLOC_IMMORTAL 分配全程序生命周期对象
-        auto *obj = PYLANG_ALLOC_IMMORTAL(StopIteration, args);
-        instance = static_cast<BaseException *>(obj);
+		// 2. 显式调用 PYLANG_ALLOC_IMMORTAL 分配全程序生命周期对象
+		auto *obj = PYLANG_ALLOC_IMMORTAL(StopIteration, args);
+		instance = static_cast<BaseException *>(obj);
 
-        // 3. 压入 Root 集合：这是 BDWGC 识别 Root 指针的最稳健方式
-        immortal_roots().push_back(instance);
-    });
-    return instance;
+		// 3. 压入 Root 集合：这是 BDWGC 识别 Root 指针的最稳健方式
+		immortal_roots().push_back(instance);
+	});
+	return instance;
 }
 
 std::function<std::unique_ptr<TypePrototype>()> StopIteration::type_factory()

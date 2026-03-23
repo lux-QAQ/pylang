@@ -67,7 +67,9 @@ void PyCell::visit_graph(Visitor &visitor)
 	}
 }
 
+/*
 PyType *PyCell::static_type() const { return types::cell(); }
+*/
 
 const Value &PyCell::content() const { return m_content; }
 

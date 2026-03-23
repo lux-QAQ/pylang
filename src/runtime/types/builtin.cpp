@@ -132,22 +132,81 @@ BuiltinTypes::BuiltinTypes()
 {}
 
 
+using ProtoMap = std::unordered_map<const TypePrototype *,
+	PyType *,
+	std::hash<const TypePrototype *>,
+	std::equal_to<const TypePrototype *>,
+	GCTracingAllocator<std::pair<const TypePrototype *const, PyType *>>>;
+
+// 使用静态 Map 存储映射关系
+static ProtoMap &get_proto_map()
+{
+	static ProtoMap map;
+	return map;
+}
+
+PyType *lookup_type_by_prototype(const TypePrototype *proto)
+{
+	auto &map = get_proto_map();
+	auto it = map.find(proto);
+	return (it != map.end()) ? it->second : nullptr;
+}
+
+// #ifdef PYLANG_USE_ARENA
+// #define INITIALIZE_TYPE(TYPENAME)                                                         \
+//     PyType *TYPENAME()                                                                    \
+//     {                                                                                     \
+//         static PyType *type = nullptr;                                                    \
+//         if (!type) {                                                                      \
+//             /* 确保 PyType 分配在 program_arena */                                         \
+//             Arena *saved = Arena::has_current() ? &Arena::current() : nullptr;             \
+//             Arena::set_current(&ArenaManager::program_arena());                            \
+//             auto &prototype = BuiltinTypes::the().TYPENAME();                             \
+// 			type = PYLANG_ALLOC(PyType, prototype);  \
+//             type = PyType::initialize(prototype);                                         \
+// 			get_proto_map()[&prototype] = type; /* 注册映射 */    \
+//             spdlog::trace("Initialized builtin type {} @{}", type->name(), (void *)type); \
+//             if (saved) Arena::set_current(saved);                                          \
+//         }                                                                                 \
+//         return type;                                                                      \
+//     }
+// #else
+// #define INITIALIZE_TYPE(TYPENAME)                                                         \
+// 	PyType *TYPENAME()                                                                    \
+// 	{                                                                                     \
+// 		static PyType *type = nullptr;                                                    \
+// 		if (!type) {                                                                      \
+// 			auto &prototype = BuiltinTypes::the().TYPENAME();                             \
+// 			type = PyType::initialize(prototype);                                         \
+// 			spdlog::trace("Initialized builtin type {} @{}", type->name(), (void *)type); \
+// 		}                                                                                 \
+// 		return type;                                                                      \
+// 	}
+// #endif
+
+
 #ifdef PYLANG_USE_ARENA
 #define INITIALIZE_TYPE(TYPENAME)                                                         \
-    PyType *TYPENAME()                                                                    \
-    {                                                                                     \
-        static PyType *type = nullptr;                                                    \
-        if (!type) {                                                                      \
-            /* 确保 PyType 分配在 program_arena */                                         \
-            Arena *saved = Arena::has_current() ? &Arena::current() : nullptr;             \
-            Arena::set_current(&ArenaManager::program_arena());                            \
-            auto &prototype = BuiltinTypes::the().TYPENAME();                             \
-            type = PyType::initialize(prototype);                                         \
-            spdlog::trace("Initialized builtin type {} @{}", type->name(), (void *)type); \
-            if (saved) Arena::set_current(saved);                                          \
-        }                                                                                 \
-        return type;                                                                      \
-    }
+	PyType *TYPENAME()                                                                    \
+	{                                                                                     \
+		static PyType *type = nullptr;                                                    \
+		if (!type) {                                                                      \
+			Arena *saved = Arena::has_current() ? &Arena::current() : nullptr;            \
+			Arena::set_current(&ArenaManager::program_arena());                           \
+			auto &prototype = BuiltinTypes::the().TYPENAME();                             \
+			/* 1. 先分配内存，不调用 ready */                                             \
+			type = PYLANG_ALLOC(PyType, prototype);                                       \
+			/* 2. 在 ready 之前立即注册到映射表 */                                        \
+			get_proto_map()[&prototype] = type;                                           \
+			new (type) PyType(prototype);                                                 \
+			/* 3. 现在可以安全地执行 ready，内部的 lookup 将能找到 type */                \
+			auto res = type->ready();                                                     \
+			ASSERT(res.is_ok());                                                          \
+			spdlog::trace("Initialized builtin type {} @{}", type->name(), (void *)type); \
+			if (saved) Arena::set_current(saved);                                         \
+		}                                                                                 \
+		return type;                                                                      \
+	}
 #else
 #define INITIALIZE_TYPE(TYPENAME)                                                         \
 	PyType *TYPENAME()                                                                    \
@@ -155,7 +214,11 @@ BuiltinTypes::BuiltinTypes()
 		static PyType *type = nullptr;                                                    \
 		if (!type) {                                                                      \
 			auto &prototype = BuiltinTypes::the().TYPENAME();                             \
-			type = PyType::initialize(prototype);                                         \
+			type = PYLANG_ALLOC(PyType, prototype);                                       \
+			get_proto_map()[&prototype] = type;                                           \
+			new (type) PyType(prototype);                                                 \
+			auto res = type->ready();                                                     \
+			ASSERT(res.is_ok());                                                          \
 			spdlog::trace("Initialized builtin type {} @{}", type->name(), (void *)type); \
 		}                                                                                 \
 		return type;                                                                      \

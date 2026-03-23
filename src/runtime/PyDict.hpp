@@ -90,7 +90,7 @@ class PyDict : public PyBaseObject
 	void visit_graph(Visitor &) override;
 
 	static std::function<std::unique_ptr<TypePrototype>()> type_factory();
-	PyType *static_type() const override;
+	// PyType *static_type() const override;;
 
   private:
 	PyResult<std::monostate> merge(PyObject *other, bool override);
@@ -126,7 +126,7 @@ class PyDictItems : public PyBaseObject
 	void visit_graph(Visitor &) override;
 
 	static std::function<std::unique_ptr<TypePrototype>()> type_factory();
-	PyType *static_type() const override;
+	// PyType *static_type() const override;;
 };
 
 
@@ -158,7 +158,7 @@ class PyDictKeys : public PyBaseObject
 	void visit_graph(Visitor &) override;
 
 	static std::function<std::unique_ptr<TypePrototype>()> type_factory();
-	PyType *static_type() const override;
+	// PyType *static_type() const override;;
 };
 
 
@@ -191,7 +191,7 @@ class PyDictValues : public PyBaseObject
 	void visit_graph(Visitor &) override;
 
 	static std::function<std::unique_ptr<TypePrototype>()> type_factory();
-	PyType *static_type() const override;
+	// PyType *static_type() const override;;
 };
 
 class PyDictItemsIterator : public PyBaseObject
@@ -232,7 +232,7 @@ class PyDictItemsIterator : public PyBaseObject
 	void visit_graph(Visitor &) override;
 
 	static std::function<std::unique_ptr<TypePrototype>()> type_factory();
-	PyType *static_type() const override;
+	// PyType *static_type() const override;;
 };
 
 
@@ -275,7 +275,7 @@ class PyDictKeyIterator : public PyBaseObject
 	void visit_graph(Visitor &) override;
 
 	static std::function<std::unique_ptr<TypePrototype>()> type_factory();
-	PyType *static_type() const override;
+	// PyType *static_type() const override;;
 };
 
 class PyDictValueIterator : public PyBaseObject
@@ -318,7 +318,7 @@ class PyDictValueIterator : public PyBaseObject
 	void visit_graph(Visitor &) override;
 
 	static std::function<std::unique_ptr<TypePrototype>()> type_factory();
-	PyType *static_type() const override;
+	// PyType *static_type() const override;;
 };
 
 }// namespace py

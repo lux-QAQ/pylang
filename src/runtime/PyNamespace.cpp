@@ -111,7 +111,9 @@ std::function<std::unique_ptr<TypePrototype>()> PyNamespace::type_factory()
 	};
 }
 
+/*
 PyType *PyNamespace::static_type() const { return types::namespace_(); }
+*/
 
 std::string PyNamespace::to_string() const
 {

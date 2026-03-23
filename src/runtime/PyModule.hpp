@@ -77,7 +77,7 @@ class PyModule : public PyBaseObject
 	void invalidate_cache() { m_dict_version = s_global_version.fetch_add(1); }
 
 	static std::function<std::unique_ptr<TypePrototype>()> type_factory();
-	PyType *static_type() const override;
+	// PyType *static_type() const override;;
 
 	void set_program(std::shared_ptr<Program> program);
 	const std::shared_ptr<Program> &program() const;

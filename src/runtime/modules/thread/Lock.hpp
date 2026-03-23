@@ -128,11 +128,11 @@ class Lock : public PyBaseObject
 
 	PyResult<PyObject *> __exit__(PyTuple *, PyDict *) { return release_lock(); }
 
-	PyType *static_type() const override
-	{
-		ASSERT(s_lock);
-		return s_lock;
-	}
+	// PyType *static_type() const override;
+	// {
+	// 	ASSERT(s_lock);
+	// 	return s_lock;
+	// }
 
 	static PyType *register_type(PyModule *module)
 	{

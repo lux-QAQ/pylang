@@ -39,11 +39,13 @@ PyResult<PyObject *> ModuleNotFoundError::__new__(const PyType *type, PyTuple *a
 
 PyResult<int32_t> ModuleNotFoundError::__init__(PyTuple *, PyDict *) { return Ok(0); }
 
+/*
 PyType *ModuleNotFoundError::static_type() const
 {
 	ASSERT(types::module_not_found_error());
 	return types::module_not_found_error();
 }
+*/
 
 namespace {
 

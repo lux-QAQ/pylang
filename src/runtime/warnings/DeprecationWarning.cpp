@@ -26,11 +26,11 @@ PyResult<PyObject *> DeprecationWarning::__new__(const PyType *type, PyTuple *ar
 	return DeprecationWarning::create(const_cast<PyType *>(type), args);
 }
 
-PyType *DeprecationWarning::static_type() const
-{
-	ASSERT(types::deprecation_warning());
-	return types::deprecation_warning();
-}
+// PyType *DeprecationWarning::static_type() const
+// {
+// 	ASSERT(types::deprecation_warning());
+// 	return types::deprecation_warning();
+// }
 
 PyType *DeprecationWarning::class_type()
 {

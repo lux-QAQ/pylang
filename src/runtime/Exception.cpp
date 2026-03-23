@@ -20,11 +20,13 @@ PyResult<PyObject *> Exception::__new__(const PyType *type, PyTuple *args, PyDic
 	return Ok(Exception::create(args));
 }
 
+/*
 PyType *Exception::static_type() const
 {
 	ASSERT(types::exception());
 	return types::exception();
 }
+*/
 
 PyType *Exception::class_type()
 {

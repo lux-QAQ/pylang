@@ -40,7 +40,7 @@ class ImportError : public Exception
 
 	static PyType *class_type();
 
-	PyType *static_type() const override;
+	// PyType *static_type() const override;;
 
 	void visit_graph(Visitor &) override;
 };

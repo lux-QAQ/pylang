@@ -42,7 +42,7 @@ class PyFrozenSet : public PyBaseObject
 	void visit_graph(Visitor &) override;
 
 	static std::function<std::unique_ptr<TypePrototype>()> type_factory();
-	PyType *static_type() const override;
+	// PyType *static_type() const override;;
 
   private:
 	PyFrozenSet();

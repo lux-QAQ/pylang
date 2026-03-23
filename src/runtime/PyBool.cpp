@@ -63,7 +63,7 @@ PyResult<PyBool *> PyBool::create(bool value)
 	return Ok(result);
 }
 
-PyType *PyBool::static_type() const { return types::bool_(); }
+// PyType *PyBool::static_type() const { return types::bool_(); }
 
 // PyObject *py_true()
 // {

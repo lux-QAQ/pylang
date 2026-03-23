@@ -32,7 +32,7 @@ class PySuper : public PyBaseObject
 
 	static std::function<std::unique_ptr<TypePrototype>()> type_factory();
 
-	PyType *static_type() const override;
+	// PyType *static_type() const override;;
 
   private:
 	static PyResult<PyType *> check(PyType *type, PyObject *object);

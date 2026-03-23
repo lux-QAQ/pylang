@@ -219,12 +219,29 @@ PyType::PyType(PyType *type)
 	  m_metaclass(types::BuiltinTypes::the().type())
 {}
 
+// PyType::PyType(TypePrototype &type_prototype)
+// 	: PyBaseObject(types::BuiltinTypes::the().type()), m_underlying_type(type_prototype),
+// 	  m_metaclass(types::BuiltinTypes::the().type())
+// {
+// 	if (&type_prototype == &types::BuiltinTypes::the().type()) { underlying_type().is_type = true; }
+// }
+
 PyType::PyType(TypePrototype &type_prototype)
-	: PyBaseObject(types::BuiltinTypes::the().type()), m_underlying_type(type_prototype),
-	  m_metaclass(types::BuiltinTypes::the().type())
+    // [修复] 显式传递 nullptr 避开自动查找逻辑
+    : PyBaseObject(static_cast<PyType *>(nullptr)),
+      m_underlying_type(type_prototype),
+      m_metaclass(types::BuiltinTypes::the().type())
 {
-	if (&type_prototype == &types::BuiltinTypes::the().type()) { underlying_type().is_type = true; }
+    // 1. 尝试查找 'type' 类型 (元类)
+    m_bits_type = types::lookup_type_by_prototype(&types::BuiltinTypes::the().type());
+
+    // 2. 引导逻辑：如果正在创建 'type' 类型本身，它的类型就是它自己
+    if (&type_prototype == &types::BuiltinTypes::the().type()) {
+        m_bits_type = this;
+        underlying_type().is_type = true;
+    }
 }
+
 
 
 PyType::PyType(std::unique_ptr<TypePrototype> &&type_prototype)
@@ -251,19 +268,19 @@ std::string PyType::name() const
 	}
 }
 
-PyType *PyType::static_type() const
-{
-	if (&underlying_type() == &types::BuiltinTypes::the().type()) {
-		return const_cast<PyType *>(this);// :(
-	} else {
-		if (std::holds_alternative<PyType *>(m_metaclass)) {
-			return std::get<PyType *>(m_metaclass);
-		} else {
-			// all static types are of type `<class 'type'>`
-			return types::type();
-		}
-	}
-}
+// PyType *PyType::static_type() const
+// {
+// 	if (&underlying_type() == &types::BuiltinTypes::the().type()) {
+// 		return const_cast<PyType *>(this);// :(
+// 	} else {
+// 		if (std::holds_alternative<PyType *>(m_metaclass)) {
+// 			return std::get<PyType *>(m_metaclass);
+// 		} else {
+// 			// all static types are of type `<class 'type'>`
+// 			return types::type();
+// 		}
+// 	}
+// }
 
 PyType *PyType::initialize(TypePrototype &type_prototype)
 {
@@ -1341,12 +1358,15 @@ PyResult<std::monostate> PyType::ready()
 		auto *base = base_.unwrap();
 
 		// type(base) == type
-		if ((std::holds_alternative<PyType *>(m_type)
-				&& std::get<PyType *>(m_type) == types::type())
-			|| (&std::get<std::reference_wrapper<const TypePrototype>>(m_type).get()
-				== &types::BuiltinTypes::the().type())) {
-			inherit_slots(static_cast<PyType *>(base));
-		}
+		// if ((std::holds_alternative<PyType *>(m_bits_type)
+		// 		&& std::get<PyType *>(m_bits_type) == types::type())
+		// 	|| (&std::get<std::reference_wrapper<const TypePrototype>>(m_bits_type).get()
+		// 		== &types::BuiltinTypes::the().type())) {
+		// 	inherit_slots(static_cast<PyType *>(base));
+		// }
+        if (this->type() == types::type()) {
+            inherit_slots(static_cast<PyType *>(base));
+        }
 	}
 
 	if (underlying_type().__doc__.has_value()) {

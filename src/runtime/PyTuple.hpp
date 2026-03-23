@@ -22,9 +22,9 @@ class PyTuple
 
 	PyTuple();
 	PyTuple(std::vector<Value> &&elements);
-	PyTuple(PyType *, const std::vector<Value> elements);
+	PyTuple(PyType *type, std::vector<Value> elements);// 移除 const 以匹配 .cpp 第 68 行
 	PyTuple(const std::vector<PyObject *> &elements);
-	PyTuple(PyType *, const std::vector<PyObject *> &elements);
+	PyTuple(PyType *type, const std::vector<PyObject *> &elements);
 
 	void visit_graph(Visitor &) override;
 
@@ -72,6 +72,8 @@ class PyTuple
 	// 零拷贝核心接口
 	static PyResult<PyTuple *> create(py::GCVector<Value> &&elements);
 	PyTuple(py::GCVector<Value> &&elements);
+	PyTuple(PyType *type, py::GCVector<Value> &&elements);// 新增：匹配 .cpp 第 93 行
+
 	static PyResult<PyTuple *> create(std::span<Value> elements)
 	{
 		return PyTuple::create(py::GCVector<Value>(elements.begin(), elements.end()));
@@ -104,7 +106,7 @@ class PyTuple
 	PyResult<PyObject *> operator[](size_t idx) const;
 
 	static std::function<std::unique_ptr<TypePrototype>()> type_factory();
-	PyType *static_type() const override;
+	// PyType *static_type() const override;;
 };
 
 template<> PyTuple *as(PyObject *obj);
@@ -148,7 +150,7 @@ class PyTupleIterator : public PyBaseObject
 	PyTupleIterator &operator--();
 
 	static std::function<std::unique_ptr<TypePrototype>()> type_factory();
-	PyType *static_type() const override;
+	// PyType *static_type() const override;;
 };
 
 /// 将可迭代对象解包到固定大小的输出数组

@@ -186,7 +186,9 @@ void PyFunction::visit_graph(Visitor &visitor)
 	if (m_qualname) visitor.visit(*m_qualname);
 }
 
+/*
 PyType *PyFunction::static_type() const { return types::function(); }
+*/
 
 PyResult<PyObject *> PyFunction::__repr__() const
 {
@@ -271,37 +273,37 @@ PyResult<PyObject *> PyNativeFunction::call_raw(std::span<const Value> args, PyD
 	}
 
 	// 1. 如果有 self (BoundMethod 路径)，需要 prepend self
-    if (m_self) {
-        size_t total_argc = args.size() + 1;
-        Value *stack_args = static_cast<Value *>(alloca(sizeof(Value) * total_argc));
+	if (m_self) {
+		size_t total_argc = args.size() + 1;
+		Value *stack_args = static_cast<Value *>(alloca(sizeof(Value) * total_argc));
 
-        new (&stack_args[0]) Value(m_self);
-        for (size_t i = 0; i < args.size(); ++i) { new (&stack_args[i + 1]) Value(args[i]); }
+		new (&stack_args[0]) Value(m_self);
+		for (size_t i = 0; i < args.size(); ++i) { new (&stack_args[i + 1]) Value(args[i]); }
 
-        // [修复编译错误]：使用 IIFE 立即初始化 PyResult
-        auto result = [&]() -> PyResult<PyObject *> {
-            if (m_aot_ptr) {
-                auto *res = m_aot_ptr(
-                    m_module_ref, m_closure, stack_args, static_cast<int32_t>(total_argc), kwargs);
-                if (res) return Ok(res);
-                return Err(runtime_error("AOT call failed"));
-            }
-            return PyObject::call_raw(std::span<const Value>(stack_args, total_argc), kwargs);
-        }();
+		// [修复编译错误]：使用 IIFE 立即初始化 PyResult
+		auto result = [&]() -> PyResult<PyObject *> {
+			if (m_aot_ptr) {
+				auto *res = m_aot_ptr(
+					m_module_ref, m_closure, stack_args, static_cast<int32_t>(total_argc), kwargs);
+				if (res) return Ok(res);
+				return Err(runtime_error("AOT call failed"));
+			}
+			return PyObject::call_raw(std::span<const Value>(stack_args, total_argc), kwargs);
+		}();
 
-        for (size_t i = 0; i < total_argc; ++i) { std::destroy_at(&stack_args[i]); }
-        return result;
-    }
+		for (size_t i = 0; i < total_argc; ++i) { std::destroy_at(&stack_args[i]); }
+		return result;
+	}
 
-    // 2. 原始函数快速路径
-    if (m_aot_ptr) {
-        auto *res = m_aot_ptr(
-            m_module_ref, m_closure, args.data(), static_cast<int32_t>(args.size()), kwargs);
-        if (res) return Ok(res);
-        return Err(runtime_error("AOT call failed"));
-    }
+	// 2. 原始函数快速路径
+	if (m_aot_ptr) {
+		auto *res = m_aot_ptr(
+			m_module_ref, m_closure, args.data(), static_cast<int32_t>(args.size()), kwargs);
+		if (res) return Ok(res);
+		return Err(runtime_error("AOT call failed"));
+	}
 
-    return PyObject::call_raw(args, kwargs);
+	return PyObject::call_raw(args, kwargs);
 }
 
 PyResult<PyObject *> PyFunction::__call__(PyTuple *args, PyDict *kwargs)
@@ -463,7 +465,9 @@ void PyNativeFunction::visit_graph(Visitor &visitor)
 	for (auto *obj : m_captures) { visitor.visit(*obj); }
 }
 
+/*
 PyType *PyNativeFunction::static_type() const { return types::native_function(); }
+*/
 
 namespace {
 	std::once_flag native_function_flag;

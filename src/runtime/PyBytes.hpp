@@ -49,7 +49,7 @@ class PyBytes : public PyBaseObject
 	PyResult<PyObject *> decode(const std::string &encoding, const std::string &errors) const;
 
 	static std::function<std::unique_ptr<TypePrototype>()> type_factory();
-	PyType *static_type() const override;
+	// PyType *static_type() const override;;
 
   private:
 	PyBytes();
@@ -76,7 +76,7 @@ class PyBytesIterator : public PyBaseObject
 	PyResult<PyObject *> __next__();
 
 	static std::function<std::unique_ptr<TypePrototype>()> type_factory();
-	PyType *static_type() const override;
+	// PyType *static_type() const override;;
 
 	void visit_graph(Visitor &) override;
 

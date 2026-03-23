@@ -44,11 +44,11 @@ PyResult<PyObject *> OSError::__new__(const PyType *type, PyTuple *args, PyDict 
 	return OSError::create(const_cast<PyType *>(type), args);
 }
 
-PyType *OSError::static_type() const
-{
-	ASSERT(types::os_error());
-	return types::os_error();
-}
+// PyType *OSError::static_type() const
+// {
+// 	ASSERT(types::os_error());
+// 	return types::os_error();
+// }
 
 PyType *OSError::class_type()
 {

@@ -148,7 +148,9 @@ size_t PyCode::kwonly_arg_count() const { return m_kwonly_arg_count; }
 
 CodeFlags PyCode::flags() const { return m_flags; }
 
+/*
 PyType *PyCode::static_type() const { return types::code(); }
+*/
 
 const PyTuple *PyCode::consts() const { return m_consts; }
 
@@ -491,13 +493,12 @@ std::vector<uint8_t> PyCode::serialize() const
 	py::serialize(m_varnames, result);
 
 	return result;
-
 }
 #else
 std::vector<uint8_t> PyCode::serialize() const
 {
-    spdlog::error("PyCode::serialize() not available in AOT mode");
-    std::abort();
+	spdlog::error("PyCode::serialize() not available in AOT mode");
+	std::abort();
 }
 #endif
 
@@ -542,12 +543,13 @@ std::pair<PyResult<PyCode *>, size_t> PyCode::deserialize(std::span<const uint8_
 		0 };
 }
 #else
-std::pair<PyResult<PyCode *>, size_t> PyCode::deserialize(
-    std::span<const uint8_t> &buffer, std::shared_ptr<Program> program)
+std::pair<PyResult<PyCode *>, size_t> PyCode::deserialize(std::span<const uint8_t> &buffer,
+	std::shared_ptr<Program> program)
 {
-    (void)buffer; (void)program;
-    spdlog::error("PyCode::deserialize() not available in AOT mode");
-    std::abort();
+	(void)buffer;
+	(void)program;
+	spdlog::error("PyCode::deserialize() not available in AOT mode");
+	std::abort();
 }
 #endif
 

@@ -1,8 +1,8 @@
 #include "PyEnumerate.hpp"
 #include "MemoryError.hpp"
+#include "runtime/compat.hpp"
 #include "types/api.hpp"
 #include "types/builtin.hpp"
-#include "runtime/compat.hpp"
 
 namespace py {
 PyEnumerate::PyEnumerate(PyType *type) : PyBaseObject(type) {}
@@ -17,8 +17,7 @@ PyResult<PyObject *> PyEnumerate::create(int64_t current_index, PyObject *iterab
 	if (auto iterator = iterable->iter(); iterator.is_err()) {
 		return Err(type_error("'{}' object is not iterable", iterable->type()->name()));
 	} else {
-		auto *result =
-			PYLANG_ALLOC(PyEnumerate, current_index, iterator.unwrap());
+		auto *result = PYLANG_ALLOC(PyEnumerate, current_index, iterator.unwrap());
 		if (!result) { return Err(memory_error(sizeof(PyEnumerate))); }
 		return Ok(result);
 	}
@@ -49,7 +48,9 @@ PyResult<PyObject *> PyEnumerate::__next__()
 	return PyTuple::create(Number{ m_current_index++ }, value.unwrap());
 }
 
+/*
 PyType *PyEnumerate::static_type() const { return types::enumerate(); }
+*/
 
 void PyEnumerate::visit_graph(Visitor &visitor)
 {

@@ -366,7 +366,9 @@ void PySet::visit_graph(Visitor &visitor)
 	}
 }
 
+/*
 PyType *PySet::static_type() const { return types::set(); }
+*/
 
 namespace {
 
@@ -444,7 +446,9 @@ PyResult<PyObject *> PySetIterator::__next__()
 		m_pyset);
 }
 
+/*
 PyType *PySetIterator::static_type() const { return types::set_iterator(); }
+*/
 
 namespace {
 

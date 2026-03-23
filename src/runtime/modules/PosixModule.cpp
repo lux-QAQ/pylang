@@ -107,11 +107,11 @@ namespace {
 
 		PyResult<PyObject *> __repr__() const { return PyString::create(to_string()); }
 
-		PyType *static_type() const final
-		{
-			ASSERT(s_stat_result);
-			return s_stat_result;
-		}
+		// PyType *static_type() const final
+		// {
+		// 	ASSERT(s_stat_result);
+		// 	return s_stat_result;
+		// }
 
 		static PyType *register_type(PyModule *module)
 		{

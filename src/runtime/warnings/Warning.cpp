@@ -24,11 +24,13 @@ PyResult<PyObject *> Warning::__new__(const PyType *type, PyTuple *args, PyDict 
 	return Warning::create(const_cast<PyType *>(type), args);
 }
 
+/*
 PyType *Warning::static_type() const
 {
 	ASSERT(types::warning());
 	return types::warning();
 }
+*/
 
 PyType *Warning::class_type()
 {

@@ -28,7 +28,7 @@ class PyBool : public PyInteger
 	PyResult<bool> true_() final;
 
 	static std::function<std::unique_ptr<TypePrototype>()> type_factory();
-	PyType *static_type() const override;
+	// PyType *static_type() const override;;
 
   private:
 	static PyResult<PyBool *> create(bool);
@@ -40,5 +40,3 @@ PyObject *py_true();
 PyObject *py_false();
 
 }// namespace py
-
-

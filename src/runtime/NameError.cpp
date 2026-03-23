@@ -7,15 +7,21 @@ namespace py {
 
 NameError::NameError(PyType *type) : Exception(type) {}
 
-NameError::NameError(PyTuple *args) : Exception(types::BuiltinTypes::the().name_error(), args) {}
+NameError::NameError(PyTuple *args)
+	: Exception(types::BuiltinTypes::the().name_error(), args){}
 
-PyType *NameError::static_type() const
+	  
+	  /*
+	  PyType *NameError::static_type() const
+	  {
+		  ASSERT(types::name_error());
+		  return types::name_error();
+	  }
+	  */
+	  
+
+	  namespace
 {
-	ASSERT(types::name_error());
-	return types::name_error();
-}
-
-namespace {
 
 	std::once_flag name_error_flag;
 

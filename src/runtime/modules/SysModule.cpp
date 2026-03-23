@@ -219,11 +219,11 @@ class Flags : public PyBaseObject
 
 	PyResult<PyObject *> __repr__() const { return PyString::create(to_string()); }
 
-	PyType *static_type() const final
-	{
-		ASSERT(s_sys_flags);
-		return s_sys_flags;
-	}
+	// PyType *static_type() const final
+	// {
+	// 	ASSERT(s_sys_flags);
+	// 	return s_sys_flags;
+	// }
 
 	static PyType *register_type(PyModule *module)
 	{
@@ -310,11 +310,11 @@ class Version : public PyTuple
 
 	PyResult<PyObject *> __repr__() const { return PyString::create(to_string()); }
 
-	PyType *static_type() const final
-	{
-		ASSERT(s_sys_version);
-		return s_sys_version;
-	}
+	// PyType *static_type() const final
+	// {
+	// 	ASSERT(s_sys_version);
+	// 	return s_sys_version;
+	// }
 
 	static PyType *register_type(PyModule *module)
 	{

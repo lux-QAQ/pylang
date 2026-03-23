@@ -23,7 +23,9 @@ PyResult<PyObject *> PyEllipsis::__add__(const PyObject *) const { TODO(); }
 
 PyResult<PyObject *> PyEllipsis::__repr__() const { return PyString::create("Ellipsis"); }
 
+/*
 PyType *PyEllipsis::static_type() const { return types::ellipsis(); }
+*/
 
 // PyObject *py_ellipsis()
 // {
@@ -37,16 +39,16 @@ PyType *PyEllipsis::static_type() const { return types::ellipsis(); }
 // }
 PyObject *py_ellipsis()
 {
-    static PyObject *ellipsis = nullptr;
-    if (!ellipsis) {
-        Arena *saved = Arena::has_current() ? &Arena::current() : nullptr;
-        Arena::set_current(&ArenaManager::program_arena());
-        auto obj = PyEllipsis::create();
-        ASSERT(obj.is_ok());
-        ellipsis = obj.unwrap();
-        if (saved) Arena::set_current(saved);
-    }
-    return ellipsis;
+	static PyObject *ellipsis = nullptr;
+	if (!ellipsis) {
+		Arena *saved = Arena::has_current() ? &Arena::current() : nullptr;
+		Arena::set_current(&ArenaManager::program_arena());
+		auto obj = PyEllipsis::create();
+		ASSERT(obj.is_ok());
+		ellipsis = obj.unwrap();
+		if (saved) Arena::set_current(saved);
+	}
+	return ellipsis;
 }
 namespace {
 

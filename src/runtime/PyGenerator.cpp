@@ -71,7 +71,9 @@ std::function<std::unique_ptr<TypePrototype>()> PyGenerator::type_factory()
 	};
 }
 
+/*
 PyType *PyGenerator::static_type() const { return types::generator(); }
+*/
 
 void PyGenerator::visit_graph(Visitor &visitor)
 {

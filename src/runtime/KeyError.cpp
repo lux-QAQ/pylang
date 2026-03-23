@@ -40,11 +40,13 @@ PyResult<PyObject *> KeyError::__new__(const PyType *type, PyTuple *args, PyDict
 	return KeyError::create(args);
 }
 
+/*
 PyType *KeyError::static_type() const
 {
 	ASSERT(types::key_error());
 	return types::key_error();
 }
+*/
 
 PyType *KeyError::class_type()
 {

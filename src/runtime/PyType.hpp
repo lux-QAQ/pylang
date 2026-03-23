@@ -26,7 +26,7 @@ class PyType : public PyBaseObject
 	mutable PyTuple *__mro__{ nullptr };
 	std::variant<std::monostate, std::reference_wrapper<TypePrototype>, PyType *> m_metaclass;
 
-  private:
+  public:
 	PyType(PyType *);
 
 	PyType(TypePrototype &type_prototype);
@@ -78,7 +78,7 @@ class PyType : public PyBaseObject
 
 	static std::function<std::unique_ptr<TypePrototype>()> type_factory();
 
-	PyType *static_type() const override;
+	// PyType *static_type() const override;
 
 	PyResult<PyList *> mro();
 
@@ -95,11 +95,13 @@ class PyType : public PyBaseObject
 	static PyResult<const PyType *> calculate_metaclass(const PyType *type_,
 		const std::vector<PyType *> &bases);
 
+	PyResult<std::monostate> ready();
+
   protected:
 	PyResult<PyTuple *> mro_internal() const;
 
   private:
-	PyResult<std::monostate> ready();
+	// PyResult<std::monostate> ready();
 	PyResult<std::monostate> add_operators();
 	PyResult<std::monostate> add_methods();
 	PyResult<std::monostate> add_members();

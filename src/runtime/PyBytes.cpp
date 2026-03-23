@@ -250,7 +250,9 @@ PyResult<int64_t> PyBytes::__hash__() const
 	return Ok(static_cast<int64_t>(std::hash<std::string_view>{}(sv)));
 }
 
+/*
 PyType *PyBytes::static_type() const { return types::bytes(); }
+*/
 
 namespace {
 
@@ -333,7 +335,9 @@ PyResult<PyObject *> PyBytesIterator::__next__()
 	return PyInteger::create(static_cast<int64_t>(next_value));
 }
 
+/*
 PyType *PyBytesIterator::static_type() const { return types::bytes_iterator(); }
+*/
 
 void PyBytesIterator::visit_graph(Visitor &visitor)
 {

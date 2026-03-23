@@ -30,7 +30,9 @@ void PyLLVMFunction::visit_graph(Visitor &visitor)
 	for (auto *obj : m_captures) { visitor.visit(*obj); }
 }
 
+/*
 PyType *PyLLVMFunction::static_type() const { return types::llvm_function(); }
+*/
 
 namespace {
 	std::once_flag llvm_function_flag;

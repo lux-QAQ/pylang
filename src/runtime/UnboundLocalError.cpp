@@ -18,11 +18,13 @@ PyResult<PyObject *> UnboundLocalError::__new__(const PyType *type, PyTuple *arg
 	return Ok(UnboundLocalError::create(args));
 }
 
+/*
 PyType *UnboundLocalError::static_type() const
 {
 	ASSERT(types::unbound_local_error());
 	return types::unbound_local_error();
 }
+*/
 
 namespace {
 

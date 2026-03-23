@@ -518,7 +518,9 @@ std::function<std::unique_ptr<TypePrototype>()> PyByteArray::type_factory()
 	};
 }
 
+/*
 PyType *PyByteArray::static_type() const { return types::bytearray(); }
+*/
 
 PyByteArrayIterator::PyByteArrayIterator(PyType *type) : PyBaseObject(type) {}
 
@@ -567,7 +569,9 @@ std::function<std::unique_ptr<TypePrototype>()> PyByteArrayIterator::type_factor
 	};
 }
 
+/*
 PyType *PyByteArrayIterator::static_type() const { return types::bytearray_iterator(); }
+*/
 
 void PyByteArrayIterator::visit_graph(Visitor &visitor)
 {

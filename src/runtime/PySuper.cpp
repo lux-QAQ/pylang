@@ -133,8 +133,8 @@ PyResult<PyObject *> PySuper::__get__(PyObject *object, PyObject *) const
 	// untested code!
 	TODO();
 
-	if (PySuper::type() != types::super()) {
-		return PySuper::type()->call(PyTuple::create(PySuper::type(), object).unwrap(), nullptr);
+	if (this->type() != types::super()) {
+		return this->type()->call(PyTuple::create(this->type(), object).unwrap(), nullptr);
 	}
 
 	auto object_type_ = check(PySuper::type(), object);
@@ -251,6 +251,8 @@ std::function<std::unique_ptr<TypePrototype>()> PySuper::type_factory()
 	};
 }
 
+/*
 PyType *PySuper::static_type() const { return types::super(); }
+*/
 
 }// namespace py

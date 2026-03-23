@@ -127,7 +127,7 @@ class PySlotWrapper : public PyBaseObject
 	void visit_graph(Visitor &visitor) override;
 
 	static std::function<std::unique_ptr<TypePrototype>()> type_factory();
-	PyType *static_type() const override;
+	// PyType *static_type() const override;;
 };
 
 template<Slot::Flags flags_, typename TypePrototypeWrapper, typename R, typename... Args>

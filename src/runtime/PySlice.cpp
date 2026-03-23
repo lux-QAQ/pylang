@@ -324,7 +324,9 @@ std::function<std::unique_ptr<TypePrototype>()> PySlice::type_factory()
 	};
 }
 
+/*
 PyType *PySlice::static_type() const { return types::slice(); }
+*/
 
 void PySlice::visit_graph(Visitor &visitor)
 {

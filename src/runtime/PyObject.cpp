@@ -431,26 +431,62 @@ template<> PyResult<PyObject *> PyObject::from(const Value &value)
 	return std::visit([](const auto &v) { return PyObject::from(v); }, value);
 }
 
-PyObject::PyObject(const TypePrototype &type) : Cell(), m_type(type) {}
+PyObject::PyObject(const TypePrototype &type) : Cell()
+{
+    m_bits_type = types::lookup_type_by_prototype(&type);
+    // 只有通过 Prototype 构造（通常是生成的 AOT 代码）才强制检查
+    ASSERT(m_bits_type && "PyType must be initialized before object creation. Ensure types::type() is initialized.");
+}
 
-PyObject::PyObject(PyType *type) : Cell(), m_type(type) { ASSERT(type); }
+PyObject::PyObject(PyType *type) : Cell(), m_bits_type(type) { /* ASSERT(type); */ }
 
-const TypePrototype &PyObject::type_prototype() const { return type()->underlying_type(); }
+// const TypePrototype &PyObject::type_prototype() const { return type()->underlying_type(); }
+
+const TypePrototype &PyObject::type_prototype() const { return m_bits_type->underlying_type(); }
+
+
+PyBaseObject::PyBaseObject(const TypePrototype &type) : PyObject(type) {}
+
+
+// void PyObject::visit_graph(Visitor &visitor)
+// {
+// 	if (m_attributes) { visitor.visit(*m_attributes); }
+// 	for (size_t i = 0, offset = type()->underlying_type().basicsize; i < type()->__slots__.size();
+// 		++i, offset += sizeof(PyObject *)) {
+// 		auto *slot = *bit_cast<PyObject **>(bit_cast<uint8_t *>(this) + offset);
+// 		if (slot) { visitor.visit(*slot); }
+// 	}
+// 	if (std::holds_alternative<PyType *>(m_type)) {
+// 		if (auto *t = std::get<PyType *>(m_type)) { visitor.visit(*t); }
+// 	} else {
+// 		const_cast<TypePrototype &>(
+// 			std::get<std::reference_wrapper<const TypePrototype>>(m_type).get())
+// 			.visit_graph(visitor);
+// 	}
+// }
 
 void PyObject::visit_graph(Visitor &visitor)
 {
+	// 1. 访问属性字典
 	if (m_attributes) { visitor.visit(*m_attributes); }
-	for (size_t i = 0, offset = type()->underlying_type().basicsize; i < type()->__slots__.size();
-		++i, offset += sizeof(PyObject *)) {
-		auto *slot = *bit_cast<PyObject **>(bit_cast<uint8_t *>(this) + offset);
-		if (slot) { visitor.visit(*slot); }
-	}
-	if (std::holds_alternative<PyType *>(m_type)) {
-		if (auto *t = std::get<PyType *>(m_type)) { visitor.visit(*t); }
-	} else {
-		const_cast<TypePrototype &>(
-			std::get<std::reference_wrapper<const TypePrototype>>(m_type).get())
-			.visit_graph(visitor);
+
+	// 2. 访问类型对象本身 (这是对象生存的核心)
+	if (m_bits_type) {
+		visitor.visit(*m_bits_type);
+
+		// 3. 访问 __slots__ 区域 (根据类型定义的 basicsize 偏移量扫描)
+		const size_t basicsize = m_bits_type->underlying_type().basicsize;
+		const auto &slots = m_bits_type->__slots__;
+
+		if (!slots.empty()) {
+			char *raw_ptr = reinterpret_cast<char *>(this);
+			for (size_t i = 0; i < slots.size(); ++i) {
+				// 指针在内存中的位置 = 对象起始地址 + basicsize + (索引 * 指针大小)
+				PyObject **slot_addr =
+					reinterpret_cast<PyObject **>(raw_ptr + basicsize + (i * sizeof(PyObject *)));
+				if (*slot_addr) { visitor.visit(**slot_addr); }
+			}
+		}
 	}
 }
 
@@ -1187,21 +1223,21 @@ PyResult<PyObject *> PyObject::get(PyObject *instance, PyObject *owner) const
 
 PyResult<PyObject *> PyObject::call_raw(std::span<const Value> args, PyDict *kwargs)
 {
-    // [极致优化]：Node() 路径。如果子类（如 PySlotWrapper）覆盖了 call_raw，
-    // 这里就不应该再进行默认的 PyTuple 打包。
-    
-    if (args.empty() && (!kwargs || kwargs->map().empty())) {
-        return call(PyTuple::create().unwrap(), kwargs);
-    }
+	// [极致优化]：Node() 路径。如果子类（如 PySlotWrapper）覆盖了 call_raw，
+	// 这里就不应该再进行默认的 PyTuple 打包。
 
-    // 只有必须打包时，才使用 GCVector
-    py::GCVector<Value> elements;
-    elements.reserve(args.size());
-    for(auto& v : args) elements.push_back(v);
+	if (args.empty() && (!kwargs || kwargs->map().empty())) {
+		return call(PyTuple::create().unwrap(), kwargs);
+	}
 
-    return PyTuple::create(std::move(elements)).and_then([this, kwargs](PyTuple* t) {
-        return this->call(t, kwargs);
-    });
+	// 只有必须打包时，才使用 GCVector
+	py::GCVector<Value> elements;
+	elements.reserve(args.size());
+	for (auto &v : args) elements.push_back(v);
+
+	return PyTuple::create(std::move(elements)).and_then([this, kwargs](PyTuple *t) {
+		return this->call(t, kwargs);
+	});
 }
 PyResult<PyObject *> PyObject::new_(PyTuple *args, PyDict *kwargs) const
 {
@@ -1325,13 +1361,13 @@ PyResult<int32_t> PyObject::init_raw(std::span<const Value> args, PyDict *kwargs
 		auto call_res =
 			init_method->call_raw(std::span<const Value>(stack_args, total_argc), kwargs);
 
-        for (size_t i = 0; i < total_argc; ++i) std::destroy_at(&stack_args[i]);
+		for (size_t i = 0; i < total_argc; ++i) std::destroy_at(&stack_args[i]);
 
-        // 显式转换返回类型
-        if (call_res.is_err()) return Err(call_res.unwrap_err());
-        return Ok(static_cast<int32_t>(0));
-    }
-    return Ok(static_cast<int32_t>(0));
+		// 显式转换返回类型
+		if (call_res.is_err()) return Err(call_res.unwrap_err());
+		return Ok(static_cast<int32_t>(0));
+	}
+	return Ok(static_cast<int32_t>(0));
 }
 
 
@@ -1589,47 +1625,43 @@ PyResult<PyObject *> PyObject::get_method(PyObject *name) const
 
 PyResult<std::monostate> PyObject::__setattribute__(PyObject *attribute, PyObject *value)
 {
-    if (!as<PyString>(attribute)) {
-        return Err(
-            type_error("attribute name must be string, not '{}'", attribute->type()->name()));
-    }
+	if (!as<PyString>(attribute)) {
+		return Err(
+			type_error("attribute name must be string, not '{}'", attribute->type()->name()));
+	}
 
-    // Python 3.9 语义：如果是修改 Type 对象（类属性），必须使全局缓存失效
-    if (as<PyType>(this)) {
-        PyType::inc_global_version();
-    }
+	// Python 3.9 语义：如果是修改 Type 对象（类属性），必须使全局缓存失效
+	if (as<PyType>(this)) { PyType::inc_global_version(); }
 
-    auto descriptor_ = type()->lookup(attribute);
-    if (descriptor_.has_value() && descriptor_->is_err()) {
-        return Err(descriptor_->unwrap_err());
-    }
+	auto descriptor_ = type()->lookup(attribute);
+	if (descriptor_.has_value() && descriptor_->is_err()) { return Err(descriptor_->unwrap_err()); }
 
-    if (descriptor_.has_value() && descriptor_->is_ok()) {
-        auto *descriptor = descriptor_->unwrap();
-        // 数据描述符（Data Descriptor）具有最高优先级，优先于实例字典
-        if (descriptor_is_data(descriptor->type())) {
-            const auto &descriptor_set = descriptor->type()->underlying_type().__set__;
-            if (descriptor_set.has_value()) {
-                return call_slot(*descriptor_set, "", descriptor, this, value);
-            }
-        }
-    }
+	if (descriptor_.has_value() && descriptor_->is_ok()) {
+		auto *descriptor = descriptor_->unwrap();
+		// 数据描述符（Data Descriptor）具有最高优先级，优先于实例字典
+		if (descriptor_is_data(descriptor->type())) {
+			const auto &descriptor_set = descriptor->type()->underlying_type().__set__;
+			if (descriptor_set.has_value()) {
+				return call_slot(*descriptor_set, "", descriptor, this, value);
+			}
+		}
+	}
 
-    // [核心优化]：延迟分配 m_attributes
-    if (!m_attributes) {
-        // 检查是否在描述符中被标记为只读（如非数据描述符但无 __set__）
-        if (descriptor_.has_value() && descriptor_->is_ok()) {
-            // 如果是只读描述符且没有 __set__，在没有 __dict__ 的情况下通常不允许设置
-            // 但对于普通实例，通常直接进入 __dict__。这里保持 Python 默认行为：
-            // 如果不是数据描述符，则尝试写入实例字典。
-        }
-        
-        auto dict_res = PyDict::create();
-        if (dict_res.is_err()) return Err(dict_res.unwrap_err());
-        m_attributes = dict_res.unwrap();
-    }
+	// [核心优化]：延迟分配 m_attributes
+	if (!m_attributes) {
+		// 检查是否在描述符中被标记为只读（如非数据描述符但无 __set__）
+		if (descriptor_.has_value() && descriptor_->is_ok()) {
+			// 如果是只读描述符且没有 __set__，在没有 __dict__ 的情况下通常不允许设置
+			// 但对于普通实例，通常直接进入 __dict__。这里保持 Python 默认行为：
+			// 如果不是数据描述符，则尝试写入实例字典。
+		}
 
-    return m_attributes->__setitem__(attribute, value);
+		auto dict_res = PyDict::create();
+		if (dict_res.is_err()) return Err(dict_res.unwrap_err());
+		m_attributes = dict_res.unwrap();
+	}
+
+	return m_attributes->__setitem__(attribute, value);
 }
 
 
@@ -1744,28 +1776,29 @@ std::string PyObject::to_string() const
 	return fmt::format("PyObject at {}", static_cast<const void *>(this));
 }
 
-PyType *PyObject::type() const
-{
-	// 直接通过地址特征判断 Tagged Pointer 类型，跳过 variant 访问
-	uintptr_t addr = reinterpret_cast<uintptr_t>(this);
-	if (addr & 1) {
-		return types::integer();// Tagged Integer 永远是 int 类型
-	}
-	if (!addr) return nullptr;
-	if (std::holds_alternative<std::reference_wrapper<const TypePrototype>>(m_type)) {
-		return static_type();
-	} else {
-		ASSERT(std::holds_alternative<PyType *>(m_type));
-		return std::get<PyType *>(m_type);
-	}
-}
+// PyType *PyObject::type() const
+// {
+// 	// 直接通过地址特征判断 Tagged Pointer 类型，跳过 variant 访问
+// 	uintptr_t addr = reinterpret_cast<uintptr_t>(this);
+// 	if (addr & 1) {
+// 		return types::integer();// Tagged Integer 永远是 int 类型
+// 	}
+// 	if (!addr) return nullptr;
+// 	if (std::holds_alternative<std::reference_wrapper<const TypePrototype>>(m_type)) {
+// 		return static_type();
+// 	} else {
+// 		ASSERT(std::holds_alternative<PyType *>(m_type));
+// 		return std::get<PyType *>(m_type);
+// 	}
+// }
 
-PyType *PyObject::static_type() const
-{
-	ASSERT(
-		std::holds_alternative<PyType *>(m_type) && "Static types should overload PyObject::type!");
-	return std::get<PyType *>(m_type);
-}
+// PyType *PyObject::type() const { return m_bits_type; }
+
+// PyType *PyObject::static_type() const
+// {
+// 	ASSERT(m_bits_type && "m_bits_type ptr is NULL !!");
+// 	return m_bits_type;
+// }
 
 
 namespace {
@@ -1774,14 +1807,22 @@ namespace {
 
 	std::unique_ptr<TypePrototype> register_type()
 	{
+		// return std::move(klass<PyObject>("object")
+		// 		.property(
+		// 			"__class__",
+		// 			[](PyObject *self) { return Ok(self->type()); },
+		// 			[](PyObject *self, PyObject *value) -> PyResult<std::monostate> {
+		// 				(void)self;
+		// 				(void)value;
+		// 				TODO();
+		// 			})
+		// 		.type);
+
 		return std::move(klass<PyObject>("object")
-				.property(
-					"__class__",
-					[](PyObject *self) { return Ok(self->type()); },
-					[](PyObject *self, PyObject *value) -> PyResult<std::monostate> {
-						(void)self;
-						(void)value;
-						TODO();
+				.property_readonly("__class__",
+					[](PyObject *self) -> PyResult<PyObject *> {
+						// [修复]: 显式转为 PyObject* 并包裹
+						return Ok(static_cast<PyObject *>(self->type()));
 					})
 				.type);
 	}

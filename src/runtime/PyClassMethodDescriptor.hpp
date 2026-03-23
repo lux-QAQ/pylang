@@ -17,7 +17,7 @@ class PyClassMethodDescriptor : public PyBaseObject
 	PyString *m_name;
 	PyType *m_underlying_type;
 	std::optional<std::reference_wrapper<MethodDefinition>> m_method;
-	std::vector<PyObject *> m_captures; // 在AOT模式下似乎是多余的,考虑删除
+	std::vector<PyObject *> m_captures;// 在AOT模式下似乎是多余的,考虑删除
 
 	PyClassMethodDescriptor(PyType *);
 
@@ -61,7 +61,7 @@ class PyClassMethodDescriptor : public PyBaseObject
 	void visit_graph(Visitor &visitor) override;
 
 	static std::function<std::unique_ptr<TypePrototype>()> type_factory();
-	PyType *static_type() const override;
+	// PyType *static_type() const override;;
 };
 
 }// namespace py

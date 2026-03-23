@@ -112,7 +112,9 @@ PyResult<PyObject *> PyMethodDescriptor::__get__(PyObject *instance, PyObject * 
 }
 
 
+/*
 PyType *PyMethodDescriptor::static_type() const { return types::method_wrapper(); }
+*/
 
 namespace {
 

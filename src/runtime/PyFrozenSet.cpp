@@ -172,7 +172,9 @@ void PyFrozenSet::visit_graph(Visitor &visitor)
 	}
 }
 
+/*
 PyType *PyFrozenSet::static_type() const { return types::frozenset(); }
+*/
 
 namespace {
 

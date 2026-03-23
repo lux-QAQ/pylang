@@ -16,11 +16,13 @@ PyResult<PyObject *> TypeError::__new__(const PyType *type, PyTuple *args, PyDic
 	return Ok(TypeError::create(args));
 }
 
+/*
 PyType *TypeError::static_type() const
 {
 	ASSERT(types::type_error());
 	return types::type_error();
 }
+*/
 
 namespace {
 

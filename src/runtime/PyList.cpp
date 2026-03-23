@@ -720,7 +720,9 @@ void PyList::visit_graph(Visitor &visitor)
 	}
 }
 
+/*
 PyType *PyList::static_type() const { return types::list(); }
+*/
 
 namespace {
 
@@ -797,7 +799,9 @@ PyResult<PyObject *> PyListIterator::__next__()
 	return Err(stop_iteration());
 }
 
+/*
 PyType *PyListIterator::static_type() const { return types::list_iterator(); }
+*/
 
 namespace {
 
@@ -855,7 +859,9 @@ PyResult<PyObject *> PyListReverseIterator::__next__()
 	return Err(stop_iteration());
 }
 
+/*
 PyType *PyListReverseIterator::static_type() const { return types::list_reverseiterator(); }
+*/
 
 namespace {
 

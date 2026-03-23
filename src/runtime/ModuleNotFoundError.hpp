@@ -42,7 +42,7 @@ class ModuleNotFoundError : public ImportError
 	static PyResult<PyObject *> __new__(const PyType *type, PyTuple *args, PyDict *kwargs);
 	PyResult<int32_t> __init__(PyTuple *args, PyDict *kwargs);
 
-	PyType *static_type() const override;
+	// PyType *static_type() const override;;
 };
 
 template<typename... Args>

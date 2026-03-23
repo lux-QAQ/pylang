@@ -28,7 +28,7 @@ class PyComplex : public PyBaseObject
 
   public:
 	static std::function<std::unique_ptr<TypePrototype>()> type_factory();
-	PyType *static_type() const override;
+	// PyType *static_type() const override;;
 
 	/// AOT 快速路径：直接从两个 double 创建
 	static PyResult<PyComplex *> create(double real, double imag);

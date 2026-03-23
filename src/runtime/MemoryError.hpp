@@ -39,7 +39,7 @@ class MemoryError : public Exception
 
 	static PyResult<PyObject *> __new__(const PyType *type, PyTuple *args, PyDict *kwargs);
 
-	PyType *static_type() const override;
+	// PyType *static_type() const override;;
 
 	static PyType *this_type();
 

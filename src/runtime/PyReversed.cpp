@@ -36,7 +36,9 @@ PyResult<PyObject *> PyReversed::__new__(const PyType *type, PyTuple *args, PyDi
 PyResult<PyObject *> PyReversed::__iter__() const { TODO(); }
 PyResult<PyObject *> PyReversed::__next__() { TODO(); }
 
+/*
 PyType *PyReversed::static_type() const { return types::reversed(); }
+*/
 
 void PyReversed::visit_graph(Visitor &visitor)
 {

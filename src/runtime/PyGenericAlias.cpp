@@ -91,7 +91,9 @@ std::function<std::unique_ptr<TypePrototype>()> PyGenericAlias::type_factory()
 	};
 }
 
+/*
 PyType *PyGenericAlias::static_type() const { return types::generic_alias(); }
+*/
 
 void PyGenericAlias::visit_graph(Visitor &visitor)
 {

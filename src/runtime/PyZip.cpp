@@ -2,9 +2,9 @@
 #include "MemoryError.hpp"
 #include "PyList.hpp"
 #include "StopIteration.hpp"
+#include "runtime/compat.hpp"
 #include "types/api.hpp"
 #include "types/builtin.hpp"
-#include "runtime/compat.hpp"
 
 namespace py {
 
@@ -60,7 +60,9 @@ PyResult<PyObject *> PyZip::__next__()
 	}
 }
 
+/*
 PyType *PyZip::static_type() const { return types::zip(); }
+*/
 
 void PyZip::visit_graph(Visitor &visitor)
 {

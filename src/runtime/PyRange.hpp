@@ -35,7 +35,7 @@ class PyRange : public PyBaseObject
 	PyResult<PyObject *> __reversed__() const;
 
 	static std::function<std::unique_ptr<TypePrototype>()> type_factory();
-	PyType *static_type() const override;
+	// PyType *static_type() const override;;
 
   private:
 	PyRange(BigIntType start, BigIntType stop, BigIntType step);
@@ -69,7 +69,7 @@ class PyRangeIterator : public PyBaseObject
 
 	void visit_graph(Visitor &) override;
 
-	PyType *static_type() const override;
+	// PyType *static_type() const override;;
 };
 
 }// namespace py

@@ -31,11 +31,13 @@ PyType *LookupError::class_type()
 	return types::lookup_error();
 }
 
+/*
 PyType *LookupError::static_type() const
 {
 	ASSERT(types::lookup_error());
 	return types::lookup_error();
 }
+*/
 
 namespace {
 

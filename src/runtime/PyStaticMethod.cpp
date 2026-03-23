@@ -55,7 +55,9 @@ PyResult<PyObject *> PyStaticMethod::__get__(PyObject * /*instance*/, PyObject *
 	return Ok(m_static_method);
 }
 
+/*
 PyType *PyStaticMethod::static_type() const { return types::static_method(); }
+*/
 
 namespace {
 

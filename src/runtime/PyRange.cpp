@@ -181,7 +181,9 @@ PyResult<PyObject *> PyRange::__getitem__(PyObject *key) const
 }
 
 
+/*
 PyType *PyRange::static_type() const { return types::range(); }
+*/
 
 namespace {
 
@@ -257,7 +259,9 @@ PyResult<PyObject *> PyRangeIterator::__iter__() const
 	return Ok(const_cast<PyRangeIterator *>(this));
 }
 
+/*
 PyType *PyRangeIterator::static_type() const { return types::range_iterator(); }
+*/
 
 void PyRangeIterator::visit_graph(Visitor &visitor)
 {

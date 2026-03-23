@@ -24,11 +24,11 @@ PyResult<PyObject *> ImportWarning::__new__(const PyType *type, PyTuple *args, P
 	return ImportWarning::create(const_cast<PyType *>(type), args);
 }
 
-PyType *ImportWarning::static_type() const
-{
-	ASSERT(types::import_warning());
-	return types::import_warning();
-}
+// PyType *ImportWarning::static_type() const
+// {
+// 	ASSERT(types::import_warning());
+// 	return types::import_warning();
+// }
 
 PyType *ImportWarning::class_type()
 {

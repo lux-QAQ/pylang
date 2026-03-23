@@ -247,7 +247,9 @@ void PyProperty::visit_graph(Visitor &visitor)
 	if (m_property_name) { visitor.visit(*m_property_name); }
 }
 
+/*
 PyType *PyProperty::static_type() const { return types::property(); }
+*/
 
 namespace {
 

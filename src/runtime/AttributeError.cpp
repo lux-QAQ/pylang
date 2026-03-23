@@ -18,11 +18,13 @@ PyResult<PyObject *> AttributeError::__new__(const PyType *type, PyTuple *args, 
 	return Ok(AttributeError::create(args));
 }
 
+/*
 PyType *AttributeError::static_type() const
 {
 	ASSERT(types::attribute_error());
 	return types::attribute_error();
 }
+*/
 
 PyType *AttributeError::class_type()
 {

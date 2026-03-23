@@ -358,7 +358,7 @@ class IOBase : public PyBaseObject
 
 	PyObject *dict() const { return m_attributes; }
 
-	PyType *static_type() const override { return s_io_base; }
+	// PyType *static_type() const override; { return s_io_base; }
 
 	PyResult<PyObject *> __enter__(PyTuple *, PyDict *)
 	{
@@ -533,7 +533,7 @@ class RawIOBase : public IOBase
 		return RawIOBase::create(type);
 	}
 
-	PyType *static_type() const override { return s_io_raw_iobase; }
+	// PyType *static_type() const override; { return s_io_raw_iobase; }
 
 	PyResult<PyObject *> read(int64_t n)
 	{
@@ -710,7 +710,7 @@ class BufferedIOBase : public IOBase
 		return Err(unsupported_operation(PyTuple::create(String{ "write" }).unwrap(), nullptr));
 	}
 
-	PyType *static_type() const override { return s_io_buffered_io_base; }
+	// PyType *static_type() const override; { return s_io_buffered_io_base; }
 
 	static PyType *register_type(PyModule *module)
 	{
@@ -1246,7 +1246,7 @@ class BufferedReader
 		return s_io_buffered_reader;
 	}
 
-	PyType *static_type() const override { return s_io_buffered_reader; }
+	// PyType *static_type() const override; { return s_io_buffered_reader; }
 
 	static PyType *class_type() { return s_io_buffered_reader; }
 
@@ -1364,7 +1364,7 @@ class BufferedWriter
 		return s_io_buffered_writer;
 	}
 
-	PyType *static_type() const override { return s_io_buffered_writer; }
+	// PyType *static_type() const override; { return s_io_buffered_writer; }
 
 	static PyType *class_type() { return s_io_buffered_writer; }
 
@@ -1577,7 +1577,7 @@ class BufferedRWPair : public BufferedIOBase
 		return s_io_buffered_rwpair;
 	}
 
-	PyType *static_type() const override { return s_io_buffered_rwpair; }
+	// PyType *static_type() const override; { return s_io_buffered_rwpair; }
 
 	void visit_graph(Visitor &visitor) override
 	{
@@ -1719,7 +1719,7 @@ class BufferedRandom
 		return s_io_buffered_random;
 	}
 
-	PyType *static_type() const override { return s_io_buffered_random; }
+	// PyType *static_type() const override; { return s_io_buffered_random; }
 
 	static PyType *class_type() { return s_io_buffered_random; }
 
@@ -1819,7 +1819,7 @@ class BytesIO : public BufferedIOBase
 
 	PyResult<PyObject *> read1(int64_t n) { return read(n); }
 
-	PyType *static_type() const override { return s_io_bytesio; }
+	// PyType *static_type() const override; { return s_io_bytesio; }
 
 	static PyType *register_type(PyModule *module)
 	{
@@ -2020,7 +2020,7 @@ class FileIO : public RawIOBase
 
 	PyResult<PyObject *> __repr__() const { return PyString::create(to_string()); }
 
-	PyType *static_type() const override { return s_io_fileio; }
+	// PyType *static_type() const override; { return s_io_fileio; }
 
 	PyResult<PyObject *> readall()
 	{
@@ -2295,7 +2295,7 @@ class TextIOBase : public IOBase
 		return Err(unsupported_operation(PyTuple::create(String{ "write" }).unwrap(), nullptr));
 	}
 
-	PyType *static_type() const override { return s_io_textiobase; }
+	// PyType *static_type() const override; { return s_io_textiobase; }
 
 	static PyType *register_type(PyModule *module)
 	{
@@ -2467,7 +2467,7 @@ class StringIO : public TextIOBase
 		return init(as<PyString>(initial_value), as<PyString>(newline));
 	}
 
-	PyType *static_type() const override { return s_io_stringio; }
+	// PyType *static_type() const override; { return s_io_stringio; }
 
 	PyResult<PyObject *> readable() const
 	{
@@ -2931,7 +2931,7 @@ class TextIOWrapper : public TextIOBase
 		return Ok(result);
 	}
 
-	PyType *static_type() const override { return s_io_textiowrapper; }
+	// PyType *static_type() const override; { return s_io_textiowrapper; }
 
 	static PyType *register_type(PyModule *module)
 	{
@@ -3057,11 +3057,11 @@ class BlockingIOError : public OSError
 		return s_blocking_io_error;
 	}
 
-	PyType *static_type() const override
-	{
-		ASSERT(s_blocking_io_error);
-		return s_blocking_io_error;
-	}
+	// PyType *static_type() const override;
+	// {
+	// 	ASSERT(s_blocking_io_error);
+	// 	return s_blocking_io_error;
+	// }
 };
 
 PyModule *io_module()

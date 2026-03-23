@@ -50,7 +50,7 @@ class PyByteArray : public PyBaseObject
 	PyResult<PyObject *> translate(PyTuple *args, PyDict *kwargs) const;
 
 	static std::function<std::unique_ptr<TypePrototype>()> type_factory();
-	PyType *static_type() const override;
+	// PyType *static_type() const override;;
 
   private:
 	PyByteArray(const Bytes &value);
@@ -76,7 +76,7 @@ class PyByteArrayIterator : public PyBaseObject
 	PyResult<PyObject *> __next__();
 
 	static std::function<std::unique_ptr<TypePrototype>()> type_factory();
-	PyType *static_type() const override;
+	// PyType *static_type() const override;;
 
 	void visit_graph(Visitor &) override;
 

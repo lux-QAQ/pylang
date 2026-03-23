@@ -132,7 +132,7 @@ class PyString
 		decode(std::span<const std::byte>, const std::string &encoding, const std::string &errors);
 
 	static std::function<std::unique_ptr<TypePrototype>()> type_factory();
-	PyType *static_type() const override;
+	// PyType *static_type() const override;;
 
 	PyResult<PyObject *> operator[](int64_t) const;
 
@@ -170,7 +170,7 @@ class PyStringIterator : public PyBaseObject
 	PyObject *next_raw();
 
 	static std::function<std::unique_ptr<TypePrototype>()> type_factory();
-	PyType *static_type() const override;
+	// PyType *static_type() const override;;
 };
 
 }// namespace py

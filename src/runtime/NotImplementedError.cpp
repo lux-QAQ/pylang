@@ -22,11 +22,13 @@ PyResult<PyObject *> NotImplementedError::__new__(const PyType *type, PyTuple *a
 	}
 }
 
+/*
 PyType *NotImplementedError::static_type() const
 {
 	ASSERT(types::not_implemented_error());
 	return types::not_implemented_error();
 }
+*/
 
 namespace {
 

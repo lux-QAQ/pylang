@@ -27,11 +27,11 @@ PyResult<PyObject *>
 	return PendingDeprecationWarning::create(const_cast<PyType *>(type), args);
 }
 
-PyType *PendingDeprecationWarning::static_type() const
-{
-	ASSERT(types::pending_deprecation_warning());
-	return types::pending_deprecation_warning();
-}
+// PyType *PendingDeprecationWarning::static_type() const
+// {
+// 	ASSERT(types::pending_deprecation_warning());
+// 	return types::pending_deprecation_warning();
+// }
 
 PyType *PendingDeprecationWarning::class_type()
 {

@@ -81,7 +81,9 @@ void PyClassMethod::visit_graph(Visitor &visitor)
 	if (m_callable) visitor.visit(*m_callable);
 }
 
+/*
 PyType *PyClassMethod::static_type() const { return types::classmethod(); }
+*/
 
 namespace {
 
