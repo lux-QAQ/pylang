@@ -9,6 +9,19 @@
 
 namespace py {
 namespace types {
+
+	using ProtoMap = std::unordered_map<const TypePrototype *,
+		PyType *,
+		std::hash<const TypePrototype *>,
+		std::equal_to<const TypePrototype *>,
+		GCTracingAllocator<std::pair<const TypePrototype *const, PyType *>>>;
+
+	ProtoMap &get_proto_map();
+	PyType *lookup_type_by_prototype(const TypePrototype *proto);
+	void register_type(const TypePrototype *proto, PyType *type);
+
+
+	
 	class BuiltinTypes
 	{
 		using Type = std::variant<std::function<std::unique_ptr<TypePrototype>()>,

@@ -227,21 +227,19 @@ PyType::PyType(PyType *type)
 // }
 
 PyType::PyType(TypePrototype &type_prototype)
-    // [修复] 显式传递 nullptr 避开自动查找逻辑
-    : PyBaseObject(static_cast<PyType *>(nullptr)),
-      m_underlying_type(type_prototype),
-      m_metaclass(types::BuiltinTypes::the().type())
+	// [修复] 显式传递 nullptr 避开自动查找逻辑
+	: PyBaseObject(static_cast<PyType *>(nullptr)), m_underlying_type(type_prototype),
+	  m_metaclass(types::BuiltinTypes::the().type())
 {
-    // 1. 尝试查找 'type' 类型 (元类)
-    m_bits_type = types::lookup_type_by_prototype(&types::BuiltinTypes::the().type());
+	// 1. 尝试查找 'type' 类型 (元类)
+	m_bits_type = types::lookup_type_by_prototype(&types::BuiltinTypes::the().type());
 
-    // 2. 引导逻辑：如果正在创建 'type' 类型本身，它的类型就是它自己
-    if (&type_prototype == &types::BuiltinTypes::the().type()) {
-        m_bits_type = this;
-        underlying_type().is_type = true;
-    }
+	// 2. 引导逻辑：如果正在创建 'type' 类型本身，它的类型就是它自己
+	if (&type_prototype == &types::BuiltinTypes::the().type()) {
+		m_bits_type = this;
+		underlying_type().is_type = true;
+	}
 }
-
 
 
 PyType::PyType(std::unique_ptr<TypePrototype> &&type_prototype)
@@ -284,10 +282,11 @@ std::string PyType::name() const
 
 PyType *PyType::initialize(TypePrototype &type_prototype)
 {
-	auto *type = PYLANG_ALLOC(PyType, type_prototype);
-	auto result = type->ready();
-	ASSERT(result.is_ok());
-	return type;
+    auto *type = PYLANG_ALLOC(PyType, type_prototype);
+    py::types::register_type(&type_prototype, type);
+    auto result = type->ready();
+    ASSERT(result.is_ok());
+    return type;
 }
 
 PyType *PyType::initialize(std::unique_ptr<TypePrototype> &&type_prototype)
@@ -484,18 +483,15 @@ std::optional<PyResult<PyObject *>> PyType::lookup(PyObject *name) const
 
 PyResult<PyObject *> PyType::heap_object_allocation(PyType *type)
 {
-    return type->mro_internal()
-        .and_then([type](PyTuple *mro_tuple) -> PyResult<PyObject *> {
-            for (const auto &el : mro_tuple->elements()) {
-				ASSERT(std::holds_alternative<PyObject *>(el));
-				ASSERT(as<PyType>(std::get<PyObject *>(el)));
-				auto *t = as<PyType>(std::get<PyObject *>(el));
-				if (!t->underlying_type().is_heaptype) {
-					return t->underlying_type().__alloc__(type);
-				}
-			}
-			return types::object()->underlying_type().__alloc__(type);
-		});
+	return type->mro_internal().and_then([type](PyTuple *mro_tuple) -> PyResult<PyObject *> {
+		for (const auto &el : mro_tuple->elements()) {
+			ASSERT(std::holds_alternative<PyObject *>(el));
+			ASSERT(as<PyType>(std::get<PyObject *>(el)));
+			auto *t = as<PyType>(std::get<PyObject *>(el));
+			if (!t->underlying_type().is_heaptype) { return t->underlying_type().__alloc__(type); }
+		}
+		return types::object()->underlying_type().__alloc__(type);
+	});
 }
 
 PyResult<std::monostate> PyType::initialize(const std::string &name,
@@ -1310,6 +1306,12 @@ PyResult<PyObject *> PyType::new_(PyTuple *args, PyDict *kwargs) const
 
 PyResult<std::monostate> PyType::ready()
 {
+
+	if (underlying_type().is_ready) return Ok(std::monostate{});
+	if (underlying_type().is_initializing) return Ok(std::monostate{});// 防止递归回环
+	underlying_type().is_initializing = true;
+
+
 	if (underlying_type().is_ready) { return Ok(std::monostate{}); }
 
 	if (underlying_type().__name__.empty()) {
@@ -1364,9 +1366,7 @@ PyResult<std::monostate> PyType::ready()
 		// 		== &types::BuiltinTypes::the().type())) {
 		// 	inherit_slots(static_cast<PyType *>(base));
 		// }
-        if (this->type() == types::type()) {
-            inherit_slots(static_cast<PyType *>(base));
-        }
+		if (this->type() == types::type()) { inherit_slots(static_cast<PyType *>(base)); }
 	}
 
 	if (underlying_type().__doc__.has_value()) {
@@ -1407,7 +1407,7 @@ PyResult<std::monostate> PyType::ready()
 
 	// Done!
 	underlying_type().is_ready = true;
-
+	underlying_type().is_initializing = false;
 	return Ok(std::monostate{});
 }
 
@@ -1654,15 +1654,17 @@ PyResult<PyType *> PyType::build_type(const PyType *metatype,
 		}
 	}
 
-	return PyType::create(const_cast<PyType *>(metatype)).and_then([&](PyType *type) {
-		type->underlying_type().is_heaptype = true;
-		type->__mro__ = nullptr;
-		type->initialize(type_name->value(), base, std::move(bases), ns);
+    return PyType::create(const_cast<PyType *>(metatype)).and_then([&](PyType *type) {
+        type->underlying_type().is_heaptype = true;
+        type->__mro__ = nullptr;
+        type->initialize(type_name->value(), base, std::move(bases), ns);
 
-		spdlog::trace("Created type@{} #{}", (void *)type, type->name());
+        // 关键：新类型也要进 protobuf map
+        py::types::register_type(&type->underlying_type(), type);
 
-		return Ok(type);
-	});
+        spdlog::trace("Created type@{} #{}", (void *)type, type->name());
+        return Ok(type);
+    });
 }
 
 PyResult<const PyType *> PyType::calculate_metaclass(const PyType *type_,

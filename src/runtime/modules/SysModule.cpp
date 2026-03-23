@@ -246,6 +246,8 @@ class Flags : public PyBaseObject
 					.attribute_readonly("dev_mode", &Flags::m_dev_mode)
 					.attribute_readonly("utf8_mode", &Flags::m_utf8_mode)
 					.finalize();
+
+			py::types::register_type(&s_sys_flags->underlying_type(), s_sys_flags);
 		}
 		return s_sys_flags;
 	}

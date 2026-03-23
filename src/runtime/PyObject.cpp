@@ -433,9 +433,11 @@ template<> PyResult<PyObject *> PyObject::from(const Value &value)
 
 PyObject::PyObject(const TypePrototype &type) : Cell()
 {
-    m_bits_type = types::lookup_type_by_prototype(&type);
-    // 只有通过 Prototype 构造（通常是生成的 AOT 代码）才强制检查
-    ASSERT(m_bits_type && "PyType must be initialized before object creation. Ensure types::type() is initialized.");
+	m_bits_type = types::lookup_type_by_prototype(&type);
+	if (!m_bits_type) {
+		spdlog::error("bootstrap type missing: {}", type.__name__);
+		ASSERT(m_bits_type && "PyType must be initialized before object creation.");
+	}
 }
 
 PyObject::PyObject(PyType *type) : Cell(), m_bits_type(type) { /* ASSERT(type); */ }
