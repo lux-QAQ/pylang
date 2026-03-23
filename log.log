@@ -1,327 +1,624 @@
-types/builtin.cpp
-In file included from runtime/export/../../runtime/types/builtin.cpp:1:
-In file included from runtime/export/../../runtime/types/builtin.hpp:3:
-In file included from runtime/export/../../runtime/PyObject.hpp:4:
-In file included from runtime/export/../../runtime/Value.hpp:6:
-In file included from runtime/export/../../memory/GCTracingAllocator.hpp:32:
-In file included from /home/lux/code/language/python-cpp/build/debug/.cache/CPM/yalantinglibs/f7f2/include/ylt/reflection/member_names.hpp:5:
-In file included from /home/lux/code/language/python-cpp/build/debug/.cache/CPM/yalantinglibs/f7f2/include/ylt/reflection/member_ptr.hpp:87:
-/home/lux/code/language/python-cpp/build/debug/.cache/CPM/yalantinglibs/f7f2/include/ylt/reflection/internal/generate/member_macro.hpp:21:1: error: cannot decompose class type '_Hash_node<std::pair<const py::TypePrototype *const, py::PyType *>, false>': its base classes '_Hash_node_base' and '_Hash_node_value_base<pair<const TypePrototype *const, PyType *>>' have non-static data members
-   21 | RFL_INTERNAL_OBJECT_IF_YOU_SEE_AN_ERROR_REFER_TO_DOCUMENTATION_ON_C_ARRAYS(2,
-      | ^
-/home/lux/code/language/python-cpp/build/debug/.cache/CPM/yalantinglibs/f7f2/include/ylt/reflection/member_ptr.hpp:76:13: note: expanded from macro 'RFL_INTERNAL_OBJECT_IF_YOU_SEE_AN_ERROR_REFER_TO_DOCUMENTATION_ON_C_ARRAYS'
-   76 |       auto& [__VA_ARGS__] = t;                                                      \
-      |             ^
-/home/lux/code/language/python-cpp/build/debug/.cache/CPM/yalantinglibs/f7f2/include/ylt/reflection/member_ptr.hpp:91:69: note: in instantiation of member function 'ylt::reflection::internal::object_tuple_view_helper<std::__detail::_Hash_node<std::pair<const py::TypePrototype *const, py::PyType *>, false> &, 2>::tuple_view' requested here
-   91 |   return internal::object_tuple_view_helper<T, members_count_v<T>>::tuple_view(
-      |                                                                     ^
-/home/lux/code/language/python-cpp/build/debug/.cache/CPM/yalantinglibs/f7f2/include/ylt/reflection/member_ptr.hpp:118:22: note: in instantiation of function template specialization 'ylt::reflection::internal::tuple_view<std::__detail::_Hash_node<std::pair<const py::TypePrototype *const, py::PyType *>, false> &>' requested here
-  118 |     return internal::tuple_view(std::forward<T>(t));
-      |                      ^
-runtime/export/../../memory/GCTracingAllocator.hpp:83:52: note: in instantiation of function template specialization 'ylt::reflection::object_to_tuple<std::__detail::_Hash_node<std::pair<const py::TypePrototype *const, py::PyType *>, false> &>' requested here
-   83 |                         using members_tuple = decltype(ylt::reflection::object_to_tuple(std::declval<T &>()));
-      |                                                                         ^
-runtime/export/../../memory/GCTracingAllocator.hpp:103:15: note: in instantiation of template class 'py::gc::detail::composite_is_atomic<std::__detail::_Hash_node<std::pair<const py::TypePrototype *const, py::PyType *>, false>>' requested here
-  103 |                                 ? detail::composite_is_atomic<T>::value
-      |                                           ^
-runtime/export/../../memory/GCTracingAllocator.hpp:152:66: note: in instantiation of static data member 'py::gc::is_atomic_impl<std::__detail::_Hash_node<std::pair<const py::TypePrototype *const, py::PyType *>, false>>::value' requested here
-  152 |         template<typename T> constexpr bool is_atomic_v = is_atomic<T>::value;
-      |                                                                         ^
-runtime/export/../../memory/GCTracingAllocator.hpp:250:25: note: (skipping 1 context in backtrace; use -ftemplate-backtrace-limit=0 to see all)
-  250 |                 if constexpr (py::gc::is_atomic_v<T>) {
-      |                                       ^
-/usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/bits/alloc_traits.h:333:20: note: in instantiation of member function 'py::GCTracingAllocator<std::__detail::_Hash_node<std::pair<const py::TypePrototype *const, py::PyType *>, false>>::allocate' requested here
-  333 |       { return __a.allocate(__n); }
-      |                    ^
-/usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/bits/hashtable.h:307:19: note: in instantiation of function template specialization 'std::__detail::_Hashtable_alloc<py::GCTracingAllocator<std::__detail::_Hash_node<std::pair<const py::TypePrototype *const, py::PyType *>, false>>>::_M_allocate_node<const std::piecewise_construct_t &, std::tuple<const py::TypePrototype *&&>, std::tuple<>>' requested here
-  307 |             _M_node(__h->_M_allocate_node(std::forward<_Args>(__args)...))
-      |                          ^
-/usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/bits/hashtable_policy.h:845:42: note: in instantiation of function template specialization 'std::_Hashtable<const py::TypePrototype *, std::pair<const py::TypePrototype *const, py::PyType *>, py::GCTracingAllocator<std::pair<const py::TypePrototype *const, py::PyType *>>, std::__detail::_Select1st, std::equal_to<const py::TypePrototype *>, std::hash<const py::TypePrototype *>, std::__detail::_Mod_range_hashing, std::__detail::_Default_ranged_hash, std::__detail::_Prime_rehash_policy, std::__detail::_Hashtable_traits<false, false, true>>::_Scoped_node::_Scoped_node<const std::piecewise_construct_t &, std::tuple<const py::TypePrototype *&&>, std::tuple<>>' requested here
-  845 |       typename __hashtable::_Scoped_node __node {
-      |                                          ^
-/usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/bits/unordered_map.h:991:16: note: in instantiation of member function 'std::__detail::_Map_base<const py::TypePrototype *, std::pair<const py::TypePrototype *const, py::PyType *>, py::GCTracingAllocator<std::pair<const py::TypePrototype *const, py::PyType *>>, std::__detail::_Select1st, std::equal_to<const py::TypePrototype *>, std::hash<const py::TypePrototype *>, std::__detail::_Mod_range_hashing, std::__detail::_Default_ranged_hash, std::__detail::_Prime_rehash_policy, std::__detail::_Hashtable_traits<false, false, true>>::operator[]' requested here
-  991 |       { return _M_h[std::move(__k)]; }
-      |                ^
-runtime/export/../../runtime/types/builtin.cpp:183:1: note: in instantiation of member function 'std::unordered_map<const py::TypePrototype *, py::PyType *, std::hash<const py::TypePrototype *>, std::equal_to<const py::TypePrototype *>, py::GCTracingAllocator<std::pair<const py::TypePrototype *const, py::PyType *>>>::operator[]' requested here
-  183 | INITIALIZE_TYPE(type)
-      | ^
-runtime/export/../../runtime/types/builtin.cpp:164:19: note: expanded from macro 'INITIALIZE_TYPE'
-  164 |                         get_proto_map()[&prototype] = type; /* 注册映射 */    \
-      |                                        ^
-1 error generated.
-ERROR:Failed to compile using given arguments: [-std=c++23 -O1 -g -c 
-
-
-/home/lux/code/language/python-cpp/build/debug/.cache/CPM/yalantinglibs/f7f2/include/ylt/reflection/internal/generate/member_macro.hpp:21:1: error: cannot decompose class type '_Hash_node<std::pair<const py::TypePrototype *const, py::PyType *>, false>': its base classes '_Hash_node_base' and '_Hash_node_value_base<pair<const TypePrototype *const, PyType *>>' have non-static data members
-   21 | RFL_INTERNAL_OBJECT_IF_YOU_SEE_AN_ERROR_REFER_TO_DOCUMENTATION_ON_C_ARRAYS(2,
-      | ^
-/home/lux/code/language/python-cpp/build/debug/.cache/CPM/yalantinglibs/f7f2/include/ylt/reflection/member_ptr.hpp:76:13: note: expanded from macro 'RFL_INTERNAL_OBJECT_IF_YOU_SEE_AN_ERROR_REFER_TO_DOCUMENTATION_ON_C_ARRAYS'
-   76 |       auto& [__VA_ARGS__] = t;                                                      \
-      |             ^
-/home/lux/code/language/python-cpp/build/debug/.cache/CPM/yalantinglibs/f7f2/include/ylt/reflection/member_ptr.hpp:91:69: note: in instantiation of member function 'ylt::reflection::internal::object_tuple_view_helper<std::__detail::_Hash_node<std::pair<const py::TypePrototype *const, py::PyType *>, false> &, 2>::tuple_view' requested here
-   91 |   return internal::object_tuple_view_helper<T, members_count_v<T>>::tuple_view(
-      |                                                                     ^
-/home/lux/code/language/python-cpp/build/debug/.cache/CPM/yalantinglibs/f7f2/include/ylt/reflection/member_ptr.hpp:118:22: note: in instantiation of function template specialization 'ylt::reflection::internal::tuple_view<std::__detail::_Hash_node<std::pair<const py::TypePrototype *const, py::PyType *>, false> &>' requested here
-  118 |     return internal::tuple_view(std::forward<T>(t));
-      |                      ^
-./memory/GCTracingAllocator.hpp:83:52: note: in instantiation of function template specialization 'ylt::reflection::object_to_tuple<std::__detail::_Hash_node<std::pair<const py::TypePrototype *const, py::PyType *>, false> &>' requested here
-   83 |                         using members_tuple = decltype(ylt::reflection::object_to_tuple(std::declval<T &>()));
-      |                                                                         ^
-./memory/GCTracingAllocator.hpp:103:15: note: in instantiation of template class 'py::gc::detail::composite_is_atomic<std::__detail::_Hash_node<std::pair<const py::TypePrototype *const, py::PyType *>, false>>' requested here
-  103 |                                 ? detail::composite_is_atomic<T>::value
-      |                                           ^
-./memory/GCTracingAllocator.hpp:152:66: note: in instantiation of static data member 'py::gc::is_atomic_impl<std::__detail::_Hash_node<std::pair<const py::TypePrototype *const, py::PyType *>, false>>::value' requested here
-  152 |         template<typename T> constexpr bool is_atomic_v = is_atomic<T>::value;
-      |                                                                         ^
-./memory/GCTracingAllocator.hpp:250:25: note: (skipping 1 context in backtrace; use -ftemplate-backtrace-limit=0 to see all)
-  250 |                 if constexpr (py::gc::is_atomic_v<T>) {
-      |                                       ^
-/usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/bits/alloc_traits.h:333:20: note: in instantiation of member function 'py::GCTracingAllocator<std::__detail::_Hash_node<std::pair<const py::TypePrototype *const, py::PyType *>, false>>::allocate' requested here
-  333 |       { return __a.allocate(__n); }
-      |                    ^
-/usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/bits/hashtable.h:307:19: note: in instantiation of function template specialization 'std::__detail::_Hashtable_alloc<py::GCTracingAllocator<std::__detail::_Hash_node<std::pair<const py::TypePrototype *const, py::PyType *>, false>>>::_M_allocate_node<const std::piecewise_construct_t &, std::tuple<const py::TypePrototype *&&>, std::tuple<>>' requested here
-  307 |             _M_node(__h->_M_allocate_node(std::forward<_Args>(__args)...))
-      |                          ^
-/usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/bits/hashtable_policy.h:845:42: note: in instantiation of function template specialization 'std::_Hashtable<const py::TypePrototype *, std::pair<const py::TypePrototype *const, py::PyType *>, py::GCTracingAllocator<std::pair<const py::TypePrototype *const, py::PyType *>>, std::__detail::_Select1st, std::equal_to<const py::TypePrototype *>, std::hash<const py::TypePrototype *>, std::__detail::_Mod_range_hashing, std::__detail::_Default_ranged_hash, std::__detail::_Prime_rehash_policy, std::__detail::_Hashtable_traits<false, false, true>>::_Scoped_node::_Scoped_node<const std::piecewise_construct_t &, std::tuple<const py::TypePrototype *&&>, std::tuple<>>' requested here
-  845 |       typename __hashtable::_Scoped_node __node {
-      |                                          ^
-/usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/bits/unordered_map.h:991:16: note: in instantiation of member function 'std::__detail::_Map_base<const py::TypePrototype *, std::pair<const py::TypePrototype *const, py::PyType *>, py::GCTracingAllocator<std::pair<const py::TypePrototype *const, py::PyType *>>, std::__detail::_Select1st, std::equal_to<const py::TypePrototype *>, std::hash<const py::TypePrototype *>, std::__detail::_Mod_range_hashing, std::__detail::_Default_ranged_hash, std::__detail::_Prime_rehash_policy, std::__detail::_Hashtable_traits<false, false, true>>::operator[]' requested here
-  991 |       { return _M_h[std::move(__k)]; }
-      |                ^
-runtime/types/builtin.cpp:183:1: note: in instantiation of member function 'std::unordered_map<const py::TypePrototype *, py::PyType *, std::hash<const py::TypePrototype *>, std::equal_to<const py::TypePrototype *>, py::GCTracingAllocator<std::pair<const py::TypePrototype *const, py::PyType *>>>::operator[]' requested here
-  183 | INITIALIZE_TYPE(type)
-      | ^
-runtime/types/builtin.cpp:164:19: note: expanded from macro 'INITIALIZE_TYPE'
-  164 |                         get_proto_map()[&prototype] = type; /* 注册映射 */    \
-      |                                        ^
-1 error generated.
-[4/19] wllvm: runtime/PyType.cpp
-
-
-runtime/export/../../runtime/PyType.cpp:1358:9: error: no matching function for call to 'get'
- 1358 |                         || (&std::get<std::reference_wrapper<const TypePrototype>>(m_bits_type).get()
-      |                              ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-/usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/bits/stl_pair.h:1059:5: note: candidate template ignored: could not match 'pair<std::reference_wrapper<const TypePrototype>, _Up>' against 'PyType *'
- 1059 |     get(pair<_Tp, _Up>& __p) noexcept
-      |     ^
-/usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/bits/stl_pair.h:1064:5: note: candidate template ignored: could not match 'pair<std::reference_wrapper<const TypePrototype>, _Up>' against 'PyType *'
- 1064 |     get(const pair<_Tp, _Up>& __p) noexcept
-      |     ^
-/usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/bits/stl_pair.h:1069:5: note: candidate template ignored: could not match 'pair<std::reference_wrapper<const TypePrototype>, _Up>' against 'PyType *'
- 1069 |     get(pair<_Tp, _Up>&& __p) noexcept
-      |     ^
-/usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/bits/stl_pair.h:1074:5: note: candidate template ignored: could not match 'pair<std::reference_wrapper<const TypePrototype>, _Up>' against 'PyType *'
- 1074 |     get(const pair<_Tp, _Up>&& __p) noexcept
-      |     ^
-/usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/bits/stl_pair.h:1079:5: note: candidate template ignored: could not match 'pair<_Up, std::reference_wrapper<const TypePrototype>>' against 'PyType *'
- 1079 |     get(pair<_Up, _Tp>& __p) noexcept
-      |     ^
-/usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/bits/stl_pair.h:1084:5: note: candidate template ignored: could not match 'pair<_Up, std::reference_wrapper<const TypePrototype>>' against 'PyType *'
- 1084 |     get(const pair<_Up, _Tp>& __p) noexcept
-      |     ^
-/usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/bits/stl_pair.h:1089:5: note: candidate template ignored: could not match 'pair<_Up, std::reference_wrapper<const TypePrototype>>' against 'PyType *'
- 1089 |     get(pair<_Up, _Tp>&& __p) noexcept
-      |     ^
-/usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/bits/stl_pair.h:1094:5: note: candidate template ignored: could not match 'pair<_Up, std::reference_wrapper<const TypePrototype>>' against 'PyType *'
- 1094 |     get(const pair<_Up, _Tp>&& __p) noexcept
-      |     ^
-/usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/tuple:1844:5: note: candidate template ignored: could not match 'tuple<_Types...>' against 'PyType *'
- 1844 |     get(tuple<_Types...>& __t) noexcept
-      |     ^
-/usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/tuple:1855:5: note: candidate template ignored: could not match 'tuple<_Types...>' against 'PyType *'
- 1855 |     get(tuple<_Types...>&& __t) noexcept
-      |     ^
-/usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/tuple:1866:5: note: candidate template ignored: could not match 'tuple<_Types...>' against 'PyType *'
- 1866 |     get(const tuple<_Types...>& __t) noexcept
-      |     ^
-/usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/tuple:1878:5: note: candidate template ignored: could not match 'tuple<_Types...>' against 'PyType *'
- 1878 |     get(const tuple<_Types...>&& __t) noexcept
-      |     ^
-/usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/variant:1150:5: note: candidate template ignored: could not match 'variant<_Types...>' against 'PyType *'
- 1150 |     get(variant<_Types...>& __v)
-      |     ^
-/usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/variant:1160:5: note: candidate template ignored: could not match 'variant<_Types...>' against 'PyType *'
- 1160 |     get(variant<_Types...>&& __v)
-      |     ^
-/usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/variant:1170:5: note: candidate template ignored: could not match 'variant<_Types...>' against 'PyType *'
- 1170 |     get(const variant<_Types...>& __v)
-      |     ^
-/usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/variant:1180:5: note: candidate template ignored: could not match 'variant<_Types...>' against 'PyType *'
- 1180 |     get(const variant<_Types...>&& __v)
-      |     ^
-/usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/bits/stl_pair.h:1035:5: note: candidate template ignored: invalid explicitly-specified argument for template parameter '_Int'
- 1035 |     get(pair<_Tp1, _Tp2>& __in) noexcept
-      |     ^
-/usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/bits/stl_pair.h:1040:5: note: candidate template ignored: invalid explicitly-specified argument for template parameter '_Int'
- 1040 |     get(pair<_Tp1, _Tp2>&& __in) noexcept
-      |     ^
-/usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/bits/stl_pair.h:1045:5: note: candidate template ignored: invalid explicitly-specified argument for template parameter '_Int'
- 1045 |     get(const pair<_Tp1, _Tp2>& __in) noexcept
-      |     ^
-/usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/bits/stl_pair.h:1050:5: note: candidate template ignored: invalid explicitly-specified argument for template parameter '_Int'
- 1050 |     get(const pair<_Tp1, _Tp2>&& __in) noexcept
-      |     ^
-/usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/bits/ranges_util.h:438:5: note: candidate template ignored: invalid explicitly-specified argument for template parameter '_Num'
-  438 |     get(const subrange<_It, _Sent, _Kind>& __r)
-      |     ^
-/usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/bits/ranges_util.h:449:5: note: candidate template ignored: invalid explicitly-specified argument for template parameter '_Num'
-  449 |     get(subrange<_It, _Sent, _Kind>&& __r)
-      |     ^
-/usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/tuple:1803:5: note: candidate template ignored: invalid explicitly-specified argument for template parameter '__i'
- 1803 |     get(tuple<_Elements...>& __t) noexcept
-      |     ^
-/usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/tuple:1809:5: note: candidate template ignored: invalid explicitly-specified argument for template parameter '__i'
- 1809 |     get(const tuple<_Elements...>& __t) noexcept
-      |     ^
-/usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/tuple:1815:5: note: candidate template ignored: invalid explicitly-specified argument for template parameter '__i'
- 1815 |     get(tuple<_Elements...>&& __t) noexcept
-      |     ^
-/usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/tuple:1824:5: note: candidate template ignored: invalid explicitly-specified argument for template parameter '__i'
- 1824 |     get(const tuple<_Elements...>&& __t) noexcept
-      |     ^
-/usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/tuple:1834:5: note: candidate template ignored: invalid explicitly-specified argument for template parameter '__i'
- 1834 |     get(const tuple<_Elements...>&) = delete;
-      |     ^
-/usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/array:384:5: note: candidate template ignored: invalid explicitly-specified argument for template parameter '_Int'
-  384 |     get(array<_Tp, _Nm>& __arr) noexcept
-      |     ^
-/usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/array:393:5: note: candidate template ignored: invalid explicitly-specified argument for template parameter '_Int'
-  393 |     get(array<_Tp, _Nm>&& __arr) noexcept
-      |     ^
-/usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/array:402:5: note: candidate template ignored: invalid explicitly-specified argument for template parameter '_Int'
-  402 |     get(const array<_Tp, _Nm>& __arr) noexcept
-      |     ^
-/usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/array:411:5: note: candidate template ignored: invalid explicitly-specified argument for template parameter '_Int'
-  411 |     get(const array<_Tp, _Nm>&& __arr) noexcept
-      |     ^
-/usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/variant:1711:5: note: candidate template ignored: invalid explicitly-specified argument for template parameter '_Np'
- 1711 |     get(variant<_Types...>& __v)
-      |     ^
-/usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/variant:1722:5: note: candidate template ignored: invalid explicitly-specified argument for template parameter '_Np'
- 1722 |     get(variant<_Types...>&& __v)
-      |     ^
-/usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/variant:1733:5: note: candidate template ignored: invalid explicitly-specified argument for template parameter '_Np'
- 1733 |     get(const variant<_Types...>& __v)
-      |     ^
-/usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/variant:1744:5: note: candidate template ignored: invalid explicitly-specified argument for template parameter '_Np'
- 1744 |     get(const variant<_Types...>&& __v)
-      |     ^
-3 errors generated.
-ERROR:Failed to compile using given arguments: [-std=c++23 -O1 -g -c 
-
-build] runtime/PyType.cpp:1356:8: error: no matching function for call to 'holds_alternative'
- 1356 |                 if ((std::holds_alternative<PyType *>(m_bits_type)
-      |                      ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-/usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/variant:1141:5: note: candidate template ignored: could not match 'variant<_Types...>' against 'PyType *'
- 1141 |     holds_alternative(const variant<_Types...>& __v) noexcept
-      |     ^
-runtime/PyType.cpp:1357:8: error: no matching function for call to 'get'
- 1357 |                                 && std::get<PyType *>(m_bits_type) == types::type())
-      |                                    ^~~~~~~~~~~~~~~~~~
-/usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/bits/stl_pair.h:1059:5: note: candidate template ignored: could not match 'pair<PyType *, _Up>' against 'PyType *'
- 1059 |     get(pair<_Tp, _Up>& __p) noexcept
-      |     ^
-/usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/bits/stl_pair.h:1064:5: note: candidate template ignored: could not match 'pair<PyType *, _Up>' against 'PyType *'
- 1064 |     get(const pair<_Tp, _Up>& __p) noexcept
-      |     ^
-/usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/bits/stl_pair.h:1069:5: note: candidate template ignored: could not match 'pair<PyType *, _Up>' against 'PyType *'
- 1069 |     get(pair<_Tp, _Up>&& __p) noexcept
-      |     ^
-/usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/bits/stl_pair.h:1074:5: note: candidate template ignored: could not match 'pair<PyType *, _Up>' against 'PyType *'
- 1074 |     get(const pair<_Tp, _Up>&& __p) noexcept
-      |     ^
-/usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/bits/stl_pair.h:1079:5: note: candidate template ignored: could not match 'pair<_Up, PyType *>' against 'PyType *'
- 1079 |     get(pair<_Up, _Tp>& __p) noexcept
-      |     ^
-/usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/bits/stl_pair.h:1084:5: note: candidate template ignored: could not match 'pair<_Up, PyType *>' against 'PyType *'
- 1084 |     get(const pair<_Up, _Tp>& __p) noexcept
-      |     ^
-/usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/bits/stl_pair.h:1089:5: note: candidate template ignored: could not match 'pair<_Up, PyType *>' against 'PyType *'
- 1089 |     get(pair<_Up, _Tp>&& __p) noexcept
-      |     ^
-/usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/bits/stl_pair.h:1094:5: note: candidate template ignored: could not match 'pair<_Up, PyType *>' against 'PyType *'
- 1094 |     get(const pair<_Up, _Tp>&& __p) noexcept
-      |     ^
-/usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/tuple:1844:5: note: candidate template ignored: could not match 'tuple<_Types...>' against 'PyType *'
- 1844 |     get(tuple<_Types...>& __t) noexcept
-      |     ^
-/usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/tuple:1855:5: note: candidate template ignored: could not match 'tuple<_Types...>' against 'PyType *'
- 1855 |     get(tuple<_Types...>&& __t) noexcept
-      |     ^
-/usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/tuple:1866:5: note: candidate template ignored: could not match 'tuple<_Types...>' against 'PyType *'
- 1866 |     get(const tuple<_Types...>& __t) noexcept
-      |     ^
-/usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/tuple:1878:5: note: candidate template ignored: could not match 'tuple<_Types...>' against 'PyType *'
- 1878 |     get(const tuple<_Types...>&& __t) noexcept
-      |     ^
-/usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/variant:1150:5: note: candidate template ignored: could not match 'variant<_Types...>' against 'PyType *'
- 1150 |     get(variant<_Types...>& __v)
-      |     ^
-/usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/variant:1160:5: note: candidate template ignored: could not match 'variant<_Types...>' against 'PyType *'
- 1160 |     get(variant<_Types...>&& __v)
-      |     ^
-/usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/variant:1170:5: note: candidate template ignored: could not match 'variant<_Types...>' against 'PyType *'
- 1170 |     get(const variant<_Types...>& __v)
-      |     ^
-/usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/variant:1180:5: note: candidate template ignored: could not match 'variant<_Types...>' against 'PyType *'
- 1180 |     get(const variant<_Types...>&& __v)
-      |     ^
-/usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/bits/stl_pair.h:1035:5: note: candidate template ignored: invalid explicitly-specified argument for template parameter '_Int'
- 1035 |     get(pair<_Tp1, _Tp2>& __in) noexcept
-      |     ^
-/usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/bits/stl_pair.h:1040:5: note: candidate template ignored: invalid explicitly-specified argument for template parameter '_Int'
- 1040 |     get(pair<_Tp1, _Tp2>&& __in) noexcept
-      |     ^
-/usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/bits/stl_pair.h:1045:5: note: candidate template ignored: invalid explicitly-specified argument for template parameter '_Int'
- 1045 |     get(const pair<_Tp1, _Tp2>& __in) noexcept
-      |     ^
-/usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/bits/stl_pair.h:1050:5: note: candidate template ignored: invalid explicitly-specified argument for template parameter '_Int'
- 1050 |     get(const pair<_Tp1, _Tp2>&& __in) noexcept
-      |     ^
-/usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/bits/ranges_util.h:438:5: note: candidate template ignored: invalid explicitly-specified argument for template parameter '_Num'
-  438 |     get(const subrange<_It, _Sent, _Kind>& __r)
-      |     ^
-/usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/bits/ranges_util.h:449:5: note: candidate template ignored: invalid explicitly-specified argument for template parameter '_Num'
-  449 |     get(subrange<_It, _Sent, _Kind>&& __r)
-      |     ^
-/usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/tuple:1803:5: note: candidate template ignored: invalid explicitly-specified argument for template parameter '__i'
- 1803 |     get(tuple<_Elements...>& __t) noexcept
-      |     ^
-/usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/tuple:1809:5: note: candidate template ignored: invalid explicitly-specified argument for template parameter '__i'
- 1809 |     get(const tuple<_Elements...>& __t) noexcept
-      |     ^
-/usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/tuple:1815:5: note: candidate template ignored: invalid explicitly-specified argument for template parameter '__i'
- 1815 |     get(tuple<_Elements...>&& __t) noexcept
-      |     ^
-/usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/tuple:1824:5: note: candidate template ignored: invalid explicitly-specified argument for template parameter '__i'
- 1824 |     get(const tuple<_Elements...>&& __t) noexcept
-      |     ^
-/usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/tuple:1834:5: note: candidate template ignored: invalid explicitly-specified argument for template parameter '__i'
- 1834 |     get(const tuple<_Elements...>&) = delete;
-      |     ^
-/usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/array:384:5: note: candidate template ignored: invalid explicitly-specified argument for template parameter '_Int'
-  384 |     get(array<_Tp, _Nm>& __arr) noexcept
-      |     ^
-/usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/array:393:5: note: candidate template ignored: invalid explicitly-specified argument for template parameter '_Int'
-  393 |     get(array<_Tp, _Nm>&& __arr) noexcept
-      |     ^
-/usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/array:402:5: note: candidate template ignored: invalid explicitly-specified argument for template parameter '_Int'
-  402 |     get(const array<_Tp, _Nm>& __arr) noexcept
-      |     ^
-/usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/array:411:5: note: candidate template ignored: invalid explicitly-specified argument for template parameter '_Int'
-  411 |     get(const array<_Tp, _Nm>&& __arr) noexcept
-      |     ^
-/usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/variant:1711:5: note: candidate template ignored: invalid explicitly-specified argument for template parameter '_Np'
- 1711 |     get(variant<_Types...>& __v)
-      |     ^
-/usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/variant:1722:5: note: candidate template ignored: invalid explicitly-specified argument for template parameter '_Np'
- 1722 |     get(variant<_Types...>&& __v)
-      |     ^
-/usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/variant:1733:5: note: candidate template ignored: invalid explicitly-specified argument for template parameter '_Np'
- 1733 |     get(const variant<_Types...>& __v)
-      |     ^
-/usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/variant:1744:5: note: candidate template ignored: invalid explicitly-specified argument for template parameter '_Np'
- 1744 |     get(const variant<_Types...>&& __v)
-      |     ^
-runtime/PyType.cpp:1358:9: error: no matching function for call to 'get'
- 1358 |                         || (&std::get<std::reference_wrapper<const TypePrototype>>(m_bits_type).get()
+Running verify()...
+Sieve initialized with limit: 100
+Starting sieve calculation...
+Sieve loops finished, omitting squares...
+Searching for prefix: 2
+Total primes found: 25
+Base primes check for 100: True True True
+Generating trie for primes, list size: 25
+Trie generation complete.
+Navigating to prefix node...
+Link check for char: 2
+Prefix node found. Terminal state of prefix node: 1
+Starting queue traversal. Initial queue size: 1
+Queue pop: 2 Terminal: 1
+Found children chars at 2 : ['3', '9']
+Pushing to queue: 23
+Pushing to queue: 29
+Queue pop: 23 Terminal: 1
+Queue pop: 29 Terminal: 1
+Find completed. Results count: 3 Values: [2, 23, 29]
+Verify results match: True
+Expected: [2, 23, 29]
+Actual: [2, 23, 29]
+Starting main calculation (UPPER_BOUND = 5000000 )
+Sieve initialized with limit: 5000000
+Starting sieve calculation...
+Processing loop_x, x = 500
+Processing loop_x, x = 1000
+Processing loop_x, x = 1500
+Processing loop_x, x = 2000
+Sieve loops finished, omitting squares...
+Searching for prefix: 32338
+Total primes found: 348513
+Generating trie for primes, list size: 348513
+[2026-03-23 20:44:42.748]  PyDict                    5000
+[2026-03-23 20:44:42.749]  PyString                  5000
+[2026-03-23 20:44:42.756]  PyTuple                   5000
+[2026-03-23 20:44:42.759]  PyInteger                 5000
+[2026-03-23 20:44:42.763]  PyDict                   10000
+[2026-03-23 20:44:42.763]  Type                      5000
+[2026-03-23 20:44:42.774]  PyDict                   15000
+[2026-03-23 20:44:42.777]  PyTuple                  10000
+[2026-03-23 20:44:42.778]  PyStringIterator          5000
+[2026-03-23 20:44:42.788]  PyDict                   20000
+[2026-03-23 20:44:42.788]  Type                     10000
+[2026-03-23 20:44:42.791]  PyString                 10000
+[2026-03-23 20:44:42.799]  PyTuple                  15000
+[2026-03-23 20:44:42.800]  PyDict                   25000
+[2026-03-23 20:44:42.801]  PyInteger                10000
+[2026-03-23 20:44:42.812]  PyDict                   30000
+[2026-03-23 20:44:42.813]  Type                     15000
+[2026-03-23 20:44:42.821]  PyTuple                  20000
+[2026-03-23 20:44:42.821]  PyStringIterator         10000
+[2026-03-23 20:44:42.828]  PyDict                   35000
+[2026-03-23 20:44:42.838]  PyString                 15000
+[2026-03-23 20:44:42.845]  PyDict                   40000
+[2026-03-23 20:44:42.845]  Type                     20000
+[2026-03-23 20:44:42.848]  PyTuple                  25000
+[2026-03-23 20:44:42.851]  PyInteger                15000
+[2026-03-23 20:44:42.858]  PyDict                   45000
+[2026-03-23 20:44:42.871]  PyTuple                  30000
+[2026-03-23 20:44:42.871]  PyStringIterator         15000
+[2026-03-23 20:44:42.872]  PyDict                   50000
+[2026-03-23 20:44:42.872]  Type                     25000
+[2026-03-23 20:44:42.884]  PyDict                   55000
+[2026-03-23 20:44:42.885]  PyString                 20000
+[2026-03-23 20:44:42.892]  PyTuple                  35000
+[2026-03-23 20:44:42.895]  PyInteger                20000
+[2026-03-23 20:44:42.897]  PyDict                   60000
+[2026-03-23 20:44:42.897]  Type                     30000
+[2026-03-23 20:44:42.910]  PyDict                   65000
+[2026-03-23 20:44:42.914]  PyTuple                  40000
+[2026-03-23 20:44:42.914]  PyStringIterator         20000
+[2026-03-23 20:44:42.923]  PyDict                   70000
+[2026-03-23 20:44:42.924]  Type                     35000
+[2026-03-23 20:44:42.929]  PyString                 25000
+[2026-03-23 20:44:42.936]  PyDict                   75000
+[2026-03-23 20:44:42.936]  PyTuple                  45000
+[2026-03-23 20:44:42.939]  PyInteger                25000
+[2026-03-23 20:44:42.949]  PyDict                   80000
+[2026-03-23 20:44:42.950]  Type                     40000
+[2026-03-23 20:44:42.959]  PyTuple                  50000
+[2026-03-23 20:44:42.960]  PyStringIterator         25000
+[2026-03-23 20:44:42.963]  PyDict                   85000
+[2026-03-23 20:44:42.974]  PyString                 30000
+[2026-03-23 20:44:42.976]  PyDict                   90000
+[2026-03-23 20:44:42.977]  Type                     45000
+[2026-03-23 20:44:42.982]  PyTuple                  55000
+[2026-03-23 20:44:42.985]  PyInteger                30000
+[2026-03-23 20:44:42.990]  PyDict                   95000
+[2026-03-23 20:44:43.323] [error] [DEBUG_ALLOC_TRACE] Type: PyDict                  100000
+Stack trace (most recent call first):
+#0  0x00005635ab7e0f88 in _pylang_debug_log_alloc(char const*, std::atomic<unsigned long>&) at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/compat.hpp:35:16
+#1  (inlined)          in py::PyDict::create()::$_0::operator()() const at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyDict.cpp:53:17
+#2  0x00005635ab57ebb6 in py::PyDict::create() at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyDict.cpp:53:17
+#3  0x00005635ab6192fa in py::PyObject::__setattribute__(py::PyObject*, py::PyObject*) at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyObject.cpp:1661:19
+#4  (inlined)          in std::function<py::PyResult<std::monostate> (py::PyObject*, py::PyObject*, py::PyObject*)>::operator()(py::PyObject*, py::PyObject*, py::PyObject*) const at /usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/bits/std_function.h:591:9
+#5  0x00005635ab602c0a in py::PyResult<std::monostate> py::(anonymous namespace)::call_slot<std::function<py::PyResult<std::monostate> (py::PyObject*, py::PyObject*, py::PyObject*)>, py::PyResult<std::monostate>, py::PyObject*, py::PyObject*&, py::PyObject*&>(std::variant<std::function<py::PyResult<std::monostate> (py::PyObject*, py::PyObject*, py::PyObject*)>, py::PyObject*> const&, std::basic_string_view<char, std::char_traits<char> >, py::PyObject*&&, py::PyObject*&, py::PyObject*&) requires !(std::is_same_v<py::PyResult<std::monostate>::OkType, py::PyObject*>) at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyObject.cpp:193:11
+#6  0x00005635ab601fae in py::PyObject::setattribute(py::PyObject*, py::PyObject*) at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyObject.cpp:723:10
+#7  0x00005635ab476b17 in rt_setattr_fast(py::PyObject*, py::PyObject*, py::PyObject*) at /home/lux/code/language/python-cpp/src/runtime/export/rt_attr.cpp:182:24
+#8  0x00005635ab473237 in test.<module>.0:0.Node.3:0.__init__.4:4 at /tmp/test
+#9  0x00005635ab59bd34 in py::PyNativeFunction::call_raw(std::span<std::variant<py::Number, py::String, py::Bytes, py::Ellipsis, py::NameConstant, py::Tuple, py::PyObject*> const, 18446744073709551615ul>, py::PyDict*) at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyFunction.cpp:300:15
+#10 0x00005635ab5ef8d6 in py::PyObject::init_raw(std::span<std::variant<py::Number, py::String, py::Bytes, py::Ellipsis, py::NameConstant, py::Tuple, py::PyObject*> const, 18446744073709551615ul>, py::PyDict*) at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyObject.cpp:1364:17
+#11 0x00005635ab5ef4f4 in py::PyType::call_raw(std::span<std::variant<py::Number, py::String, py::Bytes, py::Ellipsis, py::NameConstant, py::Tuple, py::PyObject*> const, 18446744073709551615ul>, py::PyDict*) at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyObject.cpp:1308:24
+#12 0x00005635ab47b2cf in rt_call_raw_ptrs(py::PyObject*, py::PyObject**, int, py::PyObject*) at /home/lux/code/language/python-cpp/src/runtime/export/rt_func.cpp:237:29
+#13 0x00005635ab474605 in test.<module>.0:0.generate_trie.71:0 at /tmp/test
+#14 0x00005635ab59bd34 in py::PyNativeFunction::call_raw(std::span<std::variant<py::Number, py::String, py::Bytes, py::Ellipsis, py::NameConstant, py::Tuple, py::PyObject*> const, 18446744073709551615ul>, py::PyDict*) at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyFunction.cpp:300:15
+#15 0x00005635ab47b2cf in rt_call_raw_ptrs(py::PyObject*, py::PyObject**, int, py::PyObject*) at /home/lux/code/language/python-cpp/src/runtime/export/rt_func.cpp:237:29
+#16 0x00005635ab474a0a in test.<module>.0:0.find.86:0 at /tmp/test
+#17 0x00005635ab59bd34 in py::PyNativeFunction::call_raw(std::span<std::variant<py::Number, py::String, py::Bytes, py::Ellipsis, py::NameConstant, py::Tuple, py::PyObject*> const, 18446744073709551615ul>, py::PyDict*) at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyFunction.cpp:300:15
+#18 0x00005635ab47b2cf in rt_call_raw_ptrs(py::PyObject*, py::PyObject**, int, py::PyObject*) at /home/lux/code/language/python-cpp/src/runtime/export/rt_func.cpp:237:29
+#19 0x00005635ab4730d3 in PyInit_test at /tmp/test
+#20 0x00005635ab47564a in main at /tmp/test
+#21 0x00007f992862a1c9 in __libc_start_call_main at ./csu/../sysdeps/nptl/libc_start_call_main.h:58:16
+#22 0x00007f992862a28a in __libc_start_main_impl at ./csu/../csu/libc-start.c:360:3
+#23 0x00005635ab472ce4 in _start at /tmp/test
+[2026-03-23 20:44:43.324]  Type                     50000
+[2026-03-23 20:44:43.326]  PyTuple                  60000
+[2026-03-23 20:44:43.327]  PyStringIterator         30000
+[2026-03-23 20:44:43.339]  PyDict                  105000
+[2026-03-23 20:44:43.346]  PyString                 35000
+[2026-03-23 20:44:43.355]  PyTuple                  65000
+[2026-03-23 20:44:43.357]  PyDict                  110000
+[2026-03-23 20:44:43.357]  Type                     55000
+[2026-03-23 20:44:43.358]  PyInteger                35000
+[2026-03-23 20:44:43.370]  PyDict                  115000
+[2026-03-23 20:44:43.377]  PyTuple                  70000
+[2026-03-23 20:44:43.378]  PyStringIterator         35000
+[2026-03-23 20:44:43.382]  PyDict                  120000
+[2026-03-23 20:44:43.383]  Type                     60000
+[2026-03-23 20:44:43.392]  PyString                 40000
+[2026-03-23 20:44:43.395]  PyDict                  125000
+[2026-03-23 20:44:43.400]  PyTuple                  75000
+[2026-03-23 20:44:43.402]  PyInteger                40000
+[2026-03-23 20:44:43.408]  PyDict                  130000
+[2026-03-23 20:44:43.409]  Type                     65000
+[2026-03-23 20:44:43.421]  PyDict                  135000
+[2026-03-23 20:44:43.422]  PyTuple                  80000
+[2026-03-23 20:44:43.422]  PyStringIterator         40000
+[2026-03-23 20:44:43.434]  PyDict                  140000
+[2026-03-23 20:44:43.434]  Type                     70000
+[2026-03-23 20:44:43.437]  PyString                 45000
+[2026-03-23 20:44:43.445]  PyTuple                  85000
+[2026-03-23 20:44:43.447]  PyDict                  145000
+[2026-03-23 20:44:43.448]  PyInteger                45000
+[2026-03-23 20:44:43.461]  PyDict                  150000
+[2026-03-23 20:44:43.462]  Type                     75000
+[2026-03-23 20:44:43.469]  PyTuple                  90000
+[2026-03-23 20:44:43.470]  PyStringIterator         45000
+[2026-03-23 20:44:43.477]  PyDict                  155000
+[2026-03-23 20:44:43.492]  PyString                 50000
+[2026-03-23 20:44:43.500]  PyDict                  160000
+[2026-03-23 20:44:43.501]  Type                     80000
+[2026-03-23 20:44:43.504]  PyTuple                  95000
+[2026-03-23 20:44:43.509]  PyInteger                50000
+[2026-03-23 20:44:43.517]  PyDict                  165000
+[2026-03-23 20:44:43.544] [error] [DEBUG_ALLOC_TRACE] Type: PyTuple                 100000
+Stack trace (most recent call first):
+#0  0x00005635ab7e0f88 in _pylang_debug_log_alloc(char const*, std::atomic<unsigned long>&) at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/compat.hpp:35:16
+#1  (inlined)          in py::PyTuple::create(std::vector<std::variant<py::Number, py::String, py::Bytes, py::Ellipsis, py::NameConstant, py::Tuple, py::PyObject*>, py::GCTracingAllocator<std::variant<py::Number, py::String, py::Bytes, py::Ellipsis, py::NameConstant, py::Tuple, py::PyObject*> > >&&)::$_0::operator()() const at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyTuple.cpp:119:14
+#2  0x00005635ab673692 in py::PyTuple::create(std::vector<std::variant<py::Number, py::String, py::Bytes, py::Ellipsis, py::NameConstant, py::Tuple, py::PyObject*>, py::GCTracingAllocator<std::variant<py::Number, py::String, py::Bytes, py::Ellipsis, py::NameConstant, py::Tuple, py::PyObject*> > >&&) at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyTuple.cpp:119:14
+#3  0x00005635ab6384b5 in py::PySlotWrapper::call_raw(std::span<std::variant<py::Number, py::String, py::Bytes, py::Ellipsis, py::NameConstant, py::Tuple, py::PyObject*> const, 18446744073709551615ul>, py::PyDict*) at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PySlotWrapper.cpp:106:9
+#4  0x00005635ab5ef8d6 in py::PyObject::init_raw(std::span<std::variant<py::Number, py::String, py::Bytes, py::Ellipsis, py::NameConstant, py::Tuple, py::PyObject*> const, 18446744073709551615ul>, py::PyDict*) at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyObject.cpp:1364:17
+#5  0x00005635ab5ef4f4 in py::PyType::call_raw(std::span<std::variant<py::Number, py::String, py::Bytes, py::Ellipsis, py::NameConstant, py::Tuple, py::PyObject*> const, 18446744073709551615ul>, py::PyDict*) at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyObject.cpp:1308:24
+#6  0x00005635ab47b2cf in rt_call_raw_ptrs(py::PyObject*, py::PyObject**, int, py::PyObject*) at /home/lux/code/language/python-cpp/src/runtime/export/rt_func.cpp:237:29
+#7  0x00005635ab4744d0 in test.<module>.0:0.generate_trie.71:0 at /tmp/test
+#8  0x00005635ab59bd34 in py::PyNativeFunction::call_raw(std::span<std::variant<py::Number, py::String, py::Bytes, py::Ellipsis, py::NameConstant, py::Tuple, py::PyObject*> const, 18446744073709551615ul>, py::PyDict*) at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyFunction.cpp:300:15
+#9  0x00005635ab47b2cf in rt_call_raw_ptrs(py::PyObject*, py::PyObject**, int, py::PyObject*) at /home/lux/code/language/python-cpp/src/runtime/export/rt_func.cpp:237:29
+#10 0x00005635ab474a0a in test.<module>.0:0.find.86:0 at /tmp/test
+#11 0x00005635ab59bd34 in py::PyNativeFunction::call_raw(std::span<std::variant<py::Number, py::String, py::Bytes, py::Ellipsis, py::NameConstant, py::Tuple, py::PyObject*> const, 18446744073709551615ul>, py::PyDict*) at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyFunction.cpp:300:15
+#12 0x00005635ab47b2cf in rt_call_raw_ptrs(py::PyObject*, py::PyObject**, int, py::PyObject*) at /home/lux/code/language/python-cpp/src/runtime/export/rt_func.cpp:237:29
+#13 0x00005635ab4730d3 in PyInit_test at /tmp/test
+#14 0x00005635ab47564a in main at /tmp/test
+#15 0x00007f992862a1c9 in __libc_start_call_main at ./csu/../sysdeps/nptl/libc_start_call_main.h:58:16
+#16 0x00007f992862a28a in __libc_start_main_impl at ./csu/../csu/libc-start.c:360:3
+#17 0x00005635ab472ce4 in _start at /tmp/test
+[2026-03-23 20:44:43.544]  PyDict                  170000
+[2026-03-23 20:44:43.545]  Type                     85000
+[2026-03-23 20:44:43.545]  PyStringIterator         50000
+[2026-03-23 20:44:43.558]  PyDict                  175000
+[2026-03-23 20:44:43.560]  PyString                 55000
+[2026-03-23 20:44:43.568]  PyTuple                 105000
+[2026-03-23 20:44:43.571]  PyInteger                55000
+[2026-03-23 20:44:43.572]  PyDict                  180000
+[2026-03-23 20:44:43.572]  Type                     90000
+[2026-03-23 20:44:43.586]  PyDict                  185000
+[2026-03-23 20:44:43.594]  PyTuple                 110000
+[2026-03-23 20:44:43.596]  PyStringIterator         55000
+[2026-03-23 20:44:43.606]  PyDict                  190000
+[2026-03-23 20:44:43.607]  Type                     95000
+[2026-03-23 20:44:43.616]  PyString                 60000
+[2026-03-23 20:44:43.625]  PyDict                  195000
+[2026-03-23 20:44:43.631]  PyTuple                 115000
+[2026-03-23 20:44:43.636]  PyInteger                60000
+[2026-03-23 20:44:43.653] [error] [DEBUG_ALLOC_TRACE] Type: PyDict                  200000
+Stack trace (most recent call first):
+#0  0x00005635ab7e0f88 in _pylang_debug_log_alloc(char const*, std::atomic<unsigned long>&) at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/compat.hpp:35:16
+#1  (inlined)          in py::PyDict::create()::$_0::operator()() const at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyDict.cpp:53:17
+#2  0x00005635ab57ebb6 in py::PyDict::create() at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyDict.cpp:53:17
+#3  0x00005635ab6192fa in py::PyObject::__setattribute__(py::PyObject*, py::PyObject*) at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyObject.cpp:1661:19
+#4  (inlined)          in std::function<py::PyResult<std::monostate> (py::PyObject*, py::PyObject*, py::PyObject*)>::operator()(py::PyObject*, py::PyObject*, py::PyObject*) const at /usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/bits/std_function.h:591:9
+#5  0x00005635ab602c0a in py::PyResult<std::monostate> py::(anonymous namespace)::call_slot<std::function<py::PyResult<std::monostate> (py::PyObject*, py::PyObject*, py::PyObject*)>, py::PyResult<std::monostate>, py::PyObject*, py::PyObject*&, py::PyObject*&>(std::variant<std::function<py::PyResult<std::monostate> (py::PyObject*, py::PyObject*, py::PyObject*)>, py::PyObject*> const&, std::basic_string_view<char, std::char_traits<char> >, py::PyObject*&&, py::PyObject*&, py::PyObject*&) requires !(std::is_same_v<py::PyResult<std::monostate>::OkType, py::PyObject*>) at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyObject.cpp:193:11
+#6  0x00005635ab601fae in py::PyObject::setattribute(py::PyObject*, py::PyObject*) at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyObject.cpp:723:10
+#7  0x00005635ab476b17 in rt_setattr_fast(py::PyObject*, py::PyObject*, py::PyObject*) at /home/lux/code/language/python-cpp/src/runtime/export/rt_attr.cpp:182:24
+#8  0x00005635ab473237 in test.<module>.0:0.Node.3:0.__init__.4:4 at /tmp/test
+#9  0x00005635ab59bd34 in py::PyNativeFunction::call_raw(std::span<std::variant<py::Number, py::String, py::Bytes, py::Ellipsis, py::NameConstant, py::Tuple, py::PyObject*> const, 18446744073709551615ul>, py::PyDict*) at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyFunction.cpp:300:15
+#10 0x00005635ab5ef8d6 in py::PyObject::init_raw(std::span<std::variant<py::Number, py::String, py::Bytes, py::Ellipsis, py::NameConstant, py::Tuple, py::PyObject*> const, 18446744073709551615ul>, py::PyDict*) at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyObject.cpp:1364:17
+#11 0x00005635ab5ef4f4 in py::PyType::call_raw(std::span<std::variant<py::Number, py::String, py::Bytes, py::Ellipsis, py::NameConstant, py::Tuple, py::PyObject*> const, 18446744073709551615ul>, py::PyDict*) at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyObject.cpp:1308:24
+#12 0x00005635ab47b2cf in rt_call_raw_ptrs(py::PyObject*, py::PyObject**, int, py::PyObject*) at /home/lux/code/language/python-cpp/src/runtime/export/rt_func.cpp:237:29
+#13 0x00005635ab474605 in test.<module>.0:0.generate_trie.71:0 at /tmp/test
+#14 0x00005635ab59bd34 in py::PyNativeFunction::call_raw(std::span<std::variant<py::Number, py::String, py::Bytes, py::Ellipsis, py::NameConstant, py::Tuple, py::PyObject*> const, 18446744073709551615ul>, py::PyDict*) at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyFunction.cpp:300:15
+#15 0x00005635ab47b2cf in rt_call_raw_ptrs(py::PyObject*, py::PyObject**, int, py::PyObject*) at /home/lux/code/language/python-cpp/src/runtime/export/rt_func.cpp:237:29
+#16 0x00005635ab474a0a in test.<module>.0:0.find.86:0 at /tmp/test
+#17 0x00005635ab59bd34 in py::PyNativeFunction::call_raw(std::span<std::variant<py::Number, py::String, py::Bytes, py::Ellipsis, py::NameConstant, py::Tuple, py::PyObject*> const, 18446744073709551615ul>, py::PyDict*) at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyFunction.cpp:300:15
+#18 0x00005635ab47b2cf in rt_call_raw_ptrs(py::PyObject*, py::PyObject**, int, py::PyObject*) at /home/lux/code/language/python-cpp/src/runtime/export/rt_func.cpp:237:29
+#19 0x00005635ab4730d3 in PyInit_test at /tmp/test
+#20 0x00005635ab47564a in main at /tmp/test
+#21 0x00007f992862a1c9 in __libc_start_call_main at ./csu/../sysdeps/nptl/libc_start_call_main.h:58:16
+#22 0x00007f992862a28a in __libc_start_main_impl at ./csu/../csu/libc-start.c:360:3
+#23 0x00005635ab472ce4 in _start at /tmp/test
+[2026-03-23 20:44:43.733] [error] [DEBUG_ALLOC_TRACE] Type: Type                    100000
+Stack trace (most recent call first):
+#0  0x00005635ab7e0f88 in _pylang_debug_log_alloc(char const*, std::atomic<unsigned long>&) at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/compat.hpp:35:16
+#1  (inlined)          in py::TypePrototype::create<py::PyObject>(std::basic_string_view<char, std::char_traits<char> >)::{lambda(py::PyType*)#1}::operator()(py::PyType*) const::{lambda()#1}::operator()() const::{lambda()#2}::operator()() const at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyObject.hpp:579:12
+#2  0x00005635ab9aadc3 in py::TypePrototype::create<py::PyObject>(std::basic_string_view<char, std::char_traits<char> >)::{lambda(py::PyType*)#1}::operator()(py::PyType*) const::{lambda()#1}::operator()() const at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyObject.hpp:579:12
+#3  (inlined)          in py::TypePrototype::create<py::PyObject>(std::basic_string_view<char, std::char_traits<char> >)::{lambda(py::PyType*)#1}::operator()(py::PyType*) const at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyObject.hpp:571:15
+#4  (inlined)          in py::PyResult<py::PyObject*> std::__invoke_impl<py::PyResult<py::PyObject*>, py::TypePrototype::create<py::PyObject>(std::basic_string_view<char, std::char_traits<char> >)::{lambda(py::PyType*)#1}&, py::PyType*>(std::__invoke_other, py::TypePrototype::create<py::PyObject>(std::basic_string_view<char, std::char_traits<char> >)::{lambda(py::PyType*)#1}&, py::PyType*&&) at /usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/bits/invoke.h:61:14
+#5  (inlined)          in std::enable_if<is_invocable_r_v<py::PyResult<py::PyObject*>, py::TypePrototype::create<py::PyObject>(std::basic_string_view<char, std::char_traits<char> >)::{lambda(py::PyType*)#1}&, py::PyType*>, py::PyResult<py::PyObject*> >::type std::__invoke_r<py::PyResult<py::PyObject*>, py::TypePrototype::create<py::PyObject>(std::basic_string_view<char, std::char_traits<char> >)::{lambda(py::PyType*)#1}&, py::PyType*>(py::TypePrototype::create<py::PyObject>(std::basic_string_view<char, std::char_traits<char> >)::{lambda(py::PyType*)#1}&, py::PyType*&&) at /usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/bits/invoke.h:114:9
+#6  0x00005635ab9aab85 in std::_Function_handler<py::PyResult<py::PyObject*> (py::PyType*), py::TypePrototype::create<py::PyObject>(std::basic_string_view<char, std::char_traits<char> >)::{lambda(py::PyType*)#1}>::_M_invoke(std::_Any_data const&, py::PyType*&&) at /usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/bits/std_function.h:290:9
+#7  (inlined)          in std::function<py::PyResult<py::PyObject*> (py::PyType*)>::operator()(py::PyType*) const at /usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/bits/std_function.h:591:9
+#8  (inlined)          in py::PyType::heap_object_allocation(py::PyType*)::$_0::operator()(py::PyTuple*) const at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyType.cpp:491:52
+#9  (inlined)          in py::PyResult<py::PyObject*> py::PyResult<py::PyTuple*>::and_then<py::PyType::heap_object_allocation(py::PyType*)::$_0, py::PyObject*>(py::PyType::heap_object_allocation(py::PyType*)::$_0&&) const at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/Value.hpp:307:10
+#10 0x00005635ab6bf89a in py::PyType::heap_object_allocation(py::PyType*) at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyType.cpp:486:30
+#11 (inlined)          in std::function<py::PyResult<py::PyObject*> (py::PyType*)>::operator()(py::PyType*) const at /usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/bits/std_function.h:591:9
+#12 0x00005635ab61be36 in py::PyObject::__new__(py::PyType const*, py::PyTuple*, py::PyDict*) at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyObject.cpp:1738:9
+#13 (inlined)          in std::function<py::PyResult<py::PyObject*> (py::PyType const*, py::PyTuple*, py::PyDict*)>::operator()(py::PyType const*, py::PyTuple*, py::PyDict*) const at /usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/bits/std_function.h:591:9
+#14 0x00005635ab6c5d73 in py::PyType::new_(py::PyTuple*, py::PyDict*) const at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyType.cpp:1298:11
+#15 0x00005635ab5ef250 in py::PyType::call_raw(std::span<std::variant<py::Number, py::String, py::Bytes, py::Ellipsis, py::NameConstant, py::Tuple, py::PyObject*> const, 18446744073709551615ul>, py::PyDict*) at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyObject.cpp:1302:17
+#16 0x00005635ab47b2cf in rt_call_raw_ptrs(py::PyObject*, py::PyObject**, int, py::PyObject*) at /home/lux/code/language/python-cpp/src/runtime/export/rt_func.cpp:237:29
+#17 0x00005635ab474605 in test.<module>.0:0.generate_trie.71:0 at /tmp/test
+#18 0x00005635ab59bd34 in py::PyNativeFunction::call_raw(std::span<std::variant<py::Number, py::String, py::Bytes, py::Ellipsis, py::NameConstant, py::Tuple, py::PyObject*> const, 18446744073709551615ul>, py::PyDict*) at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyFunction.cpp:300:15
+#19 0x00005635ab47b2cf in rt_call_raw_ptrs(py::PyObject*, py::PyObject**, int, py::PyObject*) at /home/lux/code/language/python-cpp/src/runtime/export/rt_func.cpp:237:29
+#20 0x00005635ab474a0a in test.<module>.0:0.find.86:0 at /tmp/test
+#21 0x00005635ab59bd34 in py::PyNativeFunction::call_raw(std::span<std::variant<py::Number, py::String, py::Bytes, py::Ellipsis, py::NameConstant, py::Tuple, py::PyObject*> const, 18446744073709551615ul>, py::PyDict*) at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyFunction.cpp:300:15
+#22 0x00005635ab47b2cf in rt_call_raw_ptrs(py::PyObject*, py::PyObject**, int, py::PyObject*) at /home/lux/code/language/python-cpp/src/runtime/export/rt_func.cpp:237:29
+#23 0x00005635ab4730d3 in PyInit_test at /tmp/test
+#24 0x00005635ab47564a in main at /tmp/test
+#25 0x00007f992862a1c9 in __libc_start_call_main at ./csu/../sysdeps/nptl/libc_start_call_main.h:58:16
+#26 0x00007f992862a28a in __libc_start_main_impl at ./csu/../csu/libc-start.c:360:3
+#27 0x00005635ab472ce4 in _start at /tmp/test
+[2026-03-23 20:44:43.747]  PyTuple                 120000
+[2026-03-23 20:44:43.748]  PyStringIterator         60000
+[2026-03-23 20:44:43.748]  PyDict                  205000
+[2026-03-23 20:44:43.762]  PyDict                  210000
+[2026-03-23 20:44:43.762]  Type                    105000
+[2026-03-23 20:44:43.763]  PyString                 65000
+[2026-03-23 20:44:43.771]  PyTuple                 125000
+[2026-03-23 20:44:43.774]  PyInteger                65000
+[2026-03-23 20:44:43.775]  PyDict                  215000
+[2026-03-23 20:44:43.788]  PyDict                  220000
+[2026-03-23 20:44:43.788]  Type                    110000
+[2026-03-23 20:44:43.794]  PyTuple                 130000
+[2026-03-23 20:44:43.794]  PyStringIterator         65000
+[2026-03-23 20:44:43.805]  PyDict                  225000
+[2026-03-23 20:44:43.815]  PyString                 70000
+[2026-03-23 20:44:43.821]  PyDict                  230000
+[2026-03-23 20:44:43.822]  Type                    115000
+[2026-03-23 20:44:43.827]  PyTuple                 135000
+[2026-03-23 20:44:43.832]  PyInteger                70000
+[2026-03-23 20:44:43.841]  PyDict                  235000
+[2026-03-23 20:44:43.857]  PyTuple                 140000
+[2026-03-23 20:44:43.857]  PyStringIterator         70000
+[2026-03-23 20:44:43.858]  PyDict                  240000
+[2026-03-23 20:44:43.858]  Type                    120000
+[2026-03-23 20:44:43.870]  PyDict                  245000
+[2026-03-23 20:44:43.871]  PyString                 75000
+[2026-03-23 20:44:43.879]  PyTuple                 145000
+[2026-03-23 20:44:43.882]  PyInteger                75000
+[2026-03-23 20:44:43.883]  PyDict                  250000
+[2026-03-23 20:44:43.884]  Type                    125000
+[2026-03-23 20:44:43.896]  PyDict                  255000
+[2026-03-23 20:44:43.902]  PyTuple                 150000
+[2026-03-23 20:44:43.902]  PyStringIterator         75000
+[2026-03-23 20:44:43.909]  PyDict                  260000
+[2026-03-23 20:44:43.910]  Type                    130000
+[2026-03-23 20:44:43.917]  PyString                 80000
+[2026-03-23 20:44:43.923]  PyDict                  265000
+[2026-03-23 20:44:43.927]  PyTuple                 155000
+[2026-03-23 20:44:43.930]  PyInteger                80000
+[2026-03-23 20:44:43.939]  PyDict                  270000
+[2026-03-23 20:44:43.940]  Type                    135000
+[2026-03-23 20:44:43.955]  PyTuple                 160000
+[2026-03-23 20:44:43.955]  PyStringIterator         80000
+[2026-03-23 20:44:43.956]  PyDict                  275000
+[2026-03-23 20:44:43.971]  PyDict                  280000
+[2026-03-23 20:44:43.972]  Type                    140000
+[2026-03-23 20:44:43.972]  PyString                 85000
+[2026-03-23 20:44:43.981]  PyTuple                 165000
+[2026-03-23 20:44:43.984]  PyInteger                85000
+[2026-03-23 20:44:43.987]  PyDict                  285000
+[.003]  PyDict                  290000
+[.003]  Type                    145000
+[.010]  PyTuple                 170000
+[.011]  PyStringIterator         85000
+[.019]  PyDict                  295000
+[.028]  PyString                 90000
+[.039] [error] [DEBUG_ALLOC_TRACE] Type: PyDict                  300000
+Stack trace (most recent call first):
+#0  0x00005635ab7e0f88 in _pylang_debug_log_alloc(char const*, std::atomic<unsigned long>&) at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/compat.hpp:35:16
+#1  (inlined)          in py::PyDict::create()::$_0::operator()() const at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyDict.cpp:53:17
+#2  0x00005635ab57ebb6 in py::PyDict::create() at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyDict.cpp:53:17
+#3  0x00005635ab6192fa in py::PyObject::__setattribute__(py::PyObject*, py::PyObject*) at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyObject.cpp:1661:19
+#4  (inlined)          in std::function<py::PyResult<std::monostate> (py::PyObject*, py::PyObject*, py::PyObject*)>::operator()(py::PyObject*, py::PyObject*, py::PyObject*) const at /usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/bits/std_function.h:591:9
+#5  0x00005635ab602c0a in py::PyResult<std::monostate> py::(anonymous namespace)::call_slot<std::function<py::PyResult<std::monostate> (py::PyObject*, py::PyObject*, py::PyObject*)>, py::PyResult<std::monostate>, py::PyObject*, py::PyObject*&, py::PyObject*&>(std::variant<std::function<py::PyResult<std::monostate> (py::PyObject*, py::PyObject*, py::PyObject*)>, py::PyObject*> const&, std::basic_string_view<char, std::char_traits<char> >, py::PyObject*&&, py::PyObject*&, py::PyObject*&) requires !(std::is_same_v<py::PyResult<std::monostate>::OkType, py::PyObject*>) at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyObject.cpp:193:11
+#6  0x00005635ab601fae in py::PyObject::setattribute(py::PyObject*, py::PyObject*) at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyObject.cpp:723:10
+#7  0x00005635ab476b17 in rt_setattr_fast(py::PyObject*, py::PyObject*, py::PyObject*) at /home/lux/code/language/python-cpp/src/runtime/export/rt_attr.cpp:182:24
+#8  0x00005635ab473237 in test.<module>.0:0.Node.3:0.__init__.4:4 at /tmp/test
+#9  0x00005635ab59bd34 in py::PyNativeFunction::call_raw(std::span<std::variant<py::Number, py::String, py::Bytes, py::Ellipsis, py::NameConstant, py::Tuple, py::PyObject*> const, 18446744073709551615ul>, py::PyDict*) at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyFunction.cpp:300:15
+#10 0x00005635ab5ef8d6 in py::PyObject::init_raw(std::span<std::variant<py::Number, py::String, py::Bytes, py::Ellipsis, py::NameConstant, py::Tuple, py::PyObject*> const, 18446744073709551615ul>, py::PyDict*) at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyObject.cpp:1364:17
+#11 0x00005635ab5ef4f4 in py::PyType::call_raw(std::span<std::variant<py::Number, py::String, py::Bytes, py::Ellipsis, py::NameConstant, py::Tuple, py::PyObject*> const, 18446744073709551615ul>, py::PyDict*) at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyObject.cpp:1308:24
+#12 0x00005635ab47b2cf in rt_call_raw_ptrs(py::PyObject*, py::PyObject**, int, py::PyObject*) at /home/lux/code/language/python-cpp/src/runtime/export/rt_func.cpp:237:29
+#13 0x00005635ab474605 in test.<module>.0:0.generate_trie.71:0 at /tmp/test
+#14 0x00005635ab59bd34 in py::PyNativeFunction::call_raw(std::span<std::variant<py::Number, py::String, py::Bytes, py::Ellipsis, py::NameConstant, py::Tuple, py::PyObject*> const, 18446744073709551615ul>, py::PyDict*) at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyFunction.cpp:300:15
+#15 0x00005635ab47b2cf in rt_call_raw_ptrs(py::PyObject*, py::PyObject**, int, py::PyObject*) at /home/lux/code/language/python-cpp/src/runtime/export/rt_func.cpp:237:29
+#16 0x00005635ab474a0a in test.<module>.0:0.find.86:0 at /tmp/test
+#17 0x00005635ab59bd34 in py::PyNativeFunction::call_raw(std::span<std::variant<py::Number, py::String, py::Bytes, py::Ellipsis, py::NameConstant, py::Tuple, py::PyObject*> const, 18446744073709551615ul>, py::PyDict*) at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyFunction.cpp:300:15
+#18 0x00005635ab47b2cf in rt_call_raw_ptrs(py::PyObject*, py::PyObject**, int, py::PyObject*) at /home/lux/code/language/python-cpp/src/runtime/export/rt_func.cpp:237:29
+#19 0x00005635ab4730d3 in PyInit_test at /tmp/test
+#20 0x00005635ab47564a in main at /tmp/test
+#21 0x00007f992862a1c9 in __libc_start_call_main at ./csu/../sysdeps/nptl/libc_start_call_main.h:58:16
+#22 0x00007f992862a28a in __libc_start_main_impl at ./csu/../csu/libc-start.c:360:3
+#23 0x00005635ab472ce4 in _start at /tmp/test
+[.040]  Type                    150000
+[.041]  PyTuple                 175000
+[.044]  PyInteger                90000
+[.054]  PyDict                  305000
+[.068]  PyTuple                 180000
+[.069]  PyStringIterator         90000
+[.070]  PyDict                  310000
+[.070]  Type                    155000
+[.084]  PyDict                  315000
+[.085]  PyString                 95000
+[.094]  PyTuple                 185000
+[.097]  PyInteger                95000
+[.099]  PyDict                  320000
+[.099]  Type                    160000
+[.113]  PyDict                  325000
+[.119]  PyTuple                 190000
+[.119]  PyStringIterator         95000
+[.129]  PyDict                  330000
+[.129]  Type                    165000
+[.178] [error] [DEBUG_ALLOC_TRACE] Type: PyString                100000
+Stack trace (most recent call first):
+#0  0x00005635ab7e0f88 in _pylang_debug_log_alloc(char const*, std::atomic<unsigned long>&) at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/compat.hpp:35:16
+#1  (inlined)          in py::PyString::create(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&)::$_1::operator()() const at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyString.cpp:229:17
+#2  0x00005635ab63b8ba in py::PyString::create(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&) at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyString.cpp:229:17
+#3  0x00005635ab5e2546 in py::PyNumber::__repr__() const at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyNumber.cpp:24:58
+#4  (inlined)          in std::function<py::PyResult<py::PyObject*> (py::PyObject const*)>::operator()(py::PyObject const*) const at /usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/bits/std_function.h:591:9
+#5  0x00005635ab5fbdd3 in py::PyResult<py::PyObject*> py::(anonymous namespace)::call_slot<std::function<py::PyResult<py::PyObject*> (py::PyObject const*)>, py::PyResult<py::PyObject*>, py::PyObject const*>(std::variant<std::function<py::PyResult<py::PyObject*> (py::PyObject const*)>, py::PyObject*> const&, py::PyObject const*&&) requires std::is_same_v<py::PyResult<py::PyObject*>::OkType, py::PyObject*> at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyObject.cpp:168:11
+#6  0x00005635ab5fb254 in py::PyObject::repr() const at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyObject.cpp:761:10
+#7  0x00005635ab5fb1ca in py::PyObject::__str__() at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyObject.cpp:545:9
+#8  (inlined)          in std::function<py::PyResult<py::PyObject*> (py::PyObject*)>::operator()(py::PyObject*) const at /usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/bits/std_function.h:591:9
+#9  0x00005635ab605603 in py::PyResult<py::PyObject*> py::(anonymous namespace)::call_slot<std::function<py::PyResult<py::PyObject*> (py::PyObject*)>, py::PyResult<py::PyObject*>, py::PyObject*>(std::variant<std::function<py::PyResult<py::PyObject*> (py::PyObject*)>, py::PyObject*> const&, py::PyObject*&&) requires std::is_same_v<py::PyResult<py::PyObject*>::OkType, py::PyObject*> at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyObject.cpp:168:11
+#10 0x00005635ab604e64 in py::PyObject::str() at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyObject.cpp:780:10
+#11 0x00005635ab63c2ea in py::PyString::create(py::PyObject*) at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyString.cpp:239:15
+#12 0x00005635ab63dc8e in py::PyString::__new__(py::PyType const*, py::PyTuple*, py::PyDict*) at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyString.cpp:328:10
+#13 (inlined)          in std::function<py::PyResult<py::PyObject*> (py::PyType const*, py::PyTuple*, py::PyDict*)>::operator()(py::PyType const*, py::PyTuple*, py::PyDict*) const at /usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/bits/std_function.h:591:9
+#14 0x00005635ab6c5d73 in py::PyType::new_(py::PyTuple*, py::PyDict*) const at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyType.cpp:1298:11
+#15 0x00005635ab5ef250 in py::PyType::call_raw(std::span<std::variant<py::Number, py::String, py::Bytes, py::Ellipsis, py::NameConstant, py::Tuple, py::PyObject*> const, 18446744073709551615ul>, py::PyDict*) at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyObject.cpp:1302:17
+#16 0x00005635ab47b2cf in rt_call_raw_ptrs(py::PyObject*, py::PyObject**, int, py::PyObject*) at /home/lux/code/language/python-cpp/src/runtime/export/rt_func.cpp:237:29
+#17 0x00005635ab4744d0 in test.<module>.0:0.generate_trie.71:0 at /tmp/test
+#18 0x00005635ab59bd34 in py::PyNativeFunction::call_raw(std::span<std::variant<py::Number, py::String, py::Bytes, py::Ellipsis, py::NameConstant, py::Tuple, py::PyObject*> const, 18446744073709551615ul>, py::PyDict*) at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyFunction.cpp:300:15
+#19 0x00005635ab47b2cf in rt_call_raw_ptrs(py::PyObject*, py::PyObject**, int, py::PyObject*) at /home/lux/code/language/python-cpp/src/runtime/export/rt_func.cpp:237:29
+#20 0x00005635ab474a0a in test.<module>.0:0.find.86:0 at /tmp/test
+#21 0x00005635ab59bd34 in py::PyNativeFunction::call_raw(std::span<std::variant<py::Number, py::String, py::Bytes, py::Ellipsis, py::NameConstant, py::Tuple, py::PyObject*> const, 18446744073709551615ul>, py::PyDict*) at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyFunction.cpp:300:15
+#22 0x00005635ab47b2cf in rt_call_raw_ptrs(py::PyObject*, py::PyObject**, int, py::PyObject*) at /home/lux/code/language/python-cpp/src/runtime/export/rt_func.cpp:237:29
+#23 0x00005635ab4730d3 in PyInit_test at /tmp/test
+#24 0x00005635ab47564a in main at /tmp/test
+#25 0x00007f992862a1c9 in __libc_start_call_main at ./csu/../sysdeps/nptl/libc_start_call_main.h:58:16
+#26 0x00007f992862a28a in __libc_start_main_impl at ./csu/../csu/libc-start.c:360:3
+#27 0x00005635ab472ce4 in _start at /tmp/test
+[.186]  PyDict                  335000
+[.189]  PyTuple                 195000
+[.222] [error] [DEBUG_ALLOC_TRACE] Type: PyInteger               100000
+Stack trace (most recent call first):
+#0  0x00005635ab7e0f88 in _pylang_debug_log_alloc(char const*, std::atomic<unsigned long>&) at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/compat.hpp:35:16
+#1  (inlined)          in py::PyInteger::create(__gmp_expr<__mpz_struct [1], __mpz_struct [1]>)::$_0::operator()() const at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyInteger.cpp:55:17
+#2  0x00005635ab5a448b in py::PyInteger::create(__gmp_expr<__mpz_struct [1], __mpz_struct [1]>) at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyInteger.cpp:55:17
+#3  0x00005635ab5e2a9a in py::PyNumber::create(py::Number const&) at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyNumber.cpp:285:10
+#4  0x00005635ab5fa1d8 in py::PyResult<py::PyObject*> py::PyObject::from<py::Number>(py::Number const&) at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyObject.cpp:389:9
+#5  (inlined)          in auto py::PyListIterator::__next__()::$_0::operator()<py::Number>(py::Number const&) const at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyList.cpp:797:54
+#6  (inlined)          in py::PyResult<py::PyObject*> std::__invoke_impl<py::PyResult<py::PyObject*>, py::PyListIterator::__next__()::$_0, py::Number const&>(std::__invoke_other, py::PyListIterator::__next__()::$_0&&, py::Number const&) at /usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/bits/invoke.h:61:14
+#7  (inlined)          in std::__invoke_result<py::PyListIterator::__next__()::$_0, py::Number const&>::type std::__invoke<py::PyListIterator::__next__()::$_0, py::Number const&>(py::PyListIterator::__next__()::$_0&&, py::Number const&) at /usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/bits/invoke.h:96:14
+#8  (inlined)          in std::__detail::__variant::__gen_vtable_impl<std::__detail::__variant::_Multi_array<std::__detail::__variant::__deduce_visit_result<py::PyResult<py::PyObject*> > (*)(py::PyListIterator::__next__()::$_0&&, std::variant<py::Number, py::String, py::Bytes, py::Ellipsis, py::NameConstant, py::Tuple, py::PyObject*> const&)>, std::integer_sequence<unsigned long, 0ul> >::__visit_invoke(py::PyListIterator::__next__()::$_0&&, std::variant<py::Number, py::String, py::Bytes, py::Ellipsis, py::NameConstant, py::Tuple, py::PyObject*> const&) at /usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/variant:1060:11
+#9  (inlined)          in decltype(auto) std::__do_visit<std::__detail::__variant::__deduce_visit_result<py::PyResult<py::PyObject*> >, py::PyListIterator::__next__()::$_0, std::variant<py::Number, py::String, py::Bytes, py::Ellipsis, py::NameConstant, py::Tuple, py::PyObject*> const&>(py::PyListIterator::__next__()::$_0&&, std::variant<py::Number, py::String, py::Bytes, py::Ellipsis, py::NameConstant, py::Tuple, py::PyObject*> const&) at /usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/variant:1815:5
+#10 (inlined)          in std::invoke_result<py::PyListIterator::__next__()::$_0, std::__conditional<is_lvalue_reference_v<std::variant<py::Number, py::String, py::Bytes, py::Ellipsis, py::NameConstant, py::Tuple, py::PyObject*> const&> >::type<std::variant_alternative<0ul, std::remove_reference<decltype (__variant::__as((std::declval<std::variant<py::Number, py::String, py::Bytes, py::Ellipsis, py::NameConstant, py::Tuple, py::PyObject*> const&>)()))>::type>::type&, std::variant_alternative<0ul, std::remove_reference<decltype (__variant::__as((std::declval<std::variant<py::Number, py::String, py::Bytes, py::Ellipsis, py::NameConstant, py::Tuple, py::PyObject*> const&>)()))>::type>::type&&> >::type std::visit<py::PyListIterator::__next__()::$_0, std::variant<py::Number, py::String, py::Bytes, py::Ellipsis, py::NameConstant, py::Tuple, py::PyObject*> const&>(py::PyListIterator::__next__()::$_0&&, std::variant<py::Number, py::String, py::Bytes, py::Ellipsis, py::NameConstant, py::Tuple, py::PyObject*> const&) at /usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/variant:1878:13
+#11 0x00005635ab5c99c2 in py::PyListIterator::__next__() at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyList.cpp:797:10
+#12 (inlined)          in std::function<py::PyResult<py::PyObject*> (py::PyObject*)>::operator()(py::PyObject*) const at /usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/bits/std_function.h:591:9
+#13 0x00005635ab605603 in py::PyResult<py::PyObject*> py::(anonymous namespace)::call_slot<std::function<py::PyResult<py::PyObject*> (py::PyObject*)>, py::PyResult<py::PyObject*>, py::PyObject*>(std::variant<std::function<py::PyResult<py::PyObject*> (py::PyObject*)>, py::PyObject*> const&, py::PyObject*&&) requires std::is_same_v<py::PyResult<py::PyObject*>::OkType, py::PyObject*> at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyObject.cpp:168:11
+#14 0x00005635ab60d9d0 in py::PyObject::next() at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyObject.cpp:1204:10
+#15 0x00005635ab4808ce in rt_iter_next(py::PyObject*, bool*) at /home/lux/code/language/python-cpp/src/runtime/export/rt_subscr.cpp:56:24
+#16 0x00005635ab474478 in test.<module>.0:0.generate_trie.71:0 at /tmp/test
+#17 0x00005635ab59bd34 in py::PyNativeFunction::call_raw(std::span<std::variant<py::Number, py::String, py::Bytes, py::Ellipsis, py::NameConstant, py::Tuple, py::PyObject*> const, 18446744073709551615ul>, py::PyDict*) at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyFunction.cpp:300:15
+#18 0x00005635ab47b2cf in rt_call_raw_ptrs(py::PyObject*, py::PyObject**, int, py::PyObject*) at /home/lux/code/language/python-cpp/src/runtime/export/rt_func.cpp:237:29
+#19 0x00005635ab474a0a in test.<module>.0:0.find.86:0 at /tmp/test
+#20 0x00005635ab59bd34 in py::PyNativeFunction::call_raw(std::span<std::variant<py::Number, py::String, py::Bytes, py::Ellipsis, py::NameConstant, py::Tuple, py::PyObject*> const, 18446744073709551615ul>, py::PyDict*) at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyFunction.cpp:300:15
+#21 0x00005635ab47b2cf in rt_call_raw_ptrs(py::PyObject*, py::PyObject**, int, py::PyObject*) at /home/lux/code/language/python-cpp/src/runtime/export/rt_func.cpp:237:29
+#22 0x00005635ab4730d3 in PyInit_test at /tmp/test
+#23 0x00005635ab47564a in main at /tmp/test
+#24 0x00007f992862a1c9 in __libc_start_call_main at ./csu/../sysdeps/nptl/libc_start_call_main.h:58:16
+#25 0x00007f992862a28a in __libc_start_main_impl at ./csu/../csu/libc-start.c:360:3
+#26 0x00005635ab472ce4 in _start at /tmp/test
+[.233]  PyDict                  340000
+[.234]  Type                    170000
+[.251] [error] [DEBUG_ALLOC_TRACE] Type: PyTuple                 200000
+Stack trace (most recent call first):
+#0  0x00005635ab7e0f88 in _pylang_debug_log_alloc(char const*, std::atomic<unsigned long>&) at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/compat.hpp:35:16
+#1  (inlined)          in py::PyTuple::create(std::vector<std::variant<py::Number, py::String, py::Bytes, py::Ellipsis, py::NameConstant, py::Tuple, py::PyObject*>, py::GCTracingAllocator<std::variant<py::Number, py::String, py::Bytes, py::Ellipsis, py::NameConstant, py::Tuple, py::PyObject*> > >&&)::$_0::operator()() const at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyTuple.cpp:119:14
+#2  0x00005635ab673692 in py::PyTuple::create(std::vector<std::variant<py::Number, py::String, py::Bytes, py::Ellipsis, py::NameConstant, py::Tuple, py::PyObject*>, py::GCTracingAllocator<std::variant<py::Number, py::String, py::Bytes, py::Ellipsis, py::NameConstant, py::Tuple, py::PyObject*> > >&&) at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyTuple.cpp:119:14
+#3  0x00005635ab6384b5 in py::PySlotWrapper::call_raw(std::span<std::variant<py::Number, py::String, py::Bytes, py::Ellipsis, py::NameConstant, py::Tuple, py::PyObject*> const, 18446744073709551615ul>, py::PyDict*) at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PySlotWrapper.cpp:106:9
+#4  0x00005635ab5ef8d6 in py::PyObject::init_raw(std::span<std::variant<py::Number, py::String, py::Bytes, py::Ellipsis, py::NameConstant, py::Tuple, py::PyObject*> const, 18446744073709551615ul>, py::PyDict*) at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyObject.cpp:1364:17
+#5  0x00005635ab5ef4f4 in py::PyType::call_raw(std::span<std::variant<py::Number, py::String, py::Bytes, py::Ellipsis, py::NameConstant, py::Tuple, py::PyObject*> const, 18446744073709551615ul>, py::PyDict*) at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyObject.cpp:1308:24
+#6  0x00005635ab47b2cf in rt_call_raw_ptrs(py::PyObject*, py::PyObject**, int, py::PyObject*) at /home/lux/code/language/python-cpp/src/runtime/export/rt_func.cpp:237:29
+#7  0x00005635ab4744d0 in test.<module>.0:0.generate_trie.71:0 at /tmp/test
+#8  0x00005635ab59bd34 in py::PyNativeFunction::call_raw(std::span<std::variant<py::Number, py::String, py::Bytes, py::Ellipsis, py::NameConstant, py::Tuple, py::PyObject*> const, 18446744073709551615ul>, py::PyDict*) at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyFunction.cpp:300:15
+#9  0x00005635ab47b2cf in rt_call_raw_ptrs(py::PyObject*, py::PyObject**, int, py::PyObject*) at /home/lux/code/language/python-cpp/src/runtime/export/rt_func.cpp:237:29
+#10 0x00005635ab474a0a in test.<module>.0:0.find.86:0 at /tmp/test
+#11 0x00005635ab59bd34 in py::PyNativeFunction::call_raw(std::span<std::variant<py::Number, py::String, py::Bytes, py::Ellipsis, py::NameConstant, py::Tuple, py::PyObject*> const, 18446744073709551615ul>, py::PyDict*) at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyFunction.cpp:300:15
+#12 0x00005635ab47b2cf in rt_call_raw_ptrs(py::PyObject*, py::PyObject**, int, py::PyObject*) at /home/lux/code/language/python-cpp/src/runtime/export/rt_func.cpp:237:29
+#13 0x00005635ab4730d3 in PyInit_test at /tmp/test
+#14 0x00005635ab47564a in main at /tmp/test
+#15 0x00007f992862a1c9 in __libc_start_call_main at ./csu/../sysdeps/nptl/libc_start_call_main.h:58:16
+#16 0x00007f992862a28a in __libc_start_main_impl at ./csu/../csu/libc-start.c:360:3
+#17 0x00005635ab472ce4 in _start at /tmp/test
+[.254] [error] [DEBUG_ALLOC_TRACE] Type: PyStringIterator        100000
+Stack trace (most recent call first):
+#0  0x00005635ab7e0f88 in _pylang_debug_log_alloc(char const*, std::atomic<unsigned long>&) at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/compat.hpp:35:16
+#1  (inlined)          in py::PyString::__iter__() const::$_0::operator()() const at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyString.cpp:1319:13
+#2  0x00005635ab65898b in py::PyString::__iter__() const at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyString.cpp:1319:13
+#3  (inlined)          in std::function<py::PyResult<py::PyObject*> (py::PyObject const*)>::operator()(py::PyObject const*) const at /usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/bits/std_function.h:591:9
+#4  0x00005635ab5fbdd3 in py::PyResult<py::PyObject*> py::(anonymous namespace)::call_slot<std::function<py::PyResult<py::PyObject*> (py::PyObject const*)>, py::PyResult<py::PyObject*>, py::PyObject const*>(std::variant<std::function<py::PyResult<py::PyObject*> (py::PyObject const*)>, py::PyObject*> const&, py::PyObject const*&&) requires std::is_same_v<py::PyResult<py::PyObject*>::OkType, py::PyObject*> at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyObject.cpp:168:11
+#5  0x00005635ab60d706 in py::PyObject::iter() const at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyObject.cpp:1190:10
+#6  0x00005635ab480774 in rt_get_iter(py::PyObject*) at /home/lux/code/language/python-cpp/src/runtime/export/rt_subscr.cpp:23:86
+#7  0x00005635ab4744f5 in test.<module>.0:0.generate_trie.71:0 at /tmp/test
+#8  0x00005635ab59bd34 in py::PyNativeFunction::call_raw(std::span<std::variant<py::Number, py::String, py::Bytes, py::Ellipsis, py::NameConstant, py::Tuple, py::PyObject*> const, 18446744073709551615ul>, py::PyDict*) at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyFunction.cpp:300:15
+#9  0x00005635ab47b2cf in rt_call_raw_ptrs(py::PyObject*, py::PyObject**, int, py::PyObject*) at /home/lux/code/language/python-cpp/src/runtime/export/rt_func.cpp:237:29
+#10 0x00005635ab474a0a in test.<module>.0:0.find.86:0 at /tmp/test
+#11 0x00005635ab59bd34 in py::PyNativeFunction::call_raw(std::span<std::variant<py::Number, py::String, py::Bytes, py::Ellipsis, py::NameConstant, py::Tuple, py::PyObject*> const, 18446744073709551615ul>, py::PyDict*) at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyFunction.cpp:300:15
+#12 0x00005635ab47b2cf in rt_call_raw_ptrs(py::PyObject*, py::PyObject**, int, py::PyObject*) at /home/lux/code/language/python-cpp/src/runtime/export/rt_func.cpp:237:29
+#13 0x00005635ab4730d3 in PyInit_test at /tmp/test
+#14 0x00005635ab47564a in main at /tmp/test
+#15 0x00007f992862a1c9 in __libc_start_call_main at ./csu/../sysdeps/nptl/libc_start_call_main.h:58:16
+#16 0x00007f992862a28a in __libc_start_main_impl at ./csu/../csu/libc-start.c:360:3
+#17 0x00005635ab472ce4 in _start at /tmp/test
+[.255]  PyDict                  345000
+[.271]  PyDict                  350000
+[.271]  Type                    175000
+[.272]  PyString                105000
+[.280]  PyTuple                 205000
+[.284]  PyInteger               105000
+[.293]  PyDict                  355000
+[.307]  PyDict                  360000
+[.308]  Type                    180000
+[.314]  PyTuple                 210000
+[.314]  PyStringIterator        105000
+[.322]  PyDict                  365000
+[.331]  PyString                110000
+[.337]  PyDict                  370000
+[.338]  Type                    185000
+[.340]  PyTuple                 215000
+[.343]  PyInteger               110000
+[.352]  PyDict                  375000
+[.366]  PyTuple                 220000
+[.366]  PyStringIterator        110000
+[.367]  PyDict                  380000
+[.368]  Type                    190000
+[.382]  PyDict                  385000
+[.384]  PyString                115000
+[.392]  PyTuple                 225000
+[.395]  PyInteger               115000
+[.397]  PyDict                  390000
+[.397]  Type                    195000
+[.411]  PyDict                  395000
+[.418]  PyTuple                 230000
+[.418]  PyStringIterator        115000
+[.429] [error] [DEBUG_ALLOC_TRACE] Type: PyDict                  400000
+Stack trace (most recent call first):
+#0  0x00005635ab7e0f88 in _pylang_debug_log_alloc(char const*, std::atomic<unsigned long>&) at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/compat.hpp:35:16
+#1  (inlined)          in py::PyDict::create()::$_0::operator()() const at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyDict.cpp:53:17
+#2  0x00005635ab57ebb6 in py::PyDict::create() at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyDict.cpp:53:17
+#3  0x00005635ab6192fa in py::PyObject::__setattribute__(py::PyObject*, py::PyObject*) at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyObject.cpp:1661:19
+#4  (inlined)          in std::function<py::PyResult<std::monostate> (py::PyObject*, py::PyObject*, py::PyObject*)>::operator()(py::PyObject*, py::PyObject*, py::PyObject*) const at /usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/bits/std_function.h:591:9
+#5  0x00005635ab602c0a in py::PyResult<std::monostate> py::(anonymous namespace)::call_slot<std::function<py::PyResult<std::monostate> (py::PyObject*, py::PyObject*, py::PyObject*)>, py::PyResult<std::monostate>, py::PyObject*, py::PyObject*&, py::PyObject*&>(std::variant<std::function<py::PyResult<std::monostate> (py::PyObject*, py::PyObject*, py::PyObject*)>, py::PyObject*> const&, std::basic_string_view<char, std::char_traits<char> >, py::PyObject*&&, py::PyObject*&, py::PyObject*&) requires !(std::is_same_v<py::PyResult<std::monostate>::OkType, py::PyObject*>) at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyObject.cpp:193:11
+#6  0x00005635ab601fae in py::PyObject::setattribute(py::PyObject*, py::PyObject*) at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyObject.cpp:723:10
+#7  0x00005635ab476b17 in rt_setattr_fast(py::PyObject*, py::PyObject*, py::PyObject*) at /home/lux/code/language/python-cpp/src/runtime/export/rt_attr.cpp:182:24
+#8  0x00005635ab473237 in test.<module>.0:0.Node.3:0.__init__.4:4 at /tmp/test
+#9  0x00005635ab59bd34 in py::PyNativeFunction::call_raw(std::span<std::variant<py::Number, py::String, py::Bytes, py::Ellipsis, py::NameConstant, py::Tuple, py::PyObject*> const, 18446744073709551615ul>, py::PyDict*) at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyFunction.cpp:300:15
+#10 0x00005635ab5ef8d6 in py::PyObject::init_raw(std::span<std::variant<py::Number, py::String, py::Bytes, py::Ellipsis, py::NameConstant, py::Tuple, py::PyObject*> const, 18446744073709551615ul>, py::PyDict*) at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyObject.cpp:1364:17
+#11 0x00005635ab5ef4f4 in py::PyType::call_raw(std::span<std::variant<py::Number, py::String, py::Bytes, py::Ellipsis, py::NameConstant, py::Tuple, py::PyObject*> const, 18446744073709551615ul>, py::PyDict*) at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyObject.cpp:1308:24
+#12 0x00005635ab47b2cf in rt_call_raw_ptrs(py::PyObject*, py::PyObject**, int, py::PyObject*) at /home/lux/code/language/python-cpp/src/runtime/export/rt_func.cpp:237:29
+#13 0x00005635ab474605 in test.<module>.0:0.generate_trie.71:0 at /tmp/test
+#14 0x00005635ab59bd34 in py::PyNativeFunction::call_raw(std::span<std::variant<py::Number, py::String, py::Bytes, py::Ellipsis, py::NameConstant, py::Tuple, py::PyObject*> const, 18446744073709551615ul>, py::PyDict*) at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyFunction.cpp:300:15
+#15 0x00005635ab47b2cf in rt_call_raw_ptrs(py::PyObject*, py::PyObject**, int, py::PyObject*) at /home/lux/code/language/python-cpp/src/runtime/export/rt_func.cpp:237:29
+#16 0x00005635ab474a0a in test.<module>.0:0.find.86:0 at /tmp/test
+#17 0x00005635ab59bd34 in py::PyNativeFunction::call_raw(std::span<std::variant<py::Number, py::String, py::Bytes, py::Ellipsis, py::NameConstant, py::Tuple, py::PyObject*> const, 18446744073709551615ul>, py::PyDict*) at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyFunction.cpp:300:15
+#18 0x00005635ab47b2cf in rt_call_raw_ptrs(py::PyObject*, py::PyObject**, int, py::PyObject*) at /home/lux/code/language/python-cpp/src/runtime/export/rt_func.cpp:237:29
+#19 0x00005635ab4730d3 in PyInit_test at /tmp/test
+#20 0x00005635ab47564a in main at /tmp/test
+#21 0x00007f992862a1c9 in __libc_start_call_main at ./csu/../sysdeps/nptl/libc_start_call_main.h:58:16
+#22 0x00007f992862a28a in __libc_start_main_impl at ./csu/../csu/libc-start.c:360:3
+#23 0x00005635ab472ce4 in _start at /tmp/test
+[.432] [error] [DEBUG_ALLOC_TRACE] Type: Type                    200000
+Stack trace (most recent call first):
+#0  0x00005635ab7e0f88 in _pylang_debug_log_alloc(char const*, std::atomic<unsigned long>&) at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/compat.hpp:35:16
+#1  (inlined)          in py::TypePrototype::create<py::PyObject>(std::basic_string_view<char, std::char_traits<char> >)::{lambda(py::PyType*)#1}::operator()(py::PyType*) const::{lambda()#1}::operator()() const::{lambda()#2}::operator()() const at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyObject.hpp:579:12
+#2  0x00005635ab9aadc3 in py::TypePrototype::create<py::PyObject>(std::basic_string_view<char, std::char_traits<char> >)::{lambda(py::PyType*)#1}::operator()(py::PyType*) const::{lambda()#1}::operator()() const at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyObject.hpp:579:12
+#3  (inlined)          in py::TypePrototype::create<py::PyObject>(std::basic_string_view<char, std::char_traits<char> >)::{lambda(py::PyType*)#1}::operator()(py::PyType*) const at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyObject.hpp:571:15
+#4  (inlined)          in py::PyResult<py::PyObject*> std::__invoke_impl<py::PyResult<py::PyObject*>, py::TypePrototype::create<py::PyObject>(std::basic_string_view<char, std::char_traits<char> >)::{lambda(py::PyType*)#1}&, py::PyType*>(std::__invoke_other, py::TypePrototype::create<py::PyObject>(std::basic_string_view<char, std::char_traits<char> >)::{lambda(py::PyType*)#1}&, py::PyType*&&) at /usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/bits/invoke.h:61:14
+#5  (inlined)          in std::enable_if<is_invocable_r_v<py::PyResult<py::PyObject*>, py::TypePrototype::create<py::PyObject>(std::basic_string_view<char, std::char_traits<char> >)::{lambda(py::PyType*)#1}&, py::PyType*>, py::PyResult<py::PyObject*> >::type std::__invoke_r<py::PyResult<py::PyObject*>, py::TypePrototype::create<py::PyObject>(std::basic_string_view<char, std::char_traits<char> >)::{lambda(py::PyType*)#1}&, py::PyType*>(py::TypePrototype::create<py::PyObject>(std::basic_string_view<char, std::char_traits<char> >)::{lambda(py::PyType*)#1}&, py::PyType*&&) at /usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/bits/invoke.h:114:9
+#6  0x00005635ab9aab85 in std::_Function_handler<py::PyResult<py::PyObject*> (py::PyType*), py::TypePrototype::create<py::PyObject>(std::basic_string_view<char, std::char_traits<char> >)::{lambda(py::PyType*)#1}>::_M_invoke(std::_Any_data const&, py::PyType*&&) at /usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/bits/std_function.h:290:9
+#7  (inlined)          in std::function<py::PyResult<py::PyObject*> (py::PyType*)>::operator()(py::PyType*) const at /usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/bits/std_function.h:591:9
+#8  (inlined)          in py::PyType::heap_object_allocation(py::PyType*)::$_0::operator()(py::PyTuple*) const at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyType.cpp:491:52
+#9  (inlined)          in py::PyResult<py::PyObject*> py::PyResult<py::PyTuple*>::and_then<py::PyType::heap_object_allocation(py::PyType*)::$_0, py::PyObject*>(py::PyType::heap_object_allocation(py::PyType*)::$_0&&) const at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/Value.hpp:307:10
+#10 0x00005635ab6bf89a in py::PyType::heap_object_allocation(py::PyType*) at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyType.cpp:486:30
+#11 (inlined)          in std::function<py::PyResult<py::PyObject*> (py::PyType*)>::operator()(py::PyType*) const at /usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/bits/std_function.h:591:9
+#12 0x00005635ab61be36 in py::PyObject::__new__(py::PyType const*, py::PyTuple*, py::PyDict*) at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyObject.cpp:1738:9
+#13 (inlined)          in std::function<py::PyResult<py::PyObject*> (py::PyType const*, py::PyTuple*, py::PyDict*)>::operator()(py::PyType const*, py::PyTuple*, py::PyDict*) const at /usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/bits/std_function.h:591:9
+#14 0x00005635ab6c5d73 in py::PyType::new_(py::PyTuple*, py::PyDict*) const at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyType.cpp:1298:11
+#15 0x00005635ab5ef250 in py::PyType::call_raw(std::span<std::variant<py::Number, py::String, py::Bytes, py::Ellipsis, py::NameConstant, py::Tuple, py::PyObject*> const, 18446744073709551615ul>, py::PyDict*) at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyObject.cpp:1302:17
+#16 0x00005635ab47b2cf in rt_call_raw_ptrs(py::PyObject*, py::PyObject**, int, py::PyObject*) at /home/lux/code/language/python-cpp/src/runtime/export/rt_func.cpp:237:29
+#17 0x00005635ab474605 in test.<module>.0:0.generate_trie.71:0 at /tmp/test
+#18 0x00005635ab59bd34 in py::PyNativeFunction::call_raw(std::span<std::variant<py::Number, py::String, py::Bytes, py::Ellipsis, py::NameConstant, py::Tuple, py::PyObject*> const, 18446744073709551615ul>, py::PyDict*) at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyFunction.cpp:300:15
+#19 0x00005635ab47b2cf in rt_call_raw_ptrs(py::PyObject*, py::PyObject**, int, py::PyObject*) at /home/lux/code/language/python-cpp/src/runtime/export/rt_func.cpp:237:29
+#20 0x00005635ab474a0a in test.<module>.0:0.find.86:0 at /tmp/test
+#21 0x00005635ab59bd34 in py::PyNativeFunction::call_raw(std::span<std::variant<py::Number, py::String, py::Bytes, py::Ellipsis, py::NameConstant, py::Tuple, py::PyObject*> const, 18446744073709551615ul>, py::PyDict*) at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyFunction.cpp:300:15
+#22 0x00005635ab47b2cf in rt_call_raw_ptrs(py::PyObject*, py::PyObject**, int, py::PyObject*) at /home/lux/code/language/python-cpp/src/runtime/export/rt_func.cpp:237:29
+#23 0x00005635ab4730d3 in PyInit_test at /tmp/test
+#24 0x00005635ab47564a in main at /tmp/test
+#25 0x00007f992862a1c9 in __libc_start_call_main at ./csu/../sysdeps/nptl/libc_start_call_main.h:58:16
+#26 0x00007f992862a28a in __libc_start_main_impl at ./csu/../csu/libc-start.c:360:3
+#27 0x00005635ab472ce4 in _start at /tmp/test
+[.441]  PyString                120000
+[.447]  PyDict                  405000
+[.451]  PyTuple                 235000
+[.454]  PyInteger               120000
+[.463]  PyDict                  410000
+[.464]  Type                    205000
+[.477]  PyTuple                 240000
+[.478]  PyStringIterator        120000
+[.478]  PyDict                  415000
+[.497]  PyDict                  420000
+[.498]  Type                    210000
+[.499]  PyString                125000
+[.508]  PyTuple                 245000
+[.512]  PyInteger               125000
+[.513]  PyDict                  425000
+[.528]  PyDict                  430000
+[.528]  Type                    215000
+[.535]  PyTuple                 250000
+[.536]  PyStringIterator        125000
+[.543]  PyDict                  435000
+[.552]  PyString                130000
+[.558]  PyDict                  440000
+[.558]  Type                    220000
+[.561]  PyTuple                 255000
+[.564]  PyInteger               130000
+[.572]  PyDict                  445000
+[.586]  PyTuple                 260000
+[.587]  PyDict                  450000
+[.587]  PyStringIterator        130000
+[.587]  Type                    225000
+[.601]  PyDict                  455000
+[.604]  PyString                135000
+[.612]  PyTuple                 265000
+[.615]  PyInteger               135000
+[.616]  PyDict                  460000
+[.616]  Type                    230000
+[.629]  PyDict                  465000
+[.637]  PyTuple                 270000
+[.637]  PyStringIterator        135000
+[.644]  PyDict                  470000
+[.644]  Type                    235000
+[.654]  PyString                140000
+[.658]  PyDict                  475000
+[.662]  PyTuple                 275000
+[.665]  PyInteger               140000
+[.672]  PyDict                  480000
+[.672]  Type                    240000
+[.686]  PyDict                  485000
+[.686]  PyTuple                 280000
+[.687]  PyStringIterator        140000
+[.700]  PyDict                  490000
+[.700]  Type                    245000
+[.703]  PyString                145000
+[.711]  PyTuple                 285000
+[.714]  PyDict                  495000
+[.715]  PyInteger               145000
+[.730] [error] [DEBUG_ALLOC_TRACE] Type: PyDict                  500000
+Stack trace (most recent call first):
+#0  0x00005635ab7e0f88 in _pylang_debug_log_alloc(char const*, std::atomic<unsigned long>&) at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/compat.hpp:35:16
+#1  (inlined)          in py::PyDict::create()::$_0::operator()() const at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyDict.cpp:53:17
+#2  0x00005635ab57ebb6 in py::PyDict::create() at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyDict.cpp:53:17
+#3  0x00005635ab6192fa in py::PyObject::__setattribute__(py::PyObject*, py::PyObject*) at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyObject.cpp:1661:19
+#4  (inlined)          in std::function<py::PyResult<std::monostate> (py::PyObject*, py::PyObject*, py::PyObject*)>::operator()(py::PyObject*, py::PyObject*, py::PyObject*) const at /usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/bits/std_function.h:591:9
+#5  0x00005635ab602c0a in py::PyResult<std::monostate> py::(anonymous namespace)::call_slot<std::function<py::PyResult<std::monostate> (py::PyObject*, py::PyObject*, py::PyObject*)>, py::PyResult<std::monostate>, py::PyObject*, py::PyObject*&, py::PyObject*&>(std::variant<std::function<py::PyResult<std::monostate> (py::PyObject*, py::PyObject*, py::PyObject*)>, py::PyObject*> const&, std::basic_string_view<char, std::char_traits<char> >, py::PyObject*&&, py::PyObject*&, py::PyObject*&) requires !(std::is_same_v<py::PyResult<std::monostate>::OkType, py::PyObject*>) at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyObject.cpp:193:11
+#6  0x00005635ab601fae in py::PyObject::setattribute(py::PyObject*, py::PyObject*) at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyObject.cpp:723:10
+#7  0x00005635ab476b17 in rt_setattr_fast(py::PyObject*, py::PyObject*, py::PyObject*) at /home/lux/code/language/python-cpp/src/runtime/export/rt_attr.cpp:182:24
+#8  0x00005635ab473237 in test.<module>.0:0.Node.3:0.__init__.4:4 at /tmp/test
+#9  0x00005635ab59bd34 in py::PyNativeFunction::call_raw(std::span<std::variant<py::Number, py::String, py::Bytes, py::Ellipsis, py::NameConstant, py::Tuple, py::PyObject*> const, 18446744073709551615ul>, py::PyDict*) at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyFunction.cpp:300:15
+#10 0x00005635ab5ef8d6 in py::PyObject::init_raw(std::span<std::variant<py::Number, py::String, py::Bytes, py::Ellipsis, py::NameConstant, py::Tuple, py::PyObject*> const, 18446744073709551615ul>, py::PyDict*) at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyObject.cpp:1364:17
+#11 0x00005635ab5ef4f4 in py::PyType::call_raw(std::span<std::variant<py::Number, py::String, py::Bytes, py::Ellipsis, py::NameConstant, py::Tuple, py::PyObject*> const, 18446744073709551615ul>, py::PyDict*) at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyObject.cpp:1308:24
+#12 0x00005635ab47b2cf in rt_call_raw_ptrs(py::PyObject*, py::PyObject**, int, py::PyObject*) at /home/lux/code/language/python-cpp/src/runtime/export/rt_func.cpp:237:29
+#13 0x00005635ab474605 in test.<module>.0:0.generate_trie.71:0 at /tmp/test
+#14 0x00005635ab59bd34 in py::PyNativeFunction::call_raw(std::span<std::variant<py::Number, py::String, py::Bytes, py::Ellipsis, py::NameConstant, py::Tuple, py::PyObject*> const, 18446744073709551615ul>, py::PyDict*) at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyFunction.cpp:300:15
+#15 0x00005635ab47b2cf in rt_call_raw_ptrs(py::PyObject*, py::PyObject**, int, py::PyObject*) at /home/lux/code/language/python-cpp/src/runtime/export/rt_func.cpp:237:29
+#16 0x00005635ab474a0a in test.<module>.0:0.find.86:0 at /tmp/test
+#17 0x00005635ab59bd34 in py::PyNativeFunction::call_raw(std::span<std::variant<py::Number, py::String, py::Bytes, py::Ellipsis, py::NameConstant, py::Tuple, py::PyObject*> const, 18446744073709551615ul>, py::PyDict*) at /home/lux/code/language/python-cpp/src/runtime/export/../../runtime/PyFunction.cpp:300:15
+#18 0x00005635ab47b2cf in rt_call_raw_ptrs(py::PyObject*, py::PyObject**, int, py::PyObject*) at /home/lux/code/language/python-cpp/src/runtime/export/rt_func.cpp:237:29
+#19 0x00005635ab4730d3 in PyInit_test at /tmp/test
+#20 0x00005635ab47564a in main at /tmp/test
+#21 0x00007f992862a1c9 in __libc_start_call_main at ./csu/../sysdeps/nptl/libc_start_call_main.h:58:16
+#22 0x00007f992862a28a in __libc_start_main_impl at ./csu/../csu/libc-start.c:360:3
+#23 0x00005635ab472ce4 in _start at /tmp/test
+[.731]  Type                    250000

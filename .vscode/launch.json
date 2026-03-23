@@ -5,10 +5,10 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "CodeLLDB: /tmp/test",
+            "name": "CodeLLDB: /tmp/test3",
             "type": "lldb",
             "request": "launch",
-            "program": "/tmp/test",
+            "program": "/tmp/test3",
             "args": [],
             "cwd": "${workspaceFolder}"
         },

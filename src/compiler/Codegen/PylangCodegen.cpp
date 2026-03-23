@@ -3124,162 +3124,169 @@ void PylangCodegen::emit_comprehension_loops(
 }
 
 llvm::Value *PylangCodegen::compile_comprehension_impl(const std::string &name,
-	const ast::ASTNode *node,
-	llvm::Value *iterator,
-	std::function<llvm::Value *()> container_factory,// 创建容器
-	std::function<void(llvm::Value *)> loop_body_gen// 填充逻辑 (参数是容器)
+    const ast::ASTNode *node,
+    llvm::Value *iterator,
+    std::function<llvm::Value *()> container_factory,// 创建容器
+    std::function<void(llvm::Value *)> loop_body_gen// 填充逻辑 (参数是容器)
 )
 {
-	auto *obj_ptr_ty = m_emitter.pyobject_ptr_type();
+    auto *obj_ptr_ty = m_emitter.pyobject_ptr_type();
 
-	// === Step 1: Mangle 名字 & 分析作用域 ===
-	auto mangled = m_mangler.function_mangle(
-		m_codegen_ctx.current_scope().mangled_name, name, node->source_location());
+    // === Step 1: Mangle 名字 & 分析作用域 ===
+    auto mangled = m_mangler.function_mangle(
+        m_codegen_ctx.current_scope().mangled_name, name, node->source_location());
 
-	// 查找 VariablesResolver 分析出的 Scope
-	VariablesResolver::Scope *var_scope = nullptr;
-	auto vis_it = m_codegen_ctx.visibility_map().find(mangled);
-	if (vis_it != m_codegen_ctx.visibility_map().end()) { var_scope = vis_it->second.get(); }
+    // 查找 VariablesResolver 分析出的 Scope
+    VariablesResolver::Scope *var_scope = nullptr;
+    auto vis_it = m_codegen_ctx.visibility_map().find(mangled);
+    if (vis_it != m_codegen_ctx.visibility_map().end()) { var_scope = vis_it->second.get(); }
 
-	// 收集需要捕获的变量（Cell 和 Free）
-	std::vector<std::string> cell_vars;
-	std::vector<std::string> free_vars;
-	m_codegen_ctx.collect_cell_and_free_vars(var_scope, cell_vars, free_vars);
-	bool has_closure = !free_vars.empty();
+    // 收集需要捕获的变量（Cell 和 Free）
+    std::vector<std::string> cell_vars;
+    std::vector<std::string> free_vars;
+    m_codegen_ctx.collect_cell_and_free_vars(var_scope, cell_vars, free_vars);
+    bool has_closure = !free_vars.empty();
 
-	// === Step 2: 创建 LLVM 函数 ===
-	// 签名: (module, [closure], args, kwargs)
-	std::vector<llvm::Type *> param_types;
-	param_types.push_back(obj_ptr_ty);// module
-	if (has_closure) {
-		param_types.push_back(obj_ptr_ty);// closure
-	}
-	param_types.push_back(obj_ptr_ty);// args
-	param_types.push_back(obj_ptr_ty);// kwargs
+    // === Step 2: 创建 LLVM 函数 ===
+    // 签名: 统一使用 AOT raw ABI
+    // PyObject* (PyObject* module, PyObject* closure, const Value* args_array, int32_t argc, PyDict* kwargs)
+    // [修复]：强制占位 closure 并使用 value array + argc
+    auto *val_ptr_ty = m_builder.getPtrTy(); // 对应 const Value*
+    auto *i32_ty = m_builder.getInt32Ty();  // [修复]
 
-	auto *func_ty = llvm::FunctionType::get(obj_ptr_ty, param_types, false);
-	auto *comp_func =
-		llvm::Function::Create(func_ty, llvm::Function::InternalLinkage, mangled, m_module.get());
+    std::vector<llvm::Type *> param_types;
+    param_types.push_back(obj_ptr_ty); // module
+    param_types.push_back(obj_ptr_ty); // closure (占位)  // [修复]
+    param_types.push_back(val_ptr_ty); // args_array (const Value*) // [修复]
+    param_types.push_back(i32_ty);     // argc // [修复]
+    param_types.push_back(obj_ptr_ty); // kwargs
 
-	ensure_personality(comp_func);
+    auto *func_ty = llvm::FunctionType::get(obj_ptr_ty, param_types, false);
+    auto *comp_func =
+        llvm::Function::Create(func_ty, llvm::Function::InternalLinkage, mangled, m_module.get());
 
-	// 设置参数名
-	auto arg_it = comp_func->arg_begin();
-	arg_it->setName("module");
-	auto *module_arg = &*arg_it++;
+    ensure_personality(comp_func);
 
-	llvm::Value *closure_arg = nullptr;
-	if (has_closure) {
-		arg_it->setName("closure");
-		closure_arg = &*arg_it++;
-	}
+    // 设置参数名
+    auto arg_it = comp_func->arg_begin();
+    arg_it->setName("module");
+    auto *module_arg = &*arg_it++;
 
-	arg_it->setName("args");
-	auto *args_arg = &*arg_it++;
-	arg_it->setName("kwargs");
-	auto *kwargs_arg = &*arg_it++;
-	(void)kwargs_arg;// 推导式暂不使用 kwargs
+    arg_it->setName("closure"); // [修复]
+    auto *closure_arg = &*arg_it++;
 
-	// === Step 3: 进入函数体 ===
-	auto *saved_bb = m_builder.GetInsertBlock();
-	auto *saved_unwind = m_emitter.unwind_dest();
+    arg_it->setName("args_array"); // [修复]
+    auto *args_array_arg = &*arg_it++;
 
-	auto *entry_bb = llvm::BasicBlock::Create(m_ctx, "entry", comp_func);
-	m_builder.SetInsertPoint(entry_bb);
-	m_emitter.set_unwind_dest(nullptr);// 重置 unwind 目标（新函数还没有 try 块）
+    arg_it->setName("argc"); // [修复]
+    auto *argc_arg = &*arg_it++;
 
-	ScopeContext comp_scope{};
-	comp_scope.type = ScopeContext::Type::FUNCTION;
-	comp_scope.name = name;
-	comp_scope.mangled_name = mangled;
-	comp_scope.llvm_func = comp_func;
-	comp_scope.module_obj = module_arg;// 使用当前函数的 module 参数
-	comp_scope.var_scope = var_scope;
-	m_codegen_ctx.push_scope(std::move(comp_scope));
+    arg_it->setName("kwargs");
+    auto *kwargs_arg = &*arg_it++;
+    (void)kwargs_arg;// 推导式暂不使用 kwargs
 
-	// === Step 4: 初始化闭包变量 ===
+    // === Step 3: 进入函数体 ===
+    auto *saved_bb = m_builder.GetInsertBlock();
+    auto *saved_unwind = m_emitter.unwind_dest();
 
-	// A. 为自己的 Cell 变量创建存储
-	for (const auto &cv : cell_vars) {
-		auto *cell = m_emitter.call_create_cell(nullptr);
-		auto *alloca = m_codegen_ctx.create_local(cv + ".cell", obj_ptr_ty);
-		m_builder.CreateStore(cell, alloca);
-		m_codegen_ctx.register_cell(cv, alloca);
-	}
+    auto *entry_bb = llvm::BasicBlock::Create(m_ctx, "entry", comp_func);
+    m_builder.SetInsertPoint(entry_bb);
+    m_emitter.set_unwind_dest(nullptr);// 重置 unwind 目标（新函数还没有 try 块）
 
-	// B. 从 closure tuple 恢复 Free 变量
-	for (size_t i = 0; i < free_vars.size(); ++i) {
-		// closure[i]
-		auto *cell =
-			m_emitter.call_tuple_getitem(closure_arg, m_builder.getInt32(static_cast<int32_t>(i)));
-		auto *alloca = m_codegen_ctx.create_local(free_vars[i] + ".free", obj_ptr_ty);
-		m_builder.CreateStore(cell, alloca);
-		m_codegen_ctx.register_free_var(free_vars[i], alloca);
-	}
+    ScopeContext comp_scope{};
+    comp_scope.type = ScopeContext::Type::FUNCTION;
+    comp_scope.name = name;
+    comp_scope.mangled_name = mangled;
+    comp_scope.llvm_func = comp_func;
+    comp_scope.module_obj = module_arg;// 使用当前函数的 module 参数
+    comp_scope.var_scope = var_scope;
+    m_codegen_ctx.push_scope(std::move(comp_scope));
 
-	// === Step 5: 生成推导式逻辑 ===
+    // === Step 4: 初始化闭包变量 ===
 
-	// 从 args[0] 获取迭代器 (传入的是 tuple(iterator))
-	auto *iter_val = m_emitter.call_tuple_getitem(args_arg, m_builder.getInt32(0));
+    // A. 为自己的 Cell 变量创建存储
+    for (const auto &cv : cell_vars) {
+        auto *cell = m_emitter.call_create_cell(nullptr);
+        auto *alloca = m_codegen_ctx.create_local(cv + ".cell", obj_ptr_ty);
+        m_builder.CreateStore(cell, alloca);
+        m_codegen_ctx.register_cell(cv, alloca);
+    }
 
-	// 创建容器 (List/Set/Dict)
-	auto *container = container_factory();
+    // B. 从 closure tuple 恢复 Free 变量
+    for (size_t i = 0; i < free_vars.size(); ++i) {
+        // closure[i]
+        auto *cell =
+            m_emitter.call_tuple_getitem(closure_arg, m_builder.getInt32(static_cast<int32_t>(i)));
+        auto *alloca = m_codegen_ctx.create_local(free_vars[i] + ".free", obj_ptr_ty);
+        m_builder.CreateStore(cell, alloca);
+        m_codegen_ctx.register_free_var(free_vars[i], alloca);
+    }
 
-	// 生成多层循环结构
-	const std::vector<std::shared_ptr<ast::Comprehension>> *generators = nullptr;
-	if (auto *l = dynamic_cast<const ast::ListComp *>(node))
-		generators = &l->generators();
-	else if (auto *s = dynamic_cast<const ast::SetComp *>(node))
-		generators = &s->generators();
-	else if (auto *d = dynamic_cast<const ast::DictComp *>(node))
-		generators = &d->generators();
+    // === Step 5: 生成推导式逻辑 ===
 
-	// 这里的闭包捕获了 container，供最内层循环使用
-	emit_comprehension_loops(*generators, 0, iter_val, [&]() { loop_body_gen(container); });
+    // 从 args_array[0] 获取迭代器 (AOT raw ABI)
+    // 之前: auto *iter_val = m_emitter.call_tuple_getitem(args_arg, m_builder.getInt32(0));
+    // [修复]：改为从 Value 数组提取
+    auto *iter_val = m_emitter.call_value_array_get(args_array_arg, m_builder.getInt32(0)); // [修复]
 
-	// 返回容器
-	m_builder.CreateRet(container);
+    // 创建容器 (List/Set/Dict)
+    auto *container = container_factory();
 
-	// === Step 6: 恢复编译环境 ===
-	m_codegen_ctx.pop_scope();
-	m_builder.SetInsertPoint(saved_bb);
-	m_emitter.set_unwind_dest(saved_unwind);
+    // 生成多层循环结构
+    const std::vector<std::shared_ptr<ast::Comprehension>> *generators = nullptr;
+    if (auto *l = dynamic_cast<const ast::ListComp *>(node))
+        generators = &l->generators();
+    else if (auto *s = dynamic_cast<const ast::SetComp *>(node))
+        generators = &s->generators();
+    else if (auto *d = dynamic_cast<const ast::DictComp *>(node))
+        generators = &d->generators();
 
-	// === Step 7: (在父作用域) 构建调用代码 ===
+    // 这里的闭包捕获了 container，供最内层循环使用
+    emit_comprehension_loops(*generators, 0, iter_val, [&]() { loop_body_gen(container); });
 
-	// 构建 closure tuple (捕获父作用域的 cell)
-	llvm::Value *closure_tuple = m_emitter.null_pyobject();
-	if (has_closure) {
-		std::vector<llvm::Value *> closure_elems;
-		for (const auto &fv : free_vars) {
-			llvm::Value *cell = nullptr;
-			// 在父作用域查找对应的 cell/free
-			if (auto *ca = m_codegen_ctx.find_cell(fv))
-				cell = m_builder.CreateLoad(obj_ptr_ty, ca);
-			else if (auto *fa = m_codegen_ctx.find_free_var(fv))
-				cell = m_builder.CreateLoad(obj_ptr_ty, fa);
-			else {
-				// Bugfix: 编译器内部错误防御
-				log::codegen()->error("Closure capture failed: '{}' not found in parent scope", fv);
-				cell = m_emitter.get_none();
-			}
-			closure_elems.push_back(cell);
-		}
-		closure_tuple = m_emitter.create_tuple(closure_elems);
-	}
+    // 返回容器
+    m_builder.CreateRet(container);
 
-	// rt_make_function
-	auto *py_func = m_emitter.call_make_function(name,
-		comp_func,
-		m_codegen_ctx.module_object(),
-		m_emitter.null_pyobject(),// defaults
-		m_emitter.null_pyobject(),// kwdefaults
-		closure_tuple// closure
-	);
+    // === Step 6: 恢复编译环境 ===
+    m_codegen_ctx.pop_scope();
+    m_builder.SetInsertPoint(saved_bb);
+    m_emitter.set_unwind_dest(saved_unwind);
 
-	// 调用推导式函数: func((iterator,))
-	auto *call_args = m_emitter.create_tuple({ iterator });
-	return m_emitter.call_function(py_func, call_args, nullptr);
+    // === Step 7: (在父作用域) 构建调用代码 ===
+
+    // 构建 closure tuple (捕获父作用域的 cell)
+    llvm::Value *closure_tuple = m_emitter.null_pyobject();
+    if (has_closure) {
+        std::vector<llvm::Value *> closure_elems;
+        for (const auto &fv : free_vars) {
+            llvm::Value *cell = nullptr;
+            // 在父作用域查找对应的 cell/free
+            if (auto *ca = m_codegen_ctx.find_cell(fv))
+                cell = m_builder.CreateLoad(obj_ptr_ty, ca);
+            else if (auto *fa = m_codegen_ctx.find_free_var(fv))
+                cell = m_builder.CreateLoad(obj_ptr_ty, fa);
+            else {
+                // Bugfix: 编译器内部错误防御
+                log::codegen()->error("Closure capture failed: '{}' not found in parent scope", fv);
+                cell = m_emitter.get_none();
+            }
+            closure_elems.push_back(cell);
+        }
+        closure_tuple = m_emitter.create_tuple(closure_elems);
+    }
+
+    // rt_make_function
+    auto *py_func = m_emitter.call_make_function(name,
+        comp_func,
+        m_codegen_ctx.module_object(),
+        m_emitter.null_pyobject(),// defaults
+        m_emitter.null_pyobject(),// kwdefaults
+        closure_tuple// closure
+    );
+
+    // 调用推导式函数: func((iterator,))
+    auto *call_args = m_emitter.create_tuple({ iterator });
+    return m_emitter.call_function(py_func, call_args, nullptr);
 }
 
 // =============================================================================
