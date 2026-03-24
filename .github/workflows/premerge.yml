@@ -3,7 +3,8 @@ name: Premerge
 on:
   pull_request:
     branches: [ "main" ]
-
+  push:
+    branches: [ "main" ]
 env:
   CMAKE_PRESET: release
 
