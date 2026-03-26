@@ -78,13 +78,23 @@ jobs:
     - name: Build
       run: cmake --build --preset ${{env.CMAKE_PRESET}}
 
-    - name: Test
-      # continue-on-error 确保即使测试挂了，后面的 "Test Report" 步骤也能运行
-      continue-on-error: true
-      run: |
-        ./build/${{env.CMAKE_PRESET}}/unittests_ --gtest_output=xml:unit-tests.xml
-        
-        ./build/${{env.CMAKE_PRESET}}/integration-tests --gtest_output=xml:integration-tests.xml
+    - name: Run GTest Binaries
+          # continue-on-error 确保即使测试挂了，后面的报告步骤也能运行
+          continue-on-error: true
+          run: |
+            TEST_DIR="build/${{env.CMAKE_PRESET}}/src"
+            
+            echo "Searching for test binaries in: $TEST_DIR"
+            
+            find "$TEST_DIR" -maxdepth 1 -type f -executable -name "*test*" | while read -r test_bin; do
+              bin_name=$(basename "$test_bin")
+              
+              echo "========================================================="
+              echo "Running: $bin_name"
+              echo "========================================================="
+              
+              "$test_bin" --gtest_output="xml:${bin_name}_report.xml"
+            done
 
     - name: Test Report
       uses: dorny/test-reporter@v1
