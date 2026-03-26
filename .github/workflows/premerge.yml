@@ -13,17 +13,21 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest
+    
+    # 必须添加 permissions 才能让测试结果显示在 GitHub Checks 界面
+    permissions:
+      contents: read
+      actions: read
+      checks: write
 
     steps:
     - name: Checkout
-      uses: actions/checkout@v6
+      uses: actions/checkout@v4
 
-    # Python 3.13.11
     - name: Setup Python
       uses: actions/setup-python@v5
       with:
         python-version: '3.13.11'
-
 
     - name: Install LLVM
       run: |
@@ -35,29 +39,19 @@ jobs:
     - name: Fix llvm-link
       run: |
         set -eux
-
-        # llvm-link-20
         LLVM_LINK=$(command -v llvm-link-20 || true)
-
-
         if [ -z "$LLVM_LINK" ]; then
           LLVM_LINK=$(command -v llvm-link || true)
         fi
-
-  
         if [ -z "$LLVM_LINK" ]; then
           LLVM_LINK=$(find /usr -name llvm-link 2>/dev/null | head -n 1)
         fi
-
         echo "Found llvm-link at: $LLVM_LINK"
-
         if [ -z "$LLVM_LINK" ]; then
           echo "llvm-link not found!"
           exit 1
         fi
-
         sudo ln -sf "$LLVM_LINK" /usr/local/bin/llvm-link
-
         llvm-link --version
 
     - name: Install Bitcode Tools
@@ -85,6 +79,26 @@ jobs:
       run: cmake --build --preset ${{env.CMAKE_PRESET}}
 
     - name: Test
+      # continue-on-error 确保即使测试挂了，后面的 "Test Report" 步骤也能运行
+      continue-on-error: true
       run: |
-        ctest --preset ${{env.CMAKE_PRESET}} -E integration-tests
-        ctest --preset ${{env.CMAKE_PRESET}} -R integration-tests -V
+        # 运行单元测试：生成单元测试报告，且失败时在终端打印输出
+        ctest --preset ${{env.CMAKE_PRESET}} \
+              -E integration-tests \
+              --output-on-failure \
+              --output-junit unit-tests.xml
+        
+        # 运行集成测试：生成集成测试报告，-V 会输出详细过程
+        ctest --preset ${{env.CMAKE_PRESET}} \
+              -R integration-tests \
+              -V \
+              --output-junit integration-tests.xml
+
+    - name: Test Report
+      uses: dorny/test-reporter@v1
+      if: always()
+      with:
+        name: GTest Summary
+        path: "*.xml"
+        reporter: java-junit
+        fail-on-error: true
