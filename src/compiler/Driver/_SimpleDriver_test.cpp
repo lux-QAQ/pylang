@@ -39,6 +39,12 @@ class SimpleDriverTest : public ::testing::Test
 		opts.opt_level = 0;
 		opts.dump_ir_before_opt = false;
 		opts.dump_ir_after_opt = false;
+		const std::string spdlog_lib =
+#ifdef NDEBUG
+			"-lspdlog";
+#else
+			"-lspdlogd";
+#endif
 		opts.extra_link_flags = { "-g",
 			"-fno-omit-frame-pointer",
 			//"-fsanitize=address",
@@ -46,7 +52,7 @@ class SimpleDriverTest : public ::testing::Test
 			"-L" + s_build_dir + "/_deps/bdwgc-build",
 			"-L" + s_build_dir + "/_deps/cpptrace-build",
 			"-L" + s_build_dir + "/_deps/libdwarf-build/src/lib/libdwarf",
-			"-lspdlogd",
+			spdlog_lib,
 			"-lgmpxx",
 			"-lgc",
 			"-lgmp",
