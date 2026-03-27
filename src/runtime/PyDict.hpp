@@ -22,8 +22,8 @@ class PyDictValueIterator;
 class PyDict : public PyBaseObject
 {
   public:
-	// 核心修改：在 5 号模板参数注入 GCTracingAllocator
-	// 救命级优化：在 6 号模板参数，将默认的 std::deque 替换为 py::GCVector (基于 std::vector)。
+	// 在 5 号模板参数注入 GCTracingAllocator
+	// 在 6 号模板参数，将默认的 std::deque 替换为 py::GCVector (基于 std::vector)。
 	// std::vector 的空状态是零内存分配，并且是连续内存。
 	// 这直接斩断了极小字典(如 Node.children)造成的 GC 指针爆炸与内存碎片！
 	using MapType = tsl::ordered_map<Value,

@@ -1304,3 +1304,72 @@ print("dict_comp", squares[2], squares[3])
 		code,
 		{ "bytes_len 5", "raw_check True", "hex_check True", "is_none True", "dict_comp 4 9" });
 }
+
+
+TEST_F(SimpleDriverTest, Feature_FloatComprehensive)
+{
+	std::string code = R"(
+import math
+
+# 1. 各种字面量格式 (PEP 515 下划线支持)
+f1 = 1.5
+f2 = .5
+f3 = 1.
+f4 = 1_000.000_1
+f5 = 1e2
+f6 = 1.5e-2
+print("literals", f1, f2, f3, f4, f5, f6)
+
+# 2. 算术与跨类型比较 (Python 核心语义：1.0 == 1)
+print("eq_int", 1.0 == 1)
+print("eq_neg", -0.0 == 0.0)
+print("hash_parity", hash(1.0) == hash(1))
+print("hash_parity_large", hash(123456.0) == hash(123456))
+
+# 3. 浮点数特有方法
+f_int = 1.0
+f_non_int = 1.5
+print("is_integer", f_int.is_integer(), f_non_int.is_integer())
+
+# 4. as_integer_ratio (返回一对整数)
+# 0.75 = 3/4
+ratio = (0.75).as_integer_ratio()
+print("ratio", ratio[0], ratio[1])
+
+# 5. 十六进制转换
+h_str = (10.0).hex()
+# 期望得到类似 '0x1.4000000000000p+3'
+h_val = float.fromhex(h_str)
+print("hex_roundtrip", h_val == 10.0)
+print("fromhex_direct", float.fromhex("0x1.4p+3") == 10.0)
+
+# 6. 特殊值处理 (inf, nan)
+inf = float("inf")
+nan = float("nan")
+print("is_inf", math.isinf(inf))
+print("is_nan", math.isnan(nan))
+print("inf_hash", hash(inf) == 314159) # 64位标准哈希值
+
+# 7. 构造函数协议
+print("init_int", float(42) == 42.0)
+print("init_str", float("  1.23  ") == 1.23)
+)";
+
+	run_aot_test(shared_driver(),
+		"float_comprehensive",
+		code,
+		{ "literals 1.5 0.5 1.0 1000.0001 100.0 0.015",
+			"eq_int True",
+			"eq_neg True",
+			"hash_parity True",
+			"hash_parity_large True",
+			"is_integer True False",
+			"ratio 3 4",
+			"hex_roundtrip True",
+			"fromhex_direct True",
+			"is_inf True",
+			"is_nan True",
+			"inf_hash True",
+			"init_int True",
+			"init_str True" });
+}

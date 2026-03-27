@@ -7,6 +7,7 @@
 #include "PyBytes.hpp"
 #include "PyDict.hpp"
 #include "PyEllipsis.hpp"
+#include "PyFloat.hpp"
 #include "PyGenericAlias.hpp"
 #include "PyInteger.hpp"
 #include "PyIterator.hpp"
@@ -86,11 +87,11 @@ size_t ValueHash::operator()(const Value &value) const
 	const auto result = std::visit(
 		overloaded{ [](const Number &number) -> size_t {
 					   if (std::holds_alternative<double>(number.value)) {
-						   return std::hash<double>{}(std::get<double>(number.value));
+						   return static_cast<size_t>(
+							   PyFloat::hash_f64(std::get<double>(number.value)));
 					   } else {
-						   if (std::get<BigIntType>(number.value) == -1) return -2;
-						   ASSERT(std::get<BigIntType>(number.value).fits_ulong_p());
-						   return std::get<BigIntType>(number.value).get_ui();
+						   return static_cast<size_t>(
+							   PyInteger::hash_big_int(std::get<BigIntType>(number.value)));
 					   }
 				   },
 			[](const String &s) -> size_t { return std::hash<std::string>{}(s.s); },

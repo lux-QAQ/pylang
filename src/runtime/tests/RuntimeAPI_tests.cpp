@@ -124,6 +124,19 @@ TEST_F(RuntimeAPITest, DictOperations)
 	EXPECT_EQ(as<PyInteger>(result.unwrap())->as_i64(), 42);
 }
 
+TEST_F(RuntimeAPITest, DictOperationsWithFloatKey)
+{
+	auto *d = PyDict::create().unwrap();
+	auto *key = PyFloat::create(1.2).unwrap();
+	auto *val = PyString::create("ok").unwrap();
+
+	d->insert(key, val);
+
+	auto result = d->getitem(PyFloat::create(1.2).unwrap());
+	ASSERT_TRUE(result.is_ok());
+	EXPECT_EQ(as<PyString>(result.unwrap())->value(), "ok");
+}
+
 TEST_F(RuntimeAPITest, TupleUnpacking)
 {
 	// 模拟: a, b, c = (1, 2, 3)
@@ -436,6 +449,53 @@ TEST_F(RuntimeAPITest, TypeChecks)
 	EXPECT_FALSE(s->type()->issubclass(types::integer()));
 
 	EXPECT_TRUE(f->type()->issubclass(types::float_()));
+}
+
+TEST_F(RuntimeAPITest, FloatHashMatchesEqualInteger)
+{
+	auto *f = PyFloat::create(1.0).unwrap();
+	auto *i = PyInteger::create(1).unwrap();
+
+	auto float_hash = f->hash();
+	auto int_hash = i->hash();
+
+	ASSERT_TRUE(float_hash.is_ok());
+	ASSERT_TRUE(int_hash.is_ok());
+	EXPECT_EQ(float_hash.unwrap(), int_hash.unwrap());
+}
+
+TEST_F(RuntimeAPITest, FloatRoundUsesBankersRounding)
+{
+	auto *f = PyFloat::create(2.5).unwrap();
+	auto result = f->__round__(py_none());
+
+	ASSERT_TRUE(result.is_ok());
+	EXPECT_EQ(as<PyInteger>(result.unwrap())->as_i64(), 2);
+}
+
+TEST_F(RuntimeAPITest, FloatAsIntegerRatio)
+{
+	auto *f = PyFloat::create(-0.25).unwrap();
+	auto result = f->as_integer_ratio();
+
+	ASSERT_TRUE(result.is_ok());
+	auto *tuple = as<PyTuple>(result.unwrap());
+	ASSERT_NE(tuple, nullptr);
+	EXPECT_EQ(as<PyInteger>((*tuple)[0].unwrap())->as_i64(), -1);
+	EXPECT_EQ(as<PyInteger>((*tuple)[1].unwrap())->as_i64(), 4);
+}
+
+TEST_F(RuntimeAPITest, FloatHexRoundTrip)
+{
+	auto *f = PyFloat::create(3.5).unwrap();
+	auto hex_value = f->hex();
+
+	ASSERT_TRUE(hex_value.is_ok());
+	auto *args = PyTuple::create(hex_value.unwrap()).unwrap();
+	auto parsed = PyFloat::fromhex(types::float_(), args, nullptr);
+
+	ASSERT_TRUE(parsed.is_ok());
+	EXPECT_DOUBLE_EQ(as<PyFloat>(parsed.unwrap())->as_f64(), 3.5);
 }
 
 // =============================================================================
