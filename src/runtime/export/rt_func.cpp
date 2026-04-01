@@ -150,67 +150,67 @@ py::PyObject *rt_get_closure(py::PyObject *func)
 	return rt_unwrap(py::PyTuple::create());
 }
 
-PYLANG_EXPORT_FUNC("rt_call_method_raw", "obj", "obj,str,i32,ptr")
-py::PyObject *
-	rt_call_method_raw(py::PyObject *obj, const char *name, int32_t argc, py::PyObject **argv)
-{
-	auto *b_obj = py::ensure_box(obj);
-	auto *attr_name = py::PyString::intern(name);
-	auto *type = b_obj->type();
+// PYLANG_EXPORT_FUNC("rt_call_method_raw", "obj", "obj,str,i32,ptr")
+// py::PyObject *
+// 	rt_call_method_raw(py::PyObject *obj, const char *name, int32_t argc, py::PyObject **argv)
+// {
+// 	auto *b_obj = py::ensure_box(obj);
+// 	auto *attr_name = py::PyString::intern(name);
+// 	auto *type = b_obj->type();
 
-	py::PyObject *self = nullptr;
-	py::PyObject *method = nullptr;
+// 	py::PyObject *self = nullptr;
+// 	py::PyObject *method = nullptr;
 
-	// 3.9 语义查找
-	auto descr_lookup = type->lookup(attr_name);
-	py::PyObject *descr =
-		(descr_lookup.has_value() && descr_lookup->is_ok()) ? descr_lookup->unwrap() : nullptr;
+// 	// 3.9 语义查找
+// 	auto descr_lookup = type->lookup(attr_name);
+// 	py::PyObject *descr =
+// 		(descr_lookup.has_value() && descr_lookup->is_ok()) ? descr_lookup->unwrap() : nullptr;
 
-	if (descr) {
-		// 如果是数据描述符（如 property），必须走标准 getattr 流程（会创建 BoundMethod）
-		if (py::descriptor_is_data(descr)) {
-			method = rt_getattr(b_obj, name);
-		} else {
-			// 检查实例字典
-			if (auto *inst_dict = b_obj->attributes()) {
-				if (auto it = inst_dict->map().find(attr_name); it != inst_dict->map().end()) {
-					method = py::PyObject::from(it->second).unwrap();
-				}
-			}
-			// 如果实例没覆盖，且 descr 是函数，命中 Fast Path
-			if (!method) {
-				if (descr->type() == py::types::native_function()
-					|| descr->type() == py::types::function()) {
-					method = descr;
-					self = b_obj;// 标记需要传入 self
-				} else {
-					method = rt_getattr(b_obj, name);
-				}
-			}
-		}
-	} else {
-		method = rt_getattr(b_obj, name);
-	}
+// 	if (descr) {
+// 		// 如果是数据描述符（如 property），必须走标准 getattr 流程（会创建 BoundMethod）
+// 		if (py::descriptor_is_data(descr)) {
+// 			method = rt_getattr(b_obj, name);
+// 		} else {
+// 			// 检查实例字典
+// 			if (auto *inst_dict = b_obj->attributes()) {
+// 				if (auto it = inst_dict->map().find(attr_name); it != inst_dict->map().end()) {
+// 					method = py::PyObject::from(it->second).unwrap();
+// 				}
+// 			}
+// 			// 如果实例没覆盖，且 descr 是函数，命中 Fast Path
+// 			if (!method) {
+// 				if (descr->type() == py::types::native_function()
+// 					|| descr->type() == py::types::function()) {
+// 					method = descr;
+// 					self = b_obj;// 标记需要传入 self
+// 				} else {
+// 					method = rt_getattr(b_obj, name);
+// 				}
+// 			}
+// 		}
+// 	} else {
+// 		method = rt_getattr(b_obj, name);
+// 	}
 
-	// 修复：将 PyObject** 转换为 Value 数组，并调用 call_raw
-	size_t total_argc = argc + (self ? 1 : 0);
-	auto *stack_args = static_cast<py::Value *>(alloca(sizeof(py::Value) * total_argc));
+// 	// 修复：将 PyObject** 转换为 Value 数组，并调用 call_raw
+// 	size_t total_argc = argc + (self ? 1 : 0);
+// 	auto *stack_args = static_cast<py::Value *>(alloca(sizeof(py::Value) * total_argc));
 
-	if (self) {
-		new (&stack_args[0]) py::Value(self);
-		for (int i = 0; i < argc; ++i) new (&stack_args[i + 1]) py::Value(py::ensure_box(argv[i]));
-	} else {
-		for (int i = 0; i < argc; ++i) new (&stack_args[i]) py::Value(py::ensure_box(argv[i]));
-	}
+// 	if (self) {
+// 		new (&stack_args[0]) py::Value(self);
+// 		for (int i = 0; i < argc; ++i) new (&stack_args[i + 1]) py::Value(py::ensure_box(argv[i]));
+// 	} else {
+// 		for (int i = 0; i < argc; ++i) new (&stack_args[i]) py::Value(py::ensure_box(argv[i]));
+// 	}
 
-	// 通过虚函数多态性进入 PyNativeFunction 或 PyBoundMethod
-	auto result = method->call_raw(std::span<py::Value>(stack_args, total_argc), nullptr);
+// 	// 通过虚函数多态性进入 PyNativeFunction 或 PyBoundMethod
+// 	auto result = method->call_raw(std::span<py::Value>(stack_args, total_argc), nullptr);
 
-	// 析构 Value（清理 tagged 指针不需要，但为了安全一致性）
-	for (size_t i = 0; i < total_argc; ++i) std::destroy_at(&stack_args[i]);
+// 	// 析构 Value（清理 tagged 指针不需要，但为了安全一致性）
+// 	for (size_t i = 0; i < total_argc; ++i) std::destroy_at(&stack_args[i]);
 
-	return rt_unwrap(result);
-}
+// 	return rt_unwrap(result);
+// }
 
 
 PYLANG_EXPORT_FUNC("call_raw_ptrs", "obj", "obj,ptr,i32,obj")

@@ -157,7 +157,7 @@ class IREmitter
 		llvm::Value *args_ptr,
 		llvm::Value *argc,
 		llvm::Value *kwargs);
-	llvm::Value *call_method_raw_ptrs(llvm::Value *owner,
+	llvm::Value *call_method_ic_ptrs(llvm::Value *owner,
 		llvm::Value *method_name_cstr,
 		llvm::Value *args_ptr,
 		llvm::Value *argc,
@@ -165,9 +165,9 @@ class IREmitter
 
 	// ========== Tier 4: 方法调用 ==========
 	llvm::Value *call_load_method(llvm::Value *obj, std::string_view method_name);
-	llvm::Value *call_method_fast(llvm::Value *obj,
-		std::string_view name,
-		llvm::ArrayRef<llvm::Value *> args);
+	// llvm::Value *call_method_fast(llvm::Value *obj,
+	// 	std::string_view name,
+	// 	llvm::ArrayRef<llvm::Value *> args);
 
 	// ========== Phase 4+: 快速调用 ==========
 	/// 直接传 C 数组调用，避免 PyTuple 堆分配

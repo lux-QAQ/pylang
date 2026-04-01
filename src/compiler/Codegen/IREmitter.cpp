@@ -490,14 +490,32 @@ llvm::Value *IREmitter::call_function_raw_ptrs(llvm::Value *callable,
 	return emit_runtime_call("call_raw_ptrs", { callable, args_ptr, argc, kwargs });
 }
 
-llvm::Value *IREmitter::call_method_raw_ptrs(llvm::Value *owner,
+llvm::Value *IREmitter::call_method_ic_ptrs(llvm::Value *owner,
 	llvm::Value *method_name_cstr,
 	llvm::Value *args_ptr,
 	llvm::Value *argc,
 	llvm::Value *kwargs)
 {
+	// 动态申请全局 CallSite Cache (PIC) 变量，传入 runtime
+	// 我们从 runtime.bc 里面读取 `pylang_method_cache_template` 获取其实际编译出的结构体类型
+	// 从而彻底避免硬编码诸如 32 个 i64 等容易随系统/宏不同而崩溃的幻数。
+	llvm::Type *cache_struct_ty = nullptr;
+	if (auto *gv = m_module->getNamedGlobal("pylang_method_cache_template")) {
+		cache_struct_ty = gv->getValueType();
+	} else {
+		// 理论上不可能走入这里，因为已经跑了 RuntimeLinker，如果万一未找到就 Fallback
+		cache_struct_ty = llvm::ArrayType::get(m_builder.getInt64Ty(), 32);
+	}
+
+	auto *cache_gvar = new llvm::GlobalVariable(*m_module,
+		cache_struct_ty,
+		false,
+		llvm::GlobalValue::InternalLinkage,
+		llvm::Constant::getNullValue(cache_struct_ty),
+		".method_cache");
+
 	return emit_runtime_call(
-		"call_method_raw_ptrs", { owner, method_name_cstr, args_ptr, argc, kwargs });
+		"call_method_ic_ptrs", { cache_gvar, owner, method_name_cstr, args_ptr, argc, kwargs });
 }
 
 llvm::Value *IREmitter::call_function_fast(llvm::Value *callable,
@@ -524,28 +542,28 @@ llvm::Value *IREmitter::call_function_fast(llvm::Value *callable,
 	return emit_runtime_call("call_fast", { callable, argc, arr_ptr });
 }
 
-llvm::Value *IREmitter::call_method_fast(llvm::Value *obj,
-	std::string_view name,
-	llvm::ArrayRef<llvm::Value *> args)
-{
-	// 1. 在当前函数的 EntryBlock 分配内存（避免在循环中爆栈）
-	auto *arr_type = llvm::ArrayType::get(pyobject_ptr_type(), args.size());
-	auto *arr = create_entry_block_alloca(arr_type, "method_args");
+// llvm::Value *IREmitter::call_method_fast(llvm::Value *obj,
+// 	std::string_view name,
+// 	llvm::ArrayRef<llvm::Value *> args)
+// {
+// 	// 1. 在当前函数的 EntryBlock 分配内存（避免在循环中爆栈）
+// 	auto *arr_type = llvm::ArrayType::get(pyobject_ptr_type(), args.size());
+// 	auto *arr = create_entry_block_alloca(arr_type, "method_args");
 
-	// 2. 填充参数
-	for (size_t i = 0; i < args.size(); ++i) {
-		auto *gep = m_builder.CreateConstGEP2_32(arr_type, arr, 0, i);
-		m_builder.SetInsertPoint(m_builder.GetInsertBlock());// 确保插入点正确
-		m_builder.CreateStore(args[i], gep);
-	}
+// 	// 2. 填充参数
+// 	for (size_t i = 0; i < args.size(); ++i) {
+// 		auto *gep = m_builder.CreateConstGEP2_32(arr_type, arr, 0, i);
+// 		m_builder.SetInsertPoint(m_builder.GetInsertBlock());// 确保插入点正确
+// 		m_builder.CreateStore(args[i], gep);
+// 	}
 
-	// 3. 发射对 rt_call_method_raw 的调用
-	auto *name_ptr = create_global_string(name);
-	auto *argc = m_builder.getInt32(args.size());
-	auto *argv = m_builder.CreateConstGEP2_32(arr_type, arr, 0, 0);
+// 	// 3. 发射对 rt_call_method_raw 的调用
+// 	auto *name_ptr = create_global_string(name);
+// 	auto *argc = m_builder.getInt32(args.size());
+// 	auto *argv = m_builder.CreateConstGEP2_32(arr_type, arr, 0, 0);
 
-	return emit_runtime_call("rt_call_method_raw", { obj, name_ptr, argc, argv });
-}
+// 	return emit_runtime_call("rt_call_method_raw", { obj, name_ptr, argc, argv });
+// }
 
 // =============================================================================
 // Tier 4: 方法调用

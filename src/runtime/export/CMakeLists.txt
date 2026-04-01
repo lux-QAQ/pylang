@@ -34,9 +34,10 @@ message(STATUS "Bitcode GCC include: ${GCC_INCLUDE_DIR}")
 set(SRC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../..") # => src/
 
 file(GLOB EXPORT_SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/*.cpp")
+file(GLOB CACHE_SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/cache/*.cpp")
 file(GLOB TAGGERED_SOURCES CONFIGURE_DEPENDS "${SRC_DIR}/runtime/taggered_pointer/*.cpp")
 
-set(ALL_SOURCES ${EXPORT_SOURCES} ${TAGGERED_SOURCES})
+set(ALL_SOURCES ${EXPORT_SOURCES} ${CACHE_SOURCES} ${TAGGERED_SOURCES})
 foreach(src ${RUNTIME_SOURCE_FILES} ${MEMORY_SOURCE_FILES})
   list(APPEND ALL_SOURCES "${SRC_DIR}/${src}")
 endforeach()
@@ -146,13 +147,13 @@ foreach(src ${ALL_SOURCES})
   # 直接使用 clang++ -emit-llvm -c 生成 .bc
   add_custom_command(
     OUTPUT "${bc}"
-    COMMAND ${COMPILER_CMD} 
-            -std=c++23 ${BC_OPT_LEVEL} -g -c -emit-llvm
-            -fno-discard-value-names
-            ${BC_DEFS}
-            ${BC_INC}
-            -Wno-everything
-            -o "${bc}" "${src}"
+    COMMAND ${COMPILER_CMD}
+    -std=c++23 ${BC_OPT_LEVEL} -g -c -emit-llvm
+    -fno-discard-value-names
+    ${BC_DEFS}
+    ${BC_INC}
+    -Wno-everything
+    -o "${bc}" "${src}"
     DEPENDS "${src}"
     COMMENT "clang++ bitcode: ${rel}"
     VERBATIM

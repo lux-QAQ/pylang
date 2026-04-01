@@ -236,6 +236,7 @@ set(VM_SOURCE_FILES # cmake-format: sortable
 
 # Runtime export layer — auto-collected
 file(GLOB RUNTIME_EXPORT_FILES CONFIGURE_DEPENDS runtime/export/*.cpp)
+file(GLOB RUNTIME_CACHE_FILES CONFIGURE_DEPENDS runtime/export/cache/*.cpp)
 file(GLOB RUNTIME_EXPORT_TAGGERED CONFIGURE_DEPENDS runtime/taggered_pointer/*.cpp)
 
 set(UNITTEST_SOURCES
@@ -303,6 +304,7 @@ add_library(
   ${MEMORY_SOURCE_FILES}
   ${PARSER_SOURCE_FILES}
   ${RUNTIME_SOURCE_FILES}
+  ${RUNTIME_CACHE_FILES}
   ${RUNTIME_EXPORT_FILES}
   ${RUNTIME_EXPORT_TAGGERED}
   ${VM_SOURCE_FILES})

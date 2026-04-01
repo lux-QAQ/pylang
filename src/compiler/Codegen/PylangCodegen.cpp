@@ -903,7 +903,7 @@ ast::Value *PylangCodegen::visit(const ast::BoolOp *node)
 //         if (is_method) {
 //             // 方法调用：直接使用 C 风格字符串发起查找和穿透执行
 //             auto *cstr_val = m_builder.CreateGlobalStringPtr(method_name);
-//             result = m_emitter.call_method_raw_ptrs(method_owner, cstr_val, args_ptr, argc_val,
+//             result = m_emitter.call_method_ic_ptrs(method_owner, cstr_val, args_ptr, argc_val,
 //             kwargs_dict);
 //         } else {
 //             // 普通调用：传递纯数组
@@ -1041,7 +1041,7 @@ ast::Value *PylangCodegen::visit(const ast::Call *node)
 		if (is_method) {
 			// 方法调用：直接使用 C 风格字符串发起查找和穿透执行
 			auto *cstr_val = m_builder.CreateGlobalString(method_name);
-			result = m_emitter.call_method_raw_ptrs(
+			result = m_emitter.call_method_ic_ptrs(
 				method_owner, cstr_val, args_ptr, argc_val, kwargs_dict);
 		} else {
 			// 普通调用：传递纯数组
