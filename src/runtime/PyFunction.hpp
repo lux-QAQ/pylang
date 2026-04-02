@@ -76,10 +76,10 @@ class PyNativeFunction : public PyBaseObject
 		py::PyTuple *,
 		py::PyDict *);
 
-	// 签名: PyObject*(PyObject* module, PyObject* closure, const Value* args, int32_t argc, PyDict*
+	// 签名: PyObject*(PyObject* module, PyObject* closure, PyObject** args, int32_t argc, PyDict*
 	// kwargs)
 	using AOTRawFuncPtr =
-		py::PyObject *(*)(py::PyObject *, py::PyObject *, const py::Value *, int32_t, py::PyDict *);
+		py::PyObject *(*)(py::PyObject *, py::PyObject *, py::PyObject **, int32_t, py::PyDict *);
 #ifndef PYLANG_USE_ARENA
 	friend class ::Heap;
 #endif

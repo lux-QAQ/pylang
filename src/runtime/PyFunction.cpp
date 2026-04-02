@@ -9,6 +9,7 @@
 #include "interpreter/InterpreterCore.hpp"
 #include "runtime/PyObject.hpp"
 #include "runtime/RuntimeError.hpp"
+#include "taggered_pointer/RtValue.hpp"
 #include "types/api.hpp"
 #include "types/builtin.hpp"
 
@@ -136,12 +137,18 @@ PyResult<PyNativeFunction *> PyNativeFunction::create_aot(std::string name,
 	// 桥接函数：用于从 Python (PyTuple) 环境调用 AOT 函数
 	FreeFunctionType bridge_func = [raw_fn, captured_module, captured_closure](
 									   PyTuple *args, PyDict *kwargs) -> PyResult<PyObject *> {
-		// ✅ 优化：直接使用 GCVector::data()，不再使用 to_std_vector 触发堆分配
-		auto *r = raw_fn(captured_module,
-			captured_closure,
-			args->elements().data(),
-			static_cast<int32_t>(args->size()),
-			kwargs);
+		size_t argc = args->size();
+		PyObject **raw_args = nullptr;
+
+		if (argc > 0) {
+			raw_args = static_cast<PyObject **>(alloca(sizeof(PyObject *) * argc));
+			for (size_t i = 0; i < argc; ++i) {
+				raw_args[i] = RtValue::from_value(args->elements()[i]).box();
+			}
+		}
+
+		auto *r =
+			raw_fn(captured_module, captured_closure, raw_args, static_cast<int32_t>(argc), kwargs);
 		if (!r) { return Err(runtime_error("AOT function returned NULL")); }
 		return Ok(r);
 	};
@@ -329,8 +336,13 @@ PyResult<PyObject *> PyNativeFunction::call_raw(std::span<const Value> args, PyD
 		// [修复编译错误]：使用 IIFE 立即初始化 PyResult
 		auto result = [&]() -> PyResult<PyObject *> {
 			if (m_aot_ptr) {
+				PyObject **raw_args =
+					static_cast<PyObject **>(alloca(sizeof(PyObject *) * total_argc));
+				for (size_t i = 0; i < total_argc; ++i) {
+					raw_args[i] = RtValue::from_value(stack_args[i]).box();
+				}
 				auto *res = m_aot_ptr(
-					m_module_ref, m_closure, stack_args, static_cast<int32_t>(total_argc), kwargs);
+					m_module_ref, m_closure, raw_args, static_cast<int32_t>(total_argc), kwargs);
 				if (res) return Ok(res);
 				return Err(runtime_error("AOT call failed"));
 			}
@@ -343,8 +355,12 @@ PyResult<PyObject *> PyNativeFunction::call_raw(std::span<const Value> args, PyD
 
 	// 2. 原始函数快速路径
 	if (m_aot_ptr) {
-		auto *res = m_aot_ptr(
-			m_module_ref, m_closure, args.data(), static_cast<int32_t>(args.size()), kwargs);
+		PyObject **raw_args = static_cast<PyObject **>(alloca(sizeof(PyObject *) * args.size()));
+		for (size_t i = 0; i < args.size(); ++i) {
+			raw_args[i] = RtValue::from_value(args[i]).box();
+		}
+		auto *res =
+			m_aot_ptr(m_module_ref, m_closure, raw_args, static_cast<int32_t>(args.size()), kwargs);
 		if (res) return Ok(res);
 		return Err(runtime_error("AOT call failed"));
 	}
