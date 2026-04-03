@@ -10,16 +10,16 @@ PyResult<Value> SetAdd::execute(VirtualMachine &vm, Interpreter &) const
 	auto &set = vm.reg(m_set);
 	auto &value = vm.reg(m_value);
 
-	ASSERT(std::holds_alternative<PyObject *>(set));
+	ASSERT(set.is_heap_object());
 
-	auto *pyset = std::get<PyObject *>(set);
+	auto *pyset = set.as_ptr();
 	ASSERT(pyset);
 	ASSERT(as<PySet>(pyset));
 	auto value_obj = PyObject::from(value);
 	if (value_obj.is_err()) { return Err(value_obj.unwrap_err()); }
 
 	if (auto r = as<PySet>(pyset)->add(value_obj.unwrap()); r.is_ok()) {
-		return Ok(Value{ r.unwrap() });
+		return Ok(RtValue{ r.unwrap() });
 	} else {
 		return Err(r.unwrap_err());
 	}

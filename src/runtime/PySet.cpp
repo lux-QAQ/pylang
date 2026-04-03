@@ -211,18 +211,18 @@ std::string PySet::to_string() const
 		os << "{";
 		auto it = m_elements.begin();
 		while (std::next(it) != m_elements.end()) {
-			std::visit(overloaded{
-						   [&os](const auto &value) { os << value << ", "; },
-						   [&os](PyObject *value) { os << value->to_string() << ", "; },
-					   },
-				*it);
+			[&os](const auto &v) {
+				auto r = v.box()->repr();
+				ASSERT(r.is_ok());
+				os << r.unwrap()->to_string() << ", ";
+			}(*it);
 			std::advance(it, 1);
 		}
-		std::visit(overloaded{
-					   [&os](const auto &value) { os << value; },
-					   [&os](PyObject *value) { os << value->to_string(); },
-				   },
-			*it);
+		[&os](const auto &v) {
+			auto r = v.box()->repr();
+			ASSERT(r.is_ok());
+			os << r.unwrap()->to_string();
+		}(*it);
 		os << "}";
 	}
 
@@ -263,22 +263,12 @@ PyResult<PyObject *> PySet::__repr__() const
 		os << "{";
 		auto it = m_elements.begin();
 		while (std::next(it) != m_elements.end()) {
-			auto r = std::visit(
-				overloaded{
-					[](const auto &value) { return PyString::create(value.to_string()); },
-					[](PyObject *value) { return value->repr(); },
-				},
-				*it);
+			auto r = it->box()->repr();
 			if (r.is_err()) { return Err(r.unwrap_err()); }
 			os << r.unwrap()->value() << ", ";
 			std::advance(it, 1);
 		}
-		auto r =
-			std::visit(overloaded{
-						   [](const auto &value) { return PyString::create(value.to_string()); },
-						   [](PyObject *value) { return value->repr(); },
-					   },
-				*it);
+		auto r = it->box()->repr();
 		if (r.is_err()) { return Err(r.unwrap_err()); }
 		os << r.unwrap()->value() << "}";
 	}
@@ -360,8 +350,8 @@ void PySet::visit_graph(Visitor &visitor)
 {
 	PyObject::visit_graph(visitor);
 	for (auto &el : m_elements) {
-		if (std::holds_alternative<PyObject *>(el)) {
-			if (std::get<PyObject *>(el) != this) visitor.visit(*std::get<PyObject *>(el));
+		if (el.is_heap_object()) {
+			if (el.as_ptr() != this) visitor.visit(*el.as_ptr());
 		}
 	}
 }
@@ -435,8 +425,7 @@ PyResult<PyObject *> PySetIterator::__next__()
 			if constexpr (!std::is_same_v<T, std::monostate>) {
 				const auto &set = set_ref.get();
 				if (m_current_index < set.elements().size()) {
-					return std::visit([](const auto &element) { return PyObject::from(element); },
-						*std::next(set.elements().begin(), m_current_index++));
+					return PyObject::from(*std::next(set.elements().begin(), m_current_index++));
 				}
 				return Err(stop_iteration());
 			} else {

@@ -260,19 +260,10 @@ constexpr void Slot::initialize(
 						return PyObject::from(args->elements()[Idx]);
 					} else if constexpr (std::is_same_v<ArgType, int64_t>) {
 						const auto &el = args->elements()[Idx];
-						if (std::holds_alternative<PyObject *>(el)) {
-							auto obj = std::get<PyObject *>(el);
-							if (auto int_obj = as<PyInteger>(obj)) { return Ok(int_obj->as_i64()); }
-							return Err(type_error(
-								"expected integer type, but got {}", obj->type()->name()));
-						} else if (std::holds_alternative<Number>(el)) {
-							if (std::holds_alternative<double>(std::get<Number>(el).value)) {
-								return Err(type_error("expected integer type, but got float"));
-							}
-							return Ok(std::get<BigIntType>(std::get<Number>(el).value).get_si());
-						} else {
-							TODO();
-						}
+						auto obj = el.box();
+						if (auto int_obj = as<PyInteger>(obj)) { return Ok(int_obj->as_i64()); }
+						return Err(
+							type_error("expected integer type, but got {}", obj->type()->name()));
 					} else {
 						[]<bool flag = false>() {
 							static_assert(flag, "unsupported native parameter type");

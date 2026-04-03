@@ -28,6 +28,18 @@ class PyTuple
 
 	void visit_graph(Visitor &) override;
 
+	// Type trait helpers to prevent vararg template greediness for containers
+	template<typename T> struct is_container_arg : std::false_type
+	{
+	};
+	template<typename... TArgs> struct is_container_arg<std::vector<TArgs...>> : std::true_type
+	{
+	};
+	template<typename T_E, std::size_t E>
+	struct is_container_arg<std::span<T_E, E>> : std::true_type
+	{
+	};
+
   public:
 	static PyResult<PyTuple *> create();
 
@@ -63,6 +75,12 @@ class PyTuple
 	static PyResult<PyTuple *> create(const std::vector<PyObject *> &elements);
 	static PyResult<PyTuple *> create(PyType *type, const std::vector<PyObject *> &elements);
 
+
+	static PyResult<PyTuple *> create(std::vector<PyObject *> &elements)
+	{
+		return PyTuple::create(const_cast<const std::vector<PyObject *> &>(elements));
+	}
+
 	// 接受 initializer_list，解决 PyTuple::create({a, b}) 的歧义
 	static PyResult<PyTuple *> create(std::initializer_list<Value> il)
 	{
@@ -78,10 +96,30 @@ class PyTuple
 	{
 		return PyTuple::create(py::GCVector<Value>(elements.begin(), elements.end()));
 	}
-	// 变长模板：仅用于处理多个参数的情况
-	template<typename... Args> static PyResult<PyTuple *> create(Args &&...args)
+
+	// 使用 requires 进行完美物理隔离，彻底断绝链接器实例化未定义对象的可能
+	template<typename T>
+		requires std::is_pointer_v<std::remove_cvref_t<T>>
+	static PyObject *to_pyobj_ptr(T &&val)
 	{
-		return PyTuple::create(py::GCVector<Value>{ std::forward<Args>(args)... });
+		return reinterpret_cast<PyObject *>(val);
+	}
+
+	template<typename T>
+		requires(!std::is_pointer_v<std::remove_cvref_t<T>>)
+	static PyObject *to_pyobj_ptr(T &&val)
+	{
+		return PyObject::from(std::forward<T>(val)).unwrap();
+	}
+
+	// 变长模板：仅用于处理多个参数的情况。拒绝拦截单元素的 vector 等内部组合类型
+	template<typename... Args>
+		requires(
+			!(sizeof...(Args) == 1 && (is_container_arg<std::remove_cvref_t<Args>>::value || ...)))
+	static PyResult<PyTuple *> create(Args &&...args)
+	{
+		return PyTuple::create(
+			py::GCVector<Value>{ RtValue(to_pyobj_ptr(std::forward<Args>(args)))... });
 	}
 
 	std::string to_string() const override;

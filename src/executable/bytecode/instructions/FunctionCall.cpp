@@ -6,13 +6,12 @@
 
 using namespace py;
 
-PyResult<Value> FunctionCall::execute(VirtualMachine &vm, Interpreter &) const
+PyResult<RtValue> FunctionCall::execute(VirtualMachine &vm, Interpreter &) const
 {
-	auto func = vm.reg(m_function_name);
-	ASSERT(std::get_if<PyObject *>(&func));
-	auto callable_object = std::get<PyObject *>(func);
+	auto func_val = vm.reg(m_function_name);
+	auto callable_object = func_val.box();
 
-	std::vector<Value> args;
+	std::vector<RtValue> args;
 	args.reserve(m_size);
 	if (m_size > 0) {
 		auto *el = vm.sp() - m_size;
@@ -27,7 +26,7 @@ PyResult<Value> FunctionCall::execute(VirtualMachine &vm, Interpreter &) const
 	auto result = callable_object->call(args_tuple.unwrap(), nullptr);
 	if (result.is_ok()) {
 		vm.reg(0) = result.unwrap();
-		return Ok(Value{ result.unwrap() });
+		return Ok(RtValue{ result.unwrap() });
 	}
 	return Err(result.unwrap_err());
 }

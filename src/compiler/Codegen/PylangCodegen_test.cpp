@@ -177,7 +177,7 @@ TEST_F(PylangCodegenTest, NoneConstant)
 
 	// None → py::NameConstant{ NoneType{} } → py::Value
 	py::Value none_value = py::py_none();
-	auto none_val = std::make_shared<ast::Constant>(none_value, loc());
+	auto none_val = std::make_shared<ast::Constant>(none_value.as_ptr(), loc());
 
 	auto target = std::make_shared<ast::Name>("x", ast::ContextType::STORE, loc());
 	mod.emplace(std::make_shared<ast::Assign>(
@@ -692,7 +692,7 @@ TEST_F(PylangCodegenTest, CompareIs)
 	ast::Module mod("<test>");
 	auto name_a = std::make_shared<ast::Name>("a", ast::ContextType::LOAD, loc());
 	py::Value none_val = py::py_none();
-	auto none_c = std::make_shared<ast::Constant>(none_val, loc());
+	auto none_c = std::make_shared<ast::Constant>(none_val.as_ptr(), loc());
 
 	auto cmp = std::make_shared<ast::Compare>(name_a,
 		std::vector<ast::Compare::OpType>{ ast::Compare::OpType::Is },

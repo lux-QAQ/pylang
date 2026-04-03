@@ -270,25 +270,27 @@ PyResult<PyObject *> PyCode::eval(PyObject *globals,
 	if (kwargs) {
 		const auto &argnames = m_varnames;
 		for (const auto &[key, value] : kwargs->map()) {
-			ASSERT(std::holds_alternative<String>(key));
-			auto key_str = std::get<String>(key);
-			auto arg_iter = std::find(m_varnames.begin(), m_varnames.end(), key_str.s);
+			ASSERT(key.is_heap_object());
+			auto key_str_obj = as<PyString>(key.as_ptr());
+			ASSERT(key_str_obj);
+			auto key_str = key_str_obj->value();
+			auto arg_iter = std::find(m_varnames.begin(), m_varnames.end(), key_str);
 			if (arg_iter == m_varnames.end()) {
 				if (m_flags.is_set(CodeFlags::Flag::VARKEYWORDS)) {
 					continue;
 				} else {
 					return Err(type_error(
-						"{}() got an unexpected keyword argument '{}'", name->value(), key_str.s));
+						"{}() got an unexpected keyword argument '{}'", name->value(), key_str));
 				}
 			}
 
 			// 修改：使用 RuntimeContext
 			auto &arg = ctx.stack_local(std::distance(argnames.begin(), arg_iter));
 
-			if (std::holds_alternative<PyObject *>(arg)) {
-				if (std::get<PyObject *>(arg)) {
+			if (arg.is_heap_object()) {
+				if (arg.as_ptr()) {
 					return Err(type_error(
-						"{}() got multiple values for argument '{}'", name->value(), key_str.s));
+						"{}() got multiple values for argument '{}'", name->value(), key_str));
 				}
 			}
 			if (auto it = std::find(m_cell2arg.begin(), m_cell2arg.end(), kwargs_count);
@@ -312,15 +314,14 @@ PyResult<PyObject *> PyCode::eval(PyObject *globals,
 				const auto free_var_idx = std::distance(m_cell2arg.begin(), it);
 				ASSERT(function_frame->freevars()[free_var_idx]);
 				auto *cell = function_frame->freevars()[free_var_idx];
-				if (std::holds_alternative<PyObject *>(cell->content())
-					&& !std::get<PyObject *>(cell->content())) {
+				if (cell->content().is_heap_object() && !cell->content().as_ptr()) {
 					cell->set_cell(*default_iter);
 				}
 			} else {
 				const size_t index = i - arg_stack_offset[i];
 				// 修改：使用 RuntimeContext
 				const auto &arg = ctx.stack_local(index);
-				if (std::holds_alternative<PyObject *>(arg) && !std::get<PyObject *>(arg)) {
+				if (arg.is_heap_object() && !arg.as_ptr()) {
 					ctx.stack_local(index) = *default_iter;
 				}
 			}
@@ -339,15 +340,14 @@ PyResult<PyObject *> PyCode::eval(PyObject *globals,
 				const auto free_var_idx = std::distance(m_cell2arg.begin(), it);
 				ASSERT(function_frame->freevars()[free_var_idx]);
 				auto *cell = function_frame->freevars()[free_var_idx];
-				if (std::holds_alternative<PyObject *>(cell->content())
-					&& !std::get<PyObject *>(cell->content())) {
+				if (cell->content().is_heap_object() && !cell->content().as_ptr()) {
 					cell->set_cell(*kw_default_iter);
 				}
 			} else {
 				const size_t index = i - arg_stack_offset[i];
 				// 修改：使用 RuntimeContext
 				const auto &arg = ctx.stack_local(index);
-				if (std::holds_alternative<PyObject *>(arg) && !std::get<PyObject *>(arg)) {
+				if (arg.is_heap_object() && !arg.as_ptr()) {
 					ctx.stack_local(index) = *kw_default_iter;
 				}
 			}
@@ -372,8 +372,7 @@ PyResult<PyObject *> PyCode::eval(PyObject *globals,
 			const auto free_var_idx = std::distance(m_cell2arg.begin(), it);
 			ASSERT(function_frame->freevars()[free_var_idx]);
 			auto *cell = function_frame->freevars()[free_var_idx];
-			if (std::holds_alternative<PyObject *>(cell->content())
-				&& !std::get<PyObject *>(cell->content())) {
+			if (cell->content().is_heap_object() && !cell->content().as_ptr()) {
 				cell->set_cell(args_.unwrap());
 			}
 		} else {
@@ -397,8 +396,11 @@ PyResult<PyObject *> PyCode::eval(PyObject *globals,
 		if (kwargs) {
 			const auto &argnames = m_varnames;
 			for (const auto &[key, value] : kwargs->map()) {
-				auto key_str = std::get<String>(key);
-				auto arg_iter = std::find(argnames.begin(), argnames.end(), key_str.s);
+				ASSERT(key.is_heap_object());
+				auto key_str_obj = as<PyString>(key.as_ptr());
+				ASSERT(key_str_obj);
+				auto key_str = key_str_obj->value();
+				auto arg_iter = std::find(argnames.begin(), argnames.end(), key_str);
 				if (arg_iter == argnames.end()) {
 					remaining_kwargs->insert(key, value);
 					kwargs_count++;
@@ -418,8 +420,7 @@ PyResult<PyObject *> PyCode::eval(PyObject *globals,
 			const auto free_var_idx = std::distance(m_cell2arg.begin(), it);
 			ASSERT(function_frame->freevars()[free_var_idx]);
 			auto *cell = function_frame->freevars()[free_var_idx];
-			if (std::holds_alternative<PyObject *>(cell->content())
-				&& !std::get<PyObject *>(cell->content())) {
+			if (cell->content().is_heap_object() && !cell->content().as_ptr()) {
 				cell->set_cell(remaining_kwargs);
 			}
 		} else {
@@ -431,9 +432,9 @@ PyResult<PyObject *> PyCode::eval(PyObject *globals,
 	}
 
 	for (size_t idx = m_cellvars.size(); const auto &el : closure) {
-		ASSERT(std::holds_alternative<PyObject *>(el));
-		ASSERT(as<PyCell>(std::get<PyObject *>(el)));
-		function_frame->freevars()[idx++] = as<PyCell>(std::get<PyObject *>(el));
+		ASSERT(el.is_heap_object());
+		ASSERT(as<PyCell>(el.as_ptr()));
+		function_frame->freevars()[idx++] = as<PyCell>(el.as_ptr());
 	}
 
 	if (m_flags.is_set(CodeFlags::Flag::GENERATOR) && m_flags.is_set(CodeFlags::Flag::COROUTINE)) {

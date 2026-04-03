@@ -12,19 +12,14 @@ PyResult<Value> LoadAttr::execute(VirtualMachine &vm, Interpreter &interpreter) 
 {
 	auto this_value = vm.reg(m_value_source);
 	const auto &attribute_name = interpreter.execution_frame()->names(m_attr_name);
-	spdlog::debug("This object: {}",
-		std::visit(
-			[](const auto &val) {
-				auto obj = PyObject::from(val);
-				ASSERT(obj.is_ok());
-				return obj.unwrap()->to_string();
-			},
-			this_value));
+	if (auto obj_res = PyObject::from(this_value); obj_res.is_ok()) {
+		spdlog::debug("This object: {}", obj_res.unwrap()->to_string());
+	}
 	auto result = [&]() -> PyResult<Value> {
 		[[maybe_unused]] RAIIStoreNonCallInstructionData non_call_instruction_data;
-		if (auto *this_obj = std::get_if<PyObject *>(&this_value)) {
+		if (this_value.is_heap_object()) {
 			auto name = PyString::create(attribute_name);
-			if (auto r = (*this_obj)->get_attribute(name.unwrap()); r.is_ok()) {
+			if (auto r = this_value.as_ptr()->get_attribute(name.unwrap()); r.is_ok()) {
 				return Ok(Value{ r.unwrap() });
 			} else {
 				return Err(r.unwrap_err());

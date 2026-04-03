@@ -17,9 +17,9 @@ PyResult<Value> WithExceptStart::execute(VirtualMachine &vm, Interpreter &interp
 	ASSERT(interpreter.execution_frame()->exception_info().has_value());
 	const auto &exit_method = vm.reg(m_exit_method);
 
-	if (!std::holds_alternative<PyObject *>(exit_method)) { TODO(); }
+	if (!exit_method.is_heap_object()) { TODO(); }
 
-	auto *exit_method_obj = std::get<PyObject *>(exit_method);
+	auto *exit_method_obj = exit_method.as_ptr();
 	ASSERT(exit_method_obj);
 
 	auto args_tuple = [&]() {

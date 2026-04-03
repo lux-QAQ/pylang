@@ -26,18 +26,13 @@ PyResult<Value> ImportName::execute(VirtualMachine &vm, Interpreter &interpreter
 	auto import_str = PyString::create("__import__");
 	if (import_str.is_err()) return import_str;
 
-	if (!builtins->symbol_table()->map().contains(import_str.unwrap())) {
-		return Err(import_error("__import__ not found"));
-	}
+	auto import_func_opt = builtins->symbol_table()->operator[](import_str.unwrap());
+	if (!import_func_opt) { return Err(import_error("__import__ not found")); }
 
-	const auto &import_func = builtins->symbol_table()->map().at(import_str.unwrap());
+	const auto import_func = *import_func_opt;
 
-	if (!std::holds_alternative<PyObject *>(import_func)) {
-		return Err(type_error("__import__ is not callable"));
-	}
-	if (!std::get<PyObject *>(import_func)) {
-		return Err(import_error("__import__ not available"));
-	}
+	if (!import_func.is_heap_object()) { return Err(type_error("__import__ is not callable")); }
+	if (!import_func.as_ptr()) { return Err(import_error("__import__ not available")); }
 
 	auto arg0 = PyString::create(name);
 	if (arg0.is_err()) return arg0;
@@ -49,7 +44,7 @@ PyResult<Value> ImportName::execute(VirtualMachine &vm, Interpreter &interpreter
 		PyObject::from(level).unwrap());
 	if (args.is_err()) return args;
 
-	auto module = std::get<PyObject *>(import_func)->call(args.unwrap(), nullptr);
+	auto module = import_func.as_ptr()->call(args.unwrap(), nullptr);
 
 	return module.and_then([&](auto *m) {
 		vm.reg(m_destination) = m;

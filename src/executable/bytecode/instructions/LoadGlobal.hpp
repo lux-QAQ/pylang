@@ -18,7 +18,7 @@ class LoadGlobal final : public Instruction
 		return fmt::format("LOAD_GLOBAL     r{:<3} \"{}\"", m_destination, m_object_name);
 	}
 
-	py::PyResult<py::Value> execute(VirtualMachine &vm, Interpreter &interpreter) const final;
+	py::PyResult<py::RtValue> execute(VirtualMachine &vm, Interpreter &interpreter) const final;
 
 	void relocate(size_t) final {}
 

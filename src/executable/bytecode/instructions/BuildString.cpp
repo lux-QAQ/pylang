@@ -17,14 +17,9 @@ PyResult<Value> BuildString::execute(VirtualMachine &vm, Interpreter &) const
 	}
 	std::string result_string;
 	for (const auto &el : elements) {
-		if (std::holds_alternative<String>(el)) {
-			result_string += std::get<String>(el).s;
-		} else if (std::holds_alternative<PyObject *>(el)) {
-			ASSERT(as<PyString>(std::get<PyObject *>(el)));
-			result_string += as<PyString>(std::get<PyObject *>(el))->value();
-		} else {
-			TODO();
-		}
+		auto *obj = el.box();
+		ASSERT(as<PyString>(obj));
+		result_string += as<PyString>(obj)->value();
 	}
 
 	return PyString::create(std::move(result_string)).and_then([&vm, this](PyString *str) {

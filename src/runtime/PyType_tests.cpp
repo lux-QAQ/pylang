@@ -23,8 +23,8 @@ TEST(PyType, ObjectClassParent)
 	ASSERT_TRUE(mro);
 	EXPECT_EQ(mro->elements().size(), 1);
 
-	EXPECT_TRUE(std::holds_alternative<PyObject *>(mro->elements()[0]));
-	auto *mro_0 = std::get<PyObject *>(mro->elements()[0]);
+	EXPECT_TRUE(mro->elements()[0].is_heap_object());
+	auto *mro_0 = mro->elements()[0].as_ptr();
 	EXPECT_EQ(mro_0, types::object());
 }
 
@@ -54,10 +54,10 @@ TEST(PyType, InheritanceTriangle)
 	auto *C_mro = C_mro_.unwrap();
 	ASSERT_TRUE(C_mro);
 	EXPECT_EQ(C_mro->elements().size(), 4);
-	EXPECT_EQ(std::get<PyObject *>(C_mro->elements()[0]), C);
-	EXPECT_EQ(std::get<PyObject *>(C_mro->elements()[1]), B1);
-	EXPECT_EQ(std::get<PyObject *>(C_mro->elements()[2]), B2);
-	EXPECT_EQ(std::get<PyObject *>(C_mro->elements()[3]), types::object());
+	EXPECT_EQ(C_mro->elements()[0].as_ptr(), C);
+	EXPECT_EQ(C_mro->elements()[1].as_ptr(), B1);
+	EXPECT_EQ(C_mro->elements()[2].as_ptr(), B2);
+	EXPECT_EQ(C_mro->elements()[3].as_ptr(), types::object());
 }
 
 TEST(PyType, InheritanceDiamond)
@@ -75,9 +75,9 @@ TEST(PyType, InheritanceDiamond)
 	auto *C_mro = C_mro_.unwrap();
 	ASSERT_TRUE(C_mro);
 	EXPECT_EQ(C_mro->elements().size(), 5);
-	EXPECT_EQ(std::get<PyObject *>(C_mro->elements()[0]), C);
-	EXPECT_EQ(std::get<PyObject *>(C_mro->elements()[1]), B1);
-	EXPECT_EQ(std::get<PyObject *>(C_mro->elements()[2]), B2);
-	EXPECT_EQ(std::get<PyObject *>(C_mro->elements()[3]), A);
-	EXPECT_EQ(std::get<PyObject *>(C_mro->elements()[4]), types::object());
+	EXPECT_EQ(C_mro->elements()[0].as_ptr(), C);
+	EXPECT_EQ(C_mro->elements()[1].as_ptr(), B1);
+	EXPECT_EQ(C_mro->elements()[2].as_ptr(), B2);
+	EXPECT_EQ(C_mro->elements()[3].as_ptr(), A);
+	EXPECT_EQ(C_mro->elements()[4].as_ptr(), types::object());
 }

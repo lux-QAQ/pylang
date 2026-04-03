@@ -1,8 +1,10 @@
 #include "ast/AST.hpp"
+
 #include "compiler/Driver/_SimpleDriver.hpp"
 #include "compiler/Support/Log.hpp"
 #include "lexer/Lexer.hpp"
 #include "parser/Parser.hpp"
+#include "runtime/export/rt_lifecycle.cpp"
 
 #include <cpptrace/cpptrace.hpp>
 #include <cxxopts.hpp>
@@ -356,6 +358,7 @@ int run_compiler(int argc, char **argv)
 
 int main(int argc, char **argv)
 {
+	rt_init();
 	// 注册崩溃处理 (Segfault 等)
 	cpptrace::register_terminate_handler();
 	return run_compiler(argc, argv);

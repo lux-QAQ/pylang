@@ -14,13 +14,13 @@
 
 using namespace py;
 
-PyResult<Value> MethodCall::execute(VirtualMachine &vm, Interpreter &) const
+PyResult<RtValue> MethodCall::execute(VirtualMachine &vm, Interpreter &) const
 {
-	const auto &method = vm.reg(m_caller);
-	auto *method_obj = std::get<PyObject *>(method);
+	auto method = vm.reg(m_caller);
+	auto *method_obj = method.box();
 	ASSERT(method_obj);
 
-	std::vector<Value> args;
+	std::vector<RtValue> args;
 	for (const auto &arg_register : m_args) { args.push_back(vm.reg(arg_register)); }
 
 	auto args_tuple = PyTuple::create(args);
@@ -34,7 +34,7 @@ PyResult<Value> MethodCall::execute(VirtualMachine &vm, Interpreter &) const
 	auto result = method_obj->call(args_tuple.unwrap(), kwargs);
 	if (result.is_err()) return Err(result.unwrap_err());
 	vm.reg(0) = result.unwrap();
-	return Ok(Value{ result.unwrap() });
+	return Ok(RtValue{ result.unwrap() });
 }
 
 std::vector<uint8_t> MethodCall::serialize() const

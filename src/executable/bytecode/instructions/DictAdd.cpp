@@ -5,19 +5,19 @@
 
 using namespace py;
 
-PyResult<Value> DictAdd::execute(VirtualMachine &vm, Interpreter &) const
+PyResult<RtValue> DictAdd::execute(VirtualMachine &vm, Interpreter &) const
 {
 	auto &dict = vm.reg(m_dict);
 	auto &key = vm.reg(m_key);
 	auto &value = vm.reg(m_value);
 
-	ASSERT(std::holds_alternative<PyObject *>(dict));
+	ASSERT(dict.is_heap_object());
 
-	auto *pydict = std::get<PyObject *>(dict);
+	auto *pydict = dict.as_ptr();
 	ASSERT(pydict);
 	ASSERT(as<PyDict>(pydict));
 
-	as<PyDict>(pydict)->insert(key, value);
+	as<PyDict>(pydict)->insert(key.as_ptr(), value.as_ptr());
 
 	return Ok(py_none());
 }

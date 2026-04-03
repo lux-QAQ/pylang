@@ -12,13 +12,11 @@
 
 using namespace py;
 
-PyResult<Value> RaiseVarargs::execute(VirtualMachine &vm, Interpreter &) const
+PyResult<RtValue> RaiseVarargs::execute(VirtualMachine &vm, Interpreter &) const
 {
 	if (m_exception.has_value()) {
-		const auto &exception = vm.reg(*m_exception);
-		ASSERT(std::holds_alternative<PyObject *>(exception));
-
-		auto *exception_obj = std::get<PyObject *>(exception);
+		auto exception = vm.reg(*m_exception);
+		auto *exception_obj = exception.box();
 		if (as<PyType>(exception_obj)) {
 			if (auto obj = as<PyType>(exception_obj)->__call__(nullptr, nullptr); obj.is_ok()) {
 				exception_obj = obj.unwrap();

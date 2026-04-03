@@ -406,11 +406,15 @@ PyModule *sys_module()
 	auto *version = Version::create(3, 19, 0, "prerelease", 0).unwrap();
 	auto *flags = Flags::create(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, false, 0).unwrap();
 
-	implementation->insert(String{ "name" }, String{ "python-cpp" });
-	implementation->insert(String{ "cache_tag" }, py_none());
-	implementation->insert(String{ "version" }, version);
-	implementation->insert(String{ "hexversion" }, Number{ 0x03090000 });
-	implementation->insert(String{ "_multiarch" }, String{ "x86_64-linux-gnu" });
+	implementation->insert(RtValue::from_ptr(PyString::create("name").unwrap()),
+		RtValue::from_ptr(PyString::create("python-cpp").unwrap()));
+	implementation->insert(RtValue::from_ptr(PyString::create("cache_tag").unwrap()), py_none());
+	implementation->insert(
+		RtValue::from_ptr(PyString::create("version").unwrap()), RtValue::from_ptr(version));
+	implementation->insert(RtValue::from_ptr(PyString::create("hexversion").unwrap()),
+		RtValue::from_int_or_box(0x03090000));
+	implementation->insert(RtValue::from_ptr(PyString::create("_multiarch").unwrap()),
+		RtValue::from_ptr(PyString::create("x86_64-linux-gnu").unwrap()));
 
 	auto *implementation_ns = PyNamespace::create(implementation).unwrap();
 	s_sys_module->add_symbol(PyString::create("implementation").unwrap(), implementation_ns);

@@ -11,6 +11,11 @@
 #include <string>
 #include <vector>
 
+#include "runtime/PyBool.hpp"
+#include "runtime/PyFloat.hpp"
+#include "runtime/PyNone.hpp"
+#include "runtime/PyString.hpp"
+
 namespace py {
 
 template<typename T> struct is_vector : std::false_type
@@ -87,48 +92,31 @@ template<> inline void serialize<PyTuple *>(PyTuple *const &value, std::vector<u
 
 template<> inline void serialize<Value>(const Value &value, std::vector<uint8_t> &result)
 {
-	std::visit(
-		overloaded{
-			[&](const Number &val) {
-				std::visit(overloaded{
-							   [&](const BigIntType &v) {
-								   ASSERT(v.fits_ulong_p());
-								   const auto int_value = v.get_ui();
-								   serialize(static_cast<uint8_t>(ValueType::INT64), result);
-								   serialize(int_value, result);
-							   },
-							   [&](const double &v) {
-								   serialize(static_cast<uint8_t>(ValueType::F64), result);
-								   serialize(v, result);
-							   },
-						   },
-					val.value);
-			},
-			[&](const String &val) {
-				serialize(static_cast<uint8_t>(ValueType::STRING), result);
-				serialize(val.s, result);
-			},
-			[&](const Bytes &bytes) {
-				serialize(static_cast<uint8_t>(ValueType::BYTES), result);
-				serialize(bytes.b, result);
-			},
-			[&](const Ellipsis &) { serialize(static_cast<uint8_t>(ValueType::ELLIPSIS), result); },
-			[&](const NameConstant &val) {
-				std::visit(overloaded{ [&](const bool &v) {
-										  serialize(static_cast<uint8_t>(ValueType::BOOL), result);
-										  serialize(v, result);
-									  },
-							   [&](const NoneType &) {
-								   serialize(static_cast<uint8_t>(ValueType::NONE), result);
-							   } },
-					val.value);
-			},
-			[&](const Tuple &tuple) {
-				serialize(static_cast<uint8_t>(ValueType::TUPLE), result);
-				serialize(tuple, result);
-			},
-			[&](PyObject *const &) { TODO(); },
-		},
-		value);
+	if (value.is_tagged_int()) {
+		serialize(static_cast<uint8_t>(ValueType::INT64), result);
+		serialize(static_cast<uint64_t>(value.as_int()), result);
+		return;
+	}
+
+	if (value.is_null()) { TODO(); }
+
+	auto *obj = value.as_ptr();
+	if (obj->type() == py::types::float_()) {
+		serialize(static_cast<uint8_t>(ValueType::F64), result);
+		serialize(as<PyFloat>(obj)->as_f64(), result);
+	} else if (obj->type() == py::types::str()) {
+		serialize(static_cast<uint8_t>(ValueType::STRING), result);
+		serialize(as<PyString>(obj)->value(), result);
+	} else if (obj == py_none()) {
+		serialize(static_cast<uint8_t>(ValueType::NONE), result);
+	} else if (obj->type() == py::types::bool_()) {
+		serialize(static_cast<uint8_t>(ValueType::BOOL), result);
+		serialize(as<PyBool>(obj)->value(), result);
+	} else if (obj == py_ellipsis()) {
+		serialize(static_cast<uint8_t>(ValueType::ELLIPSIS), result);
+	} else {
+		TODO();
+	}
 }
+
 }// namespace py

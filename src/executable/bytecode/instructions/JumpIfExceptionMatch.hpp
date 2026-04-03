@@ -26,7 +26,7 @@ class JumpIfExceptionMatch final : public Instruction
 		return fmt::format("JUMP_IF_EXC     r{} position: {}", m_exception_type_reg, position);
 	}
 
-	py::PyResult<py::Value> execute(VirtualMachine &vm, Interpreter &interpreter) const final;
+	py::PyResult<py::RtValue> execute(VirtualMachine &vm, Interpreter &interpreter) const final;
 
 	void relocate(size_t) final;
 

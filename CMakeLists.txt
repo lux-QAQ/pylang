@@ -39,7 +39,11 @@ CPMAddPackage(
 CPMAddPackage("gh:gabime/spdlog@1.8.5")
 CPMAddPackage("gh:google/googletest@1.17.0")
 CPMAddPackage("gh:jarro2783/cxxopts@3.3.1")
-CPMAddPackage("gh:Tessil/ordered-map@1.2.0")
+CPMAddPackage(
+    NAME ordered_map
+    GITHUB_REPOSITORY Tessil/ordered-map
+    GIT_TAG v1.2.0
+)
 CPMAddPackage("gh:python/cpython@3.9.25")
 CPMAddPackage("gh:antirez/linenoise#2.0")
 CPMAddPackage("gh:aminya/project_options@0.41.0")

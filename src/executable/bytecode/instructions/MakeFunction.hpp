@@ -26,7 +26,7 @@ class MakeFunction : public Instruction
 		return fmt::format("MAKE_FUNCTION   r{}   ({})", m_dst, m_name);
 	}
 
-	py::PyResult<py::Value> execute(VirtualMachine &vm, Interpreter &interpreter) const final;
+	py::PyResult<py::RtValue> execute(VirtualMachine &vm, Interpreter &interpreter) const final;
 
 	void relocate(size_t) final {}
 

@@ -121,15 +121,18 @@ PyModule *sre_module()
 		PyDict::create().unwrap(), PyString::create("_sre").unwrap(), PyString::create("").unwrap())
 						.unwrap();
 
-	module_->add_symbol(PyString::create("CODESIZE").unwrap(), Number{ BigIntType{ 4 } });
+	module_->add_symbol(PyString::create("CODESIZE").unwrap(),
+		py::RtValue::from_ptr(PyInteger::create(4).unwrap()));
 
-	module_->add_symbol(PyString::create("MAGIC").unwrap(), Number{ BigIntType{ 20171005 } });
+	module_->add_symbol(PyString::create("MAGIC").unwrap(),
+		py::RtValue::from_ptr(PyInteger::create(20171005).unwrap()));
 
 	module_->add_symbol(PyString::create("MAXREPEAT").unwrap(),
-		Number{ BigIntType{ std::numeric_limits<uint32_t>::max() } });
+		py::RtValue::from_ptr(PyInteger::create(std::numeric_limits<uint32_t>::max()).unwrap()));
 
 	module_->add_symbol(PyString::create("MAXGROUPS").unwrap(),
-		Number{ BigIntType{ std::numeric_limits<uint32_t>::max() / 2 } });
+		py::RtValue::from_ptr(
+			PyInteger::create(std::numeric_limits<uint32_t>::max() / 2).unwrap()));
 
 	module_->add_symbol(PyString::create("compile").unwrap(),
 		PyNativeFunction::create("compile", &compile).unwrap());

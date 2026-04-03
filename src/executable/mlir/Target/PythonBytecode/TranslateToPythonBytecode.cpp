@@ -79,10 +79,13 @@
 #include "executable/bytecode/instructions/YieldLoad.hpp"
 #include "executable/bytecode/instructions/YieldValue.hpp"
 #include "runtime/PyBool.hpp"
+#include "runtime/PyBytes.hpp"
 #include "runtime/PyEllipsis.hpp"
+#include "runtime/PyFloat.hpp"
 #include "runtime/PyNone.hpp"
 #include "runtime/taggered_pointer/RtValue.hpp"
 #include "runtime/types/api.hpp"
+
 
 #include "memory/GCVectorUtils.hpp"
 #include "mlir/Analysis/TopologicalSortUtils.h"
@@ -816,18 +819,22 @@ struct PythonBytecodeEmitter
 			if (auto it = std::find_if(m_consts.begin(),
 					m_consts.end(),
 					[&value](const auto &el) {
-						if (std::holds_alternative<::py::Number>(el)
-							&& std::holds_alternative<::py::Number>(value)) {
-							return std::get<::py::Number>(el).value.index()
-									   == std::get<::py::Number>(value).value.index()
-								   && el == value;
+						if (el.is_tagged_int() && value.is_tagged_int()) {
+							return el.as_int() == value.as_int();
 						}
-						return el.index() == value.index() && el == value;
+						if (el.is_heap_object() && value.is_heap_object()) {
+							if (el.as_ptr()->type() != value.as_ptr()->type()) return false;
+						} else if (el.is_null() && value.is_null()) {
+							return true;
+						} else {
+							return false;
+						}
+						return ::py::RtValue::compare_eq(el, value).is_truthy();
 					});
 				it != m_consts.end()) {
 				return std::distance(m_consts.begin(), it);
 			}
-			m_consts.push_back(std::move(value));
+			m_consts.push_back(value);
 			return m_consts.size() - 1;
 		}
 
@@ -913,45 +920,48 @@ struct PythonBytecodeEmitter
 		ASSERT(attr);
 		::py::Value value =
 			llvm::TypeSwitch<mlir::Attribute, ::py::Value>(attr)
-				.Case<FloatAttr>(
-					[](FloatAttr f) { return ::py::Value{ ::py::Number{ f.getValueAsDouble() } }; })
+				.Case<FloatAttr>([](FloatAttr f) {
+					return ::py::Value{ ::py::RtValue::from_ptr(
+						::py::PyFloat::create(f.getValueAsDouble()).unwrap()) };
+				})
 				.Case<BoolAttr>([](BoolAttr b) {
 					return ::py::Value{ ::py::RtValue::from_ptr(
-						b.getValue() ? ::py::py_true() : ::py::py_false())
-							.box() };
+						b.getValue() ? ::py::py_true() : ::py::py_false()) };
 				})
-				.Case<UnitAttr>([](UnitAttr) { return ::py::Value{ ::py::py_none() }; })
-				.Case<StringAttr>(
-					[](StringAttr str) { return ::py::Value{ ::py::String{ str.str() } }; })
+				.Case<UnitAttr>([](UnitAttr) {
+					return ::py::Value{ ::py::RtValue::from_ptr(::py::py_none()) };
+				})
+				.Case<StringAttr>([](StringAttr str) {
+					return ::py::Value{ ::py::RtValue::from_ptr(
+						::py::PyString::create(str.str()).unwrap()) };
+				})
 				.Case<IntegerAttr>([](IntegerAttr int_attr) {
 					const auto &int_value = int_attr.getAPSInt();
 					::py::BigIntType big_int_value{};
 					if (int_value.isZero()) {
-						big_int_value.get_mpz_t()->_mp_size = 0;
+						big_int_value = 0;
+					} else if (int_value.isNegative()) {
+						big_int_value = -int_value.abs().getZExtValue();
 					} else {
-						mpz_init2(big_int_value.get_mpz_t(), int_value.getBitWidth());
-						big_int_value.get_mpz_t()->_mp_size =
-							int_value.getNumWords() * (int_value.isNegative() ? -1 : 1);
-						std::copy_n(int_value.getRawData(),
-							int_value.getNumWords(),
-							big_int_value.get_mpz_t()->_mp_d);
+						big_int_value = int_value.getZExtValue();
 					}
-					return ::py::Value{ ::py::Number{ std::move(big_int_value) } };
+					return ::py::Value{ ::py::RtValue::from_ptr(
+						::py::PyInteger::create(big_int_value).unwrap()) };
 				})
 				.Case<DenseIntElementsAttr>([](DenseIntElementsAttr bytes_attr) {
 					std::vector<std::byte> bytes;
 					for (const auto &el : bytes_attr) {
-						ASSERT(el.isIntN(8));
-						bytes.push_back(std::byte{ *bit_cast<const uint8_t *>(el.getRawData()) });
+						bytes.push_back(static_cast<std::byte>(el.getZExtValue()));
 					}
-					return ::py::Value{ ::py::Bytes{ std::move(bytes) } };
+					return ::py::Value{ ::py::RtValue::from_ptr(
+						::py::PyBytes::create(::py::Bytes{ std::move(bytes) }).unwrap()) };
 				})
 				.Case<ArrayAttr>([this](ArrayAttr arr) {
 					std::vector<::py::Value> elements;
 					elements.reserve(arr.size());
 					for (const auto &el : arr) { elements.push_back(get_value(el)); }
-					// 使用 ::py::to_gc_vector 避免 mlir::py 冲突，并且显式构造 py::Value
-					return ::py::Value{ ::py::Tuple{ ::py::to_gc_vector(std::move(elements)) } };
+					return ::py::Value{ ::py::RtValue::from_ptr(
+						::py::PyTuple::create(elements).unwrap()) };
 				})
 				.Default([](auto) {
 					TODO();
@@ -1360,8 +1370,8 @@ template<> LogicalResult PythonBytecodeEmitter::emitOperation(mlir::emitpybyteco
 template<> LogicalResult PythonBytecodeEmitter::emitOperation(mlir::emitpybytecode::ForIter &op)
 {
 	// auto this_block = std::find(
-	// 	m_sorted_blocks.top().begin(), m_sorted_blocks.top().end(), op.getOperation()->getBlock());
-	// ASSERT(*(this_block + 1) == op.body());
+	// 	m_sorted_blocks.top().begin(), m_sorted_blocks.top().end(),
+	// op.getOperation()->getBlock()); ASSERT(*(this_block + 1) == op.body());
 
 	auto exit_label =
 		m_block_labels.emplace_back(op.getContinuation(), std::make_shared<Label>("", 0)).m_label;
@@ -1830,8 +1840,8 @@ template<> LogicalResult PythonBytecodeEmitter::emitOperation(mlir::emitpybyteco
 {
 	emit<YieldValue>(get_register(op.getValue()));
 	// TODO: optimise away the YieldLoad when the received value is never used
-	//       would have to happen during op lowering to EmitPythonBytecode dialect in order to avoid
-	//       register allocation of `received`
+	//       would have to happen during op lowering to EmitPythonBytecode dialect in order to
+	//       avoid register allocation of `received`
 	emit<YieldLoad>(get_register(op.getReceived()));
 	return success();
 }

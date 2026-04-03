@@ -2,6 +2,7 @@
 #include "instructions/Instructions.hpp"
 #include "interpreter/Interpreter.hpp"
 #include "runtime/BaseException.hpp"
+#include "runtime/PyFloat.hpp"
 #include "runtime/PyFrame.hpp"
 #include "runtime/PyModule.hpp"
 #include "runtime/PyTraceback.hpp"

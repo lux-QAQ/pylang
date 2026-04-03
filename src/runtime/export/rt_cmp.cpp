@@ -77,8 +77,9 @@ py::PyObject *rt_compare_in(py::PyObject *value, py::PyObject *container)
 
 		auto *unboxed_val = py::ensure_box(r_val.as_pyobject_raw());
 		if (unboxed_val->type() == py::types::str()) {
-			bool found = dict->map().find(py::Value(static_cast<py::PyString *>(unboxed_val)))
-						 != dict->map().end();
+			bool found =
+				dict->map().find(py::RtValue::from_ptr(static_cast<py::PyString *>(unboxed_val)))
+				!= dict->map().end();
 			return found ? py::py_true() : py::py_false();
 		}
 	}
@@ -89,7 +90,7 @@ py::PyObject *rt_compare_in(py::PyObject *value, py::PyObject *container)
 		bool found = false;
 		for (const auto &item : list->elements()) {
 			// [核心修复]：使用 RtValue::compare_eq 屏蔽底层 variant 的解引用风险
-			if (py::RtValue::compare_eq(py::RtValue::from_value(item), r_val).is_truthy()) {
+			if (py::RtValue::compare_eq(item, r_val).is_truthy()) {
 				found = true;
 				break;
 			}
@@ -112,8 +113,9 @@ py::PyObject *rt_compare_not_in(py::PyObject *value, py::PyObject *container)
 		auto *dict = static_cast<py::PyDict *>(b_container);
 		auto *unboxed_val = py::ensure_box(r_val.as_pyobject_raw());
 		if (unboxed_val->type() == py::types::str()) {
-			bool found = dict->map().find(py::Value(static_cast<py::PyString *>(unboxed_val)))
-						 != dict->map().end();
+			bool found =
+				dict->map().find(py::RtValue::from_ptr(static_cast<py::PyString *>(unboxed_val)))
+				!= dict->map().end();
 			return found ? py::py_false() : py::py_true();
 		}
 	}
@@ -122,7 +124,7 @@ py::PyObject *rt_compare_not_in(py::PyObject *value, py::PyObject *container)
 		auto *list = static_cast<py::PyList *>(b_container);
 		bool found = false;
 		for (const auto &item : list->elements()) {
-			if (py::RtValue::compare_eq(py::RtValue::from_value(item), r_val).is_truthy()) {
+			if (py::RtValue::compare_eq(item, r_val).is_truthy()) {
 				found = true;
 				break;
 			}

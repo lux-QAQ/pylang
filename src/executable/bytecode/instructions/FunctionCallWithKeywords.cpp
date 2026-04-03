@@ -15,8 +15,8 @@ PyResult<Value> FunctionCallWithKeywords::execute(VirtualMachine &vm,
 	Interpreter &interpreter) const
 {
 	auto func = vm.reg(m_function_name);
-	ASSERT(std::get_if<PyObject *>(&func));
-	auto function_object = std::get<PyObject *>(func);
+	ASSERT(func.is_heap_object());
+	auto function_object = func.as_ptr();
 
 	std::vector<Value> args;
 	for (const auto &arg_register : m_args) { args.push_back(vm.reg(arg_register)); }
@@ -31,7 +31,8 @@ PyResult<Value> FunctionCallWithKeywords::execute(VirtualMachine &vm,
 
 	for (size_t i = 0; i < m_kwargs.size(); ++i) {
 		const auto &keyword = interpreter.execution_frame()->names(m_keywords[i]);
-		map.insert_or_assign(String{ keyword }, vm.reg(m_kwargs[i]));
+		map.insert_or_assign(
+			py::RtValue::from_ptr(PyString::create(keyword).unwrap()), vm.reg(m_kwargs[i]));
 	}
 
 	auto kwargs_dict = PyDict::create(map);

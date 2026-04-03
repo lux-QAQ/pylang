@@ -26,7 +26,7 @@ class FunctionCallEx final : public Instruction
 		return fmt::format("CALL_EX         r{:<3} r{:<3} r{:<3}", m_function, m_args, m_kwargs);
 	}
 
-	py::PyResult<py::Value> execute(VirtualMachine &vm, Interpreter &interpreter) const final;
+	py::PyResult<py::RtValue> execute(VirtualMachine &vm, Interpreter &interpreter) const final;
 
 	void relocate(size_t) final {}
 

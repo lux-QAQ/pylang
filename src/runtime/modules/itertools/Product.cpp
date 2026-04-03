@@ -75,14 +75,14 @@ namespace itertools {
 
 		std::optional<size_t> length_;
 		if (kwargs) {
-			if (auto it = kwargs->map().find(String{ "repeat" }); it != kwargs->map().end()) {
-				auto obj = PyObject::from(it.value());
-				if (obj.is_err()) { return obj; }
-				if (!obj.unwrap()->type()->issubclass(types::integer())) {
-					return Err(type_error("'{}' object cannot be interpreted as an integer",
-						obj.unwrap()->type()->name()));
+			if (auto v_res = kwargs->get(py::PyString::create("repeat").unwrap(), nullptr);
+				v_res.is_ok() && v_res.unwrap() != nullptr) {
+				auto obj = v_res.unwrap();
+				if (!obj->type()->issubclass(types::integer())) {
+					return Err(type_error(
+						"'{}' object cannot be interpreted as an integer", obj->type()->name()));
 				}
-				auto l = static_cast<const PyInteger &>(*obj.unwrap()).as_big_int();
+				auto l = static_cast<const PyInteger *>(obj)->as_big_int();
 				if (l < 0) {
 					length_ = 0;
 				} else {
@@ -103,10 +103,9 @@ namespace itertools {
 		if (m_result.empty()) {
 			m_result.emplace_back();
 			for (const auto &pool : m_pools->elements()) {
-				ASSERT(std::holds_alternative<PyObject *>(pool));
-				ASSERT(as<PyList>(std::get<PyObject *>(pool)));
-				std::vector<std::vector<Value>> result;
-				auto *pool_list = as<PyList>(std::get<PyObject *>(pool));
+				ASSERT(as<PyList>(pool.as_ptr()));
+				std::vector<std::vector<py::RtValue>> result;
+				auto *pool_list = as<PyList>(pool.as_ptr());
 				for (auto x : m_result) {
 					for (auto y : pool_list->elements()) {
 						auto tmp = x;
@@ -119,7 +118,10 @@ namespace itertools {
 		}
 
 		if (m_iteration_count < m_result.size()) {
-			return PyTuple::create(std::move(m_result[m_iteration_count++]));
+			std::vector<PyObject *> tup_els;
+			for (auto val : m_result[m_iteration_count]) { tup_els.push_back(val.box()); }
+			m_iteration_count++;
+			return PyTuple::create(tup_els);
 		}
 
 		return Err(stop_iteration());
@@ -139,8 +141,8 @@ namespace itertools {
 		if (m_pools) { visitor.visit(*m_pools); }
 		for (auto &vec : m_result) {
 			for (auto &el : vec) {
-				if (std::holds_alternative<PyObject *>(el)) {
-					auto obj = std::get<PyObject *>(el);
+				if (el.is_heap_object()) {
+					auto obj = el.as_ptr();
 					if (obj) { visitor.visit(*obj); }
 				}
 			}

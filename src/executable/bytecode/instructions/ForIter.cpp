@@ -17,10 +17,11 @@ PyResult<Value> ForIter::execute(VirtualMachine &vm, Interpreter &) const
 	ASSERT(m_offset.has_value());
 	ASSERT(m_body_offset.has_value());
 	auto iterator = vm.reg(m_src);
-	if (auto *iterable_object = std::get_if<PyObject *>(&iterator)) {
+	if (iterator.is_heap_object()) {
+		auto *iterable_object = iterator.as_ptr();
 		const auto next_value = [iterable_object]() {
 			[[maybe_unused]] RAIIStoreNonCallInstructionData non_call_instruction_data;
-			return (*iterable_object)->next();
+			return iterable_object->next();
 		}();
 		if (next_value.is_err()) {
 			auto *last_exception = next_value.unwrap_err();

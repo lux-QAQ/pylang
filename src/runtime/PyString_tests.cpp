@@ -11,5 +11,5 @@ TEST(PyString, hash)
 	ASSERT_TRUE(foo_obj_.is_ok());
 	auto object_hash = foo_obj_.unwrap()->hash();
 	ASSERT_TRUE(object_hash.is_ok());
-	ASSERT_EQ(ValueHash{}(foo), object_hash.unwrap());
+	ASSERT_EQ(std::hash<std::string>{}(foo.s), object_hash.unwrap());
 }

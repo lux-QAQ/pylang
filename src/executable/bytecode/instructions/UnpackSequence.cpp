@@ -23,8 +23,9 @@ PyResult<Value> UnpackSequence::execute(VirtualMachine &vm, Interpreter &) const
 	const auto &source = vm.reg(m_source);
 
 	return [&]() -> PyResult<Value> {
-		if (auto *obj = std::get_if<PyObject *>(&source)) {
-			if (auto *pytuple = as<PyTuple>(*obj)) {
+		if (source.is_heap_object()) {
+			auto *obj_ptr = source.as_ptr();
+			if (auto *pytuple = as<PyTuple>(obj_ptr)) {
 				if (pytuple->elements().size() > m_destination.size()) {
 					return Err(value_error(
 						"too many values to unpack (expected {})", m_destination.size()));
@@ -39,7 +40,7 @@ PyResult<Value> UnpackSequence::execute(VirtualMachine &vm, Interpreter &) const
 					}
 					return Ok(Value{ py_none() });
 				}
-			} else if (auto *pylist = as<PyList>(*obj)) {
+			} else if (auto *pylist = as<PyList>(obj_ptr)) {
 				if (pylist->elements().size() > m_destination.size()) {
 					return Err(value_error(
 						"too many values to unpack (expected {})", m_destination.size()));
@@ -53,7 +54,7 @@ PyResult<Value> UnpackSequence::execute(VirtualMachine &vm, Interpreter &) const
 					return Ok(Value{ py_none() });
 				}
 			} else {
-				auto mapping = (*obj)->as_mapping();
+				auto mapping = obj_ptr->as_mapping();
 				if (mapping.is_err()) { return Err(mapping.unwrap_err()); }
 				const auto source_size = [&] {
 					[[maybe_unused]] RAIIStoreNonCallInstructionData non_call_instruction_data;
@@ -66,51 +67,6 @@ PyResult<Value> UnpackSequence::execute(VirtualMachine &vm, Interpreter &) const
 						"too many values to unpack (expected {})", m_destination.size()));
 				}
 				TODO();
-			}
-		} else if (std::holds_alternative<Number>(source)) {
-			return Err(type_error("cannot unpack non-iterable int object"));
-		} else if (std::holds_alternative<String>(source)) {
-			const auto str = std::get<String>(source);
-			if (str.s.size() > m_destination.size()) {
-				return Err(
-					value_error("too many values to unpack (expected {})", m_destination.size()));
-			} else if (str.s.size() < m_destination.size()) {
-				return Err(value_error("not enough values to unpack (expected {}, got {})",
-					m_destination.size(),
-					str.s.size()));
-			} else {
-				size_t idx{ 0 };
-				for (const auto &el : str.s) {
-					vm.reg(m_destination[idx++]) = String{ std::string{ el } };
-				}
-				return Ok(Value{ py_none() });
-			}
-		} else if (std::holds_alternative<Bytes>(source)) {
-			const auto bytes = std::get<Bytes>(source);
-			if (bytes.b.size() > m_destination.size()) {
-				return Err(
-					value_error("too many values to unpack (expected {})", m_destination.size()));
-			} else if (bytes.b.size() < m_destination.size()) {
-				return Err(value_error("not enough values to unpack (expected {}, got {})",
-					m_destination.size(),
-					bytes.b.size()));
-			} else {
-				size_t idx{ 0 };
-				for (const auto &el : bytes.b) {
-					vm.reg(m_destination[idx++]) = Number{ std::to_integer<int64_t>(el) };
-				}
-				return Ok(Value{ py_none() });
-			}
-		} else if (std::holds_alternative<PyObject *>(source)) {
-			auto obj = std::get<PyObject *>(source);
-			if (obj == py_ellipsis()) {
-				return Err(type_error("cannot unpack non-iterable ellipsis object"));
-			} else if (obj == py_true() || obj == py_false()) {
-				return Err(type_error("cannot unpack non-iterable bool object"));
-			} else if (obj == py_none()) {
-				return Err(type_error("cannot unpack non-iterable NoneType object"));
-			} else {
-				return Err(type_error("cannot unpack non-iterable object"));
 			}
 		} else {
 			return Err(type_error("cannot unpack non-iterable object"));

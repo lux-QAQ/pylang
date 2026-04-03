@@ -46,16 +46,16 @@ namespace {
 	{
 		if (!globals) { return Err(value_error("'__name__' not in globals")); }
 
-		if (!globals->map().contains(String{ "__package__" })) {
-			return Err(value_error("'__package__' not in globals"));
-		}
-		if (!globals->map().contains(String{ "__spec__" })) {
-			return Err(value_error("'__spec__' not in globals"));
-		}
-		auto package_ = PyObject::from(globals->map().at(String{ "__package__" }));
+		auto package_opt =
+			globals->operator[](RtValue::from_ptr(PyString::create("__package__").unwrap()));
+		if (!package_opt) { return Err(value_error("'__package__' not in globals")); }
+		auto spec_opt =
+			globals->operator[](RtValue::from_ptr(PyString::create("__spec__").unwrap()));
+		if (!spec_opt) { return Err(value_error("'__spec__' not in globals")); }
+		auto package_ = PyObject::from(*package_opt);
 		ASSERT(package_.is_ok());
 		auto *package = package_.unwrap();
-		auto spec_ = PyObject::from(globals->map().at(String{ "__spec__" }));
+		auto spec_ = PyObject::from(*spec_opt);
 		ASSERT(spec_.is_ok());
 		auto *spec = spec_.unwrap();
 
@@ -79,15 +79,17 @@ namespace {
 			}
 			package = package_.unwrap();
 		} else {
-			if (!globals->map().contains(String{ "__name__" })) {
-				return Err(value_error("'__name__' not in globals"));
-			}
-			package_ = PyObject::from(globals->map().at(String{ "__name__" }));
+			auto name_opt =
+				globals->operator[](RtValue::from_ptr(PyString::create("__name__").unwrap()));
+			if (!name_opt) { return Err(value_error("'__name__' not in globals")); }
+			package_ = PyObject::from(*name_opt);
 			if (package_.is_err()) return Err(package_.unwrap_err());
 			if (!as<PyString>(package)) { return Err(type_error("__name__ must be a string")); }
 			package = package_.unwrap();
 
-			const bool haspath = globals->map().contains(String{ "__path__" });
+			const bool haspath =
+				globals->operator[](RtValue::from_ptr(PyString::create("__path__").unwrap()))
+					.has_value();
 
 			if (!haspath) {
 				const auto &package_str = as<PyString>(package)->value();
@@ -174,8 +176,9 @@ namespace {
 	PyResult<std::monostate> import_ensure_initialized(PyModule *module, PyString *name)
 	{
 		auto spec_str = PyString::create("__spec__").unwrap();
-		if (module->symbol_table()->map().contains(spec_str)) {
-			auto spec = PyObject::from(module->symbol_table()->map().at(spec_str));
+		auto spec_opt = module->symbol_table()->operator[](RtValue::from_ptr(spec_str));
+		if (spec_opt) {
+			auto spec = PyObject::from(*spec_opt);
 			if (spec.is_err()) return Err(spec.unwrap_err());
 
 			auto value = spec.unwrap()->get_attribute(PyString::create("_initializing").unwrap());
@@ -320,8 +323,9 @@ PyResult<PyObject *> import_module_level_object(PyString *name,
 		}
 		return Ok(*final_mod);
 	} else {
-		auto path = module.unwrap()->symbol_table()->map().find(String{ "__path__" });
-		if (path != module.unwrap()->symbol_table()->map().end()) {
+		auto path_opt = module.unwrap()->symbol_table()->operator[](
+			RtValue::from_ptr(PyString::create("__path__").unwrap()));
+		if (path_opt) {
 #ifdef PYLANG_AOT_MODE
 			return module;
 #else
@@ -367,7 +371,8 @@ PyResult<PyModule *> import_frozen_module(PyString *name)
 
 	auto &interp = current_interpreter();
 
-	module.unwrap()->symbol_table()->insert(String{ "__builtins__" }, interp.builtins());
+	module.unwrap()->symbol_table()->insert(
+		RtValue::from_ptr(PyString::create("__builtins__").unwrap()), interp.builtins());
 
 	auto result = [&interp, &program, module]() {
 		auto *code = as<PyCode>(static_cast<BytecodeProgram &>(*program).main_function());

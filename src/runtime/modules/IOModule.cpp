@@ -3111,7 +3111,8 @@ PyModule *io_module()
 
 	// C++ standard streams currently do not provide an API to get default buffer size, and C's
 	// BUFSIZE doesn't have to be respected
-	s_io_module->add_symbol(PyString::create("DEFAULT_BUFFER_SIZE").unwrap(), Number{ 0 });
+	s_io_module->add_symbol(
+		PyString::create("DEFAULT_BUFFER_SIZE").unwrap(), RtValue::from_int_or_box(0));
 
 	// >> type("UnsupportedOperation", (_io.OSError, ValueError), {})
 	auto unsupported_operation_type = types::type()->call(

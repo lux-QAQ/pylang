@@ -40,19 +40,20 @@ TEST(ModuleInit, BuiltinsModuleHasExpectedSymbols)
 	ASSERT_NE(sym, nullptr);
 
 	// 检查关键内建函数存在
-	EXPECT_TRUE(sym->map().contains(String{ "print" }));
-	EXPECT_TRUE(sym->map().contains(String{ "len" }));
-	EXPECT_TRUE(sym->map().contains(String{ "isinstance" }));
-	EXPECT_TRUE(sym->map().contains(String{ "type" }));
-	EXPECT_TRUE(sym->map().contains(String{ "int" }));
-	EXPECT_TRUE(sym->map().contains(String{ "str" }));
-	EXPECT_TRUE(sym->map().contains(String{ "list" }));
-	EXPECT_TRUE(sym->map().contains(String{ "dict" }));
-	EXPECT_TRUE(sym->map().contains(String{ "bool" }));
+	EXPECT_TRUE(sym->map().contains(RtValue::from_ptr(PyString::create("print").unwrap())));
+	EXPECT_TRUE(sym->map().contains(RtValue::from_ptr(PyString::create("len").unwrap())));
+	EXPECT_TRUE(sym->map().contains(RtValue::from_ptr(PyString::create("isinstance").unwrap())));
+	EXPECT_TRUE(sym->map().contains(RtValue::from_ptr(PyString::create("type").unwrap())));
+	EXPECT_TRUE(sym->map().contains(RtValue::from_ptr(PyString::create("int").unwrap())));
+	EXPECT_TRUE(sym->map().contains(RtValue::from_ptr(PyString::create("str").unwrap())));
+	EXPECT_TRUE(sym->map().contains(RtValue::from_ptr(PyString::create("list").unwrap())));
+	EXPECT_TRUE(sym->map().contains(RtValue::from_ptr(PyString::create("dict").unwrap())));
+	EXPECT_TRUE(sym->map().contains(RtValue::from_ptr(PyString::create("bool").unwrap())));
 	// None/True/False 由 Interpreter::internal_setup → initialize_types() 注入
 	// 单独调用 builtins_module() 时不包含这三个符号
-	EXPECT_TRUE(sym->map().contains(String{ "__import__" }));
-	EXPECT_TRUE(sym->map().contains(String{ "__build_class__" }));
+	EXPECT_TRUE(sym->map().contains(RtValue::from_ptr(PyString::create("__import__").unwrap())));
+	EXPECT_TRUE(
+		sym->map().contains(RtValue::from_ptr(PyString::create("__build_class__").unwrap())));
 }
 
 TEST(ModuleInit, SysModuleHasExpectedSymbols)
@@ -64,9 +65,9 @@ TEST(ModuleInit, SysModuleHasExpectedSymbols)
 	auto *sym = mod->symbol_table();
 	ASSERT_NE(sym, nullptr);
 
-	EXPECT_TRUE(sym->map().contains(String{ "path" }));
-	EXPECT_TRUE(sym->map().contains(String{ "modules" }));
-	EXPECT_TRUE(sym->map().contains(String{ "platform" }));
+	EXPECT_TRUE(sym->map().contains(RtValue::from_ptr(PyString::create("path").unwrap())));
+	EXPECT_TRUE(sym->map().contains(RtValue::from_ptr(PyString::create("modules").unwrap())));
+	EXPECT_TRUE(sym->map().contains(RtValue::from_ptr(PyString::create("platform").unwrap())));
 }
 
 TEST(ModuleInit, FactoryFunctionIdempotent)

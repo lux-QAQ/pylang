@@ -5,19 +5,19 @@
 
 using namespace py;
 
-PyResult<Value> ListToTuple::execute(VirtualMachine &vm, Interpreter &) const
+PyResult<RtValue> ListToTuple::execute(VirtualMachine &vm, Interpreter &) const
 {
 	auto &list = vm.reg(m_list);
 
-	ASSERT(std::holds_alternative<PyObject *>(list));
+	ASSERT(list.is_heap_object());
 
-	auto *pylist = std::get<PyObject *>(list);
+	auto *pylist = list.as_ptr();
 	ASSERT(as<PyList>(pylist));
 
 	auto result = PyTuple::create(as<PyList>(pylist)->elements());
 	if (result.is_ok()) {
 		vm.reg(m_tuple) = result.unwrap();
-		return Ok(Value{ result.unwrap() });
+		return Ok(RtValue{ result.unwrap() });
 	}
 	return Err(result.unwrap_err());
 }

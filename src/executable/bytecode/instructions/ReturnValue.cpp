@@ -12,14 +12,11 @@ PyResult<Value> ReturnValue::execute(VirtualMachine &vm, Interpreter &interprete
 {
 	auto result = vm.reg(m_source);
 
-	std::visit(
-		overloaded{ [](const auto &val) {
-					   std::ostringstream os;
-					   os << val;
-					   spdlog::debug("Return value: {}", os.str());
-				   },
-			[](const PyObject *val) { spdlog::debug("Return value: {}", val->to_string()); } },
-		result);
+	if (result.is_heap_object()) {
+		spdlog::debug("Return value: {}", result.as_ptr()->to_string());
+	} else {
+		spdlog::debug("Return value: (primitive)");
+	}
 
 	if (auto *generator = interpreter.execution_frame()->generator(); generator != nullptr) {
 		ASSERT(as<PyGenerator>(generator));

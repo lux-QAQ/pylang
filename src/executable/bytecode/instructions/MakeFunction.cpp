@@ -3,15 +3,16 @@
 #include "interpreter/Interpreter.hpp"
 #include "runtime/PyCode.hpp"
 #include "runtime/PyFrame.hpp"
+#include "runtime/PyString.hpp"
 #include "runtime/PyTuple.hpp"
 #include "vm/VM.hpp"
 
 
 using namespace py;
 
-PyResult<Value> MakeFunction::execute(VirtualMachine &vm, Interpreter &interpreter) const
+PyResult<RtValue> MakeFunction::execute(VirtualMachine &vm, Interpreter &interpreter) const
 {
-	std::vector<Value> default_values;
+	std::vector<RtValue> default_values;
 	default_values.reserve(m_defaults_size);
 	auto *start = vm.sp() - m_defaults_size - m_kw_defaults_size;
 	while (start != (vm.sp() - m_kw_defaults_size)) {
@@ -19,7 +20,7 @@ PyResult<Value> MakeFunction::execute(VirtualMachine &vm, Interpreter &interpret
 		start = std::next(start);
 	}
 
-	std::vector<Value> kw_default_values;
+	std::vector<RtValue> kw_default_values;
 	kw_default_values.reserve(m_kw_defaults_size);
 	start = vm.sp() - m_kw_defaults_size;
 	while (start != vm.sp()) {
@@ -29,10 +30,9 @@ PyResult<Value> MakeFunction::execute(VirtualMachine &vm, Interpreter &interpret
 
 	auto closure = [&]() -> PyResult<PyTuple *> {
 		if (m_captures_tuple) {
-			auto cells = PyObject::from(vm.reg(*m_captures_tuple));
-			if (cells.is_err()) return Err(cells.unwrap_err());
-			ASSERT(as<PyTuple>(cells.unwrap()));
-			return Ok(as<PyTuple>(cells.unwrap()));
+			auto *cells = vm.reg(*m_captures_tuple).box();
+			ASSERT(as<PyTuple>(cells));
+			return Ok(as<PyTuple>(cells));
 		} else {
 			return Ok(nullptr);
 		}
@@ -40,9 +40,10 @@ PyResult<Value> MakeFunction::execute(VirtualMachine &vm, Interpreter &interpret
 
 	if (closure.is_err()) { return Err(closure.unwrap_err()); }
 
-	const auto &function_name_value = vm.reg(m_name);
-	ASSERT(std::holds_alternative<String>(function_name_value));
-	const auto function_name = std::get<String>(function_name_value).s;
+	auto function_name_value = vm.reg(m_name);
+	auto *function_name_pystr = as<PyString>(function_name_value.box());
+	ASSERT(function_name_pystr);
+	const auto function_name = function_name_pystr->value();
 
 	auto *func = interpreter.execution_frame()->code()->make_function(
 		function_name, default_values, kw_default_values, closure.unwrap());
@@ -50,7 +51,7 @@ PyResult<Value> MakeFunction::execute(VirtualMachine &vm, Interpreter &interpret
 	// const std::string demangled_name =
 	// Mangler::default_mangler().function_demangle(function_name);
 	vm.reg(m_dst) = func;
-	return Ok(Value{ func });
+	return Ok(RtValue{ func });
 }
 
 std::vector<uint8_t> MakeFunction::serialize() const

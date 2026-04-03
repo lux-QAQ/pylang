@@ -178,8 +178,8 @@ TEST_F(RuntimeContextTest, StackLocalWithProvider)
 	auto *val = PyInteger::create(42).unwrap();
 	ctx.stack_local(3) = Value{ val };
 
-	EXPECT_TRUE(std::holds_alternative<PyObject *>(locals[3]));
-	EXPECT_EQ(std::get<PyObject *>(locals[3]), val);
+	EXPECT_TRUE(locals[3].is_heap_object());
+	EXPECT_EQ(locals[3].as_ptr(), val);
 }
 
 TEST_F(RuntimeContextTest, StackLocalWithoutProviderAsserts)

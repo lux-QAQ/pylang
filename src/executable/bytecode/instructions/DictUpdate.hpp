@@ -16,7 +16,7 @@ class DictUpdate final : public Instruction
 		return fmt::format("DICT_UPDATE     r{:<3} r{:<3}", m_dst, m_src);
 	}
 
-	py::PyResult<py::Value> execute(VirtualMachine &, Interpreter &) const final;
+	py::PyResult<py::RtValue> execute(VirtualMachine &, Interpreter &) const final;
 
 	void relocate(size_t) final {}
 

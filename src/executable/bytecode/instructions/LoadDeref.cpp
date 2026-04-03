@@ -15,7 +15,7 @@ PyResult<Value> LoadDeref::execute(VirtualMachine &vm, Interpreter &interpreter)
 	ASSERT(interpreter.execution_frame()->freevars().size() > m_source);
 	ASSERT(interpreter.execution_frame()->freevars()[m_source]);
 	auto result = interpreter.execution_frame()->freevars()[m_source]->content();
-	if (std::holds_alternative<PyObject *>(result) && !std::get<PyObject *>(result)) {
+	if (result.is_heap_object() && !result.as_ptr()) {
 		auto *code = interpreter.execution_frame()->code();
 		ASSERT(m_source < code->m_freevars.size());
 		const auto &name = code->m_freevars[m_source];

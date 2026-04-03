@@ -316,18 +316,14 @@ PyResult<PyObject *> PyString::__new__(const PyType *type, PyTuple *args, PyDict
 		encoding = static_cast<const PyString &>(*el1).value();
 	}
 
-	if (std::holds_alternative<String>(string)) {
-		return PyString::create(std::get<String>(string).s);
-	} else if (std::holds_alternative<PyObject *>(string)) {
-		auto s = std::get<PyObject *>(string);
+	if (string.is_heap_object()) {
+		auto s = string.as_ptr();
 		if (s->type()->issubclass(types::bytes())) {
 			return PyString::create(static_cast<const PyBytes &>(*s).value(), encoding);
 		} else if (s->type()->issubclass(types::bytearray())) {
 			return PyString::create(static_cast<const PyBytes &>(*s).value(), encoding);
 		}
 		return PyString::create(s);
-	} else if (std::holds_alternative<Bytes>(string)) {
-		return PyString::create(std::get<Bytes>(string), encoding);
 	} else {
 		TODO();
 	}
@@ -1602,7 +1598,8 @@ PyResult<PyObject *> PyString::format(PyTuple *args, PyDict *kwargs) const
 						   -> PyResult<PyObject *> {
 					if (replacement_field.field_name.has_value()) {
 						if (!kwargs) { return Err(key_error(*replacement_field.field_name)); }
-						const auto it = kwargs->map().find(String{ *replacement_field.field_name });
+						auto key_obj = py::PyString::create(*replacement_field.field_name);
+						const auto it = kwargs->map().find(RtValue::from_ptr(key_obj.unwrap()));
 						if (it != kwargs->map().end()) { return PyObject::from(it->second); }
 						return Err(key_error(*replacement_field.field_name));
 					} else {

@@ -4,28 +4,24 @@
 
 using namespace py;
 
-PyResult<Value> GetIter::execute(VirtualMachine &vm, Interpreter &) const
+PyResult<RtValue> GetIter::execute(VirtualMachine &vm, Interpreter &) const
 {
 	auto iterable_value = vm.reg(m_src);
 	auto result = [&]() {
 		[[maybe_unused]] RAIIStoreNonCallInstructionData non_call_instruction_data;
-		if (auto *iterable_object = std::get_if<PyObject *>(&iterable_value)) {
-			return (*iterable_object)->iter();
+		if (iterable_value.is_heap_object()) {
+			return iterable_value.as_ptr()->iter();
 		} else {
-			return std::visit(
-				[](const auto &value) {
-					if (auto obj = PyObject::from(value); obj.is_ok()) {
-						return obj.unwrap()->iter();
-					} else {
-						return obj;
-					}
-				},
-				iterable_value);
+			if (auto obj = PyObject::from(iterable_value); obj.is_ok()) {
+				return obj.unwrap()->iter();
+			} else {
+				return obj;
+			}
 		}
 	}();
 	if (result.is_ok()) {
 		vm.reg(m_dst) = result.unwrap();
-		return Ok(Value{ result.unwrap() });
+		return Ok(RtValue{ result.unwrap() });
 	} else {
 		return Err(result.unwrap_err());
 	}

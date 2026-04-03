@@ -10,9 +10,9 @@ PyResult<Value> SetUpdate::execute(VirtualMachine &vm, Interpreter &) const
 	auto &set = vm.reg(m_set);
 	auto &iterable = vm.reg(m_iterable);
 
-	ASSERT(std::holds_alternative<PyObject *>(set));
+	ASSERT(set.is_heap_object());
 
-	auto *pyset = std::get<PyObject *>(set);
+	auto *pyset = set.as_ptr();
 	ASSERT(pyset);
 	ASSERT(as<PySet>(pyset));
 	auto iterable_obj = PyObject::from(iterable);

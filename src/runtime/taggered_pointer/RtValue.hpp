@@ -4,7 +4,7 @@
 #include <type_traits>
 #include <utility>
 
-#include "runtime/Value.hpp"
+#include "forward.hpp"
 
 namespace py {
 
@@ -22,10 +22,14 @@ class RtValue
 {
   private:
 	uintptr_t m_bits;
-
 	// 强制内部显式构造，避免任何隐式转换导致的悬空错误
 	constexpr explicit RtValue(uintptr_t bits) noexcept : m_bits(bits) {}
 
+  public:
+	constexpr RtValue(const PyObject *obj) noexcept : m_bits(reinterpret_cast<uintptr_t>(obj)) {}
+
+
+  public:
   public:
 	// --- Tag 掩码与极值常量 ---
 	static constexpr uintptr_t kTagMask = 1ULL;
@@ -110,12 +114,6 @@ class RtValue
 	/// 保证返回的是真实的 Heap 上的 PyObject*
 	[[nodiscard]] PyObject *box() const;
 
-	/// [新增]：转换为底层 variant 容器 Value
-	[[nodiscard]] py::Value to_value() const;
-
-	/// [新增]：从底层 variant 容器 Value 恢复为 RtValue
-	[[nodiscard]] static RtValue from_value(const py::Value &v);
-
 	/// 强制碾平：尝试将已经是堆对象的 PyInteger，剥离回零开销的 TaggedPointer
 	[[nodiscard]] static RtValue flatten(PyObject *ptr);
 
@@ -141,8 +139,26 @@ class RtValue
 	[[nodiscard]] static RtValue compare_gt(RtValue lhs, RtValue rhs);
 	[[nodiscard]] static RtValue compare_ge(RtValue lhs, RtValue rhs);
 
+
 	[[nodiscard]] bool is_truthy() const;
+
+	bool operator==(const RtValue &other) const { return m_bits == other.m_bits; }
+	bool operator!=(const RtValue &other) const { return m_bits != other.m_bits; }
 };
+
+struct RtValueHash
+{
+	std::size_t operator()(const RtValue &v) const
+	{
+		return std::hash<uintptr_t>{}(*reinterpret_cast<const uintptr_t *>(&v));
+	}
+};
+
+struct RtValueEq
+{
+	bool operator()(const RtValue &lhs, const RtValue &rhs) const { return lhs == rhs; }
+};
+
 
 // =============================================================================
 // 无锁内联方法缓存 (用于极速拦截 AOT 深层循环中的绑定方法分配地狱)

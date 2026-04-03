@@ -61,7 +61,8 @@ template<typename T> void assert_interpreter_object_value(std::string name, T ex
 	// }
 	auto locals = vm.interpreter().execution_frame()->locals();
 	ASSERT(as<PyDict>(locals));
-	auto obj_ = PyObject::from(as<PyDict>(locals)->map().at(String{ name }));
+	auto key_str = PyString::create(name).unwrap();
+	auto obj_ = PyObject::from(as<PyDict>(locals)->map().at(RtValue::from_ptr(key_str)));
 	ASSERT_TRUE(obj_.is_ok());
 	auto *obj = obj_.unwrap();
 	ASSERT_TRUE(obj);
@@ -71,12 +72,7 @@ template<typename T> void assert_interpreter_object_value(std::string name, T ex
 		ASSERT_TRUE(pylist);
 		size_t i = 0;
 		for (const auto &el : pylist->elements()) {
-			std::visit(
-				overloaded{ [&](const PyObject *obj) { check_value(obj, expected_value[i]); },
-					[&](const auto &value) {
-						check_value(PyObject::from(value).unwrap(), expected_value[i]);
-					} },
-				el);
+			check_value(PyObject::from(el).unwrap(), expected_value[i]);
 			i++;
 		}
 	} else if constexpr (is_unordered_map<T>{}) {
@@ -134,7 +130,7 @@ TEST_F(RunPythonProgram, SimpleAssignment)
 	constexpr std::string_view program = "a = 2\n";
 	run(program);
 	auto &vm = VirtualMachine::the();
-	ASSERT_EQ(std::get<BigIntType>(std::get<Number>(vm.reg(1)).value), 2);
+	ASSERT_EQ(as<PyInteger>(vm.reg(1).as_ptr())->as_i64(), 2);
 
 	assert_interpreter_object_value("a", 2);
 }
@@ -144,9 +140,9 @@ TEST_F(RunPythonProgram, SimplePowerAssignment)
 	constexpr std::string_view program = "a = 2 ** 10\n";
 	run(program);
 	auto &vm = VirtualMachine::the();
-	ASSERT_EQ(std::get<BigIntType>(std::get<Number>(vm.reg(1)).value), 2);
-	ASSERT_EQ(std::get<BigIntType>(std::get<Number>(vm.reg(2)).value), 10);
-	ASSERT_EQ(std::get<BigIntType>(std::get<Number>(vm.reg(3)).value), std::pow(2, 10));
+	ASSERT_EQ(as<PyInteger>(vm.reg(1).as_ptr())->as_i64(), 2);
+	ASSERT_EQ(as<PyInteger>(vm.reg(2).as_ptr())->as_i64(), 10);
+	ASSERT_EQ(as<PyInteger>(vm.reg(3).as_ptr())->as_i64(), std::pow(2, 10));
 
 	assert_interpreter_object_value("a", static_cast<int64_t>(std::pow(2, 10)));
 }

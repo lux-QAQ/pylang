@@ -15,12 +15,13 @@ using namespace py;
 PyResult<Value> ImportStar::execute(VirtualMachine &vm, Interpreter &interpreter) const
 {
 	auto module_ = vm.reg(m_src);
-	ASSERT(std::holds_alternative<PyObject *>(module_));
-	auto *obj = std::get<PyObject *>(module_);
+	ASSERT(module_.is_heap_object());
+	auto *obj = module_.as_ptr();
 	ASSERT(as<PyModule>(obj));
 	auto *module_obj = as<PyModule>(obj);
 	auto *symbol_table = module_obj->symbol_table();
-	if (const auto it = symbol_table->map().find(String{ "__all__" });
+	auto all_str = PyString::create("__all__").unwrap();
+	if (const auto it = symbol_table->map().find(Value::from_ptr(all_str));
 		it != symbol_table->map().end()) {
 		auto all_ = PyObject::from(it->second);
 		if (all_.is_err()) { return all_; }
@@ -42,7 +43,7 @@ PyResult<Value> ImportStar::execute(VirtualMachine &vm, Interpreter &interpreter
 					module_obj->name()->value(),
 					el.unwrap()->type()->name()));
 			}
-			auto it = symbol_table->map().find(name);
+			auto it = symbol_table->map().find(Value::from_ptr(name));
 			if (it == symbol_table->map().end()) {
 				return Err(attribute_error("module '{}' has no attribute '{}'",
 					module_obj->name()->value(),
@@ -56,11 +57,9 @@ PyResult<Value> ImportStar::execute(VirtualMachine &vm, Interpreter &interpreter
 		for (const auto &[key, value] : symbol_table->map()) {
 			const auto &k = key;
 			const auto key_str = [key = k]() -> std::string {
-				if (std::holds_alternative<String>(key)) {
-					return std::get<String>(key).s;
-				} else if (std::holds_alternative<PyObject *>(key)) {
-					ASSERT(as<PyString>(std::get<PyObject *>(key)));
-					return as<PyString>(std::get<PyObject *>(key))->value();
+				if (key.is_heap_object()) {
+					ASSERT(as<PyString>(key.as_ptr()));
+					return as<PyString>(key.as_ptr())->value();
 				} else {
 					TODO();
 				}

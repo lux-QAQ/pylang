@@ -18,7 +18,7 @@ class DictAdd final : public Instruction
 		return fmt::format("DICT_ADD        r{:<3} r{:<3} r{:<3}", m_dict, m_key, m_value);
 	}
 
-	py::PyResult<py::Value> execute(VirtualMachine &vm, Interpreter &interpreter) const final;
+	py::PyResult<py::RtValue> execute(VirtualMachine &vm, Interpreter &interpreter) const final;
 
 	void relocate(size_t) final {}
 

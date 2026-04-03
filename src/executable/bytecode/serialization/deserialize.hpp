@@ -2,7 +2,11 @@
 
 #include "forward.hpp"
 #include "runtime/PyBool.hpp"
+#include "runtime/PyBytes.hpp"
 #include "runtime/PyEllipsis.hpp"
+#include "runtime/PyFloat.hpp"
+#include "runtime/PyString.hpp"
+#include "runtime/PyTuple.hpp"
 #include "runtime/Value.hpp"
 #include "runtime/types/api.hpp"
 #include "serialize.hpp"
@@ -92,34 +96,38 @@ inline auto deserialize(std::span<const uint8_t> &buffer)
 		const uint8_t type = deserialize<uint8_t>(buffer);
 		switch (static_cast<ValueType>(type)) {
 		case ValueType::INT64: {
-			return Number{ deserialize<int64_t>(buffer) };
+			return py::RtValue::from_int_or_box(deserialize<int64_t>(buffer));
 		} break;
 		case ValueType::F64: {
-			return Number{ deserialize<double>(buffer) };
+			return py::RtValue::from_ptr(py::PyFloat::create(deserialize<double>(buffer)).unwrap());
 		} break;
 		case ValueType::STRING: {
-			return String{ deserialize<std::string>(buffer) };
+			return py::RtValue::from_ptr(
+				py::PyString::create(deserialize<std::string>(buffer)).unwrap());
 		} break;
 		case ValueType::BYTES: {
-			return Bytes{ deserialize<std::vector<std::byte>>(buffer) };
+			auto bytes_vec = deserialize<std::vector<uint8_t>>(buffer);
+			std::vector<std::byte> byte_vec_cast;
+			byte_vec_cast.reserve(bytes_vec.size());
+			for (auto b : bytes_vec) byte_vec_cast.push_back(static_cast<std::byte>(b));
+			return py::Value{ py::RtValue::from_ptr(
+				py::PyBytes::create(py::Bytes{ std::move(byte_vec_cast) }).unwrap()) };
 		} break;
 		case ValueType::ELLIPSIS: {
-			return py_ellipsis();
+			return py::RtValue::from_ptr(py_ellipsis());
 		} break;
 		case ValueType::NONE: {
-			return py_none();
+			return py::RtValue::from_ptr(py_none());
 		} break;
 		case ValueType::BOOL: {
-			return deserialize<bool>(buffer) ? py_true() : py_false();
+			return py::RtValue::from_ptr(deserialize<bool>(buffer) ? py_true() : py_false());
 		} break;
 		case ValueType::OBJECT: {
 			TODO();
 		} break;
 		case ValueType::TUPLE: {
 			auto deserialized_elements = deserialize<std::vector<Value>>(buffer);
-			return Tuple{ .elements = py::GCVector<Value>(
-							  std::make_move_iterator(deserialized_elements.begin()),
-							  std::make_move_iterator(deserialized_elements.end())) };
+			return py::RtValue::from_ptr(PyTuple::create(deserialized_elements).unwrap());
 		}
 		}
 	} else {

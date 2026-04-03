@@ -16,7 +16,7 @@ class GetYieldFromIter final : public Instruction
 		return fmt::format("GET_YIELD_FROM_ITER r{:<3} r{:<3}", m_dst, m_src);
 	}
 
-	py::PyResult<py::Value> execute(VirtualMachine &vm, Interpreter &interpreter) const final;
+	py::PyResult<py::RtValue> execute(VirtualMachine &vm, Interpreter &interpreter) const final;
 
 	void relocate(size_t) final {}
 

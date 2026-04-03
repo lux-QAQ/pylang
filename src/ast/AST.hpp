@@ -192,7 +192,7 @@ class Expression : public ASTNode
 
 class Constant : public ASTNode
 {
-	std::unique_ptr<py::Value> m_value;
+	py::PyObject *m_value;
 
   private:
 	void print_this_node(const std::string &indent) const override;
@@ -204,10 +204,10 @@ class Constant : public ASTNode
 	Constant(bool value, SourceLocation source_location);
 	Constant(std::string value, SourceLocation source_location);
 	Constant(const char *value, SourceLocation source_location);
-	Constant(const py::Value &, SourceLocation source_location);
+	Constant(py::PyObject *value, SourceLocation source_location);
 	~Constant() override;
 
-	const py::Value *value() const { return m_value.get(); }
+	py::PyObject *value() const { return m_value; }
 
 	Value *codegen(CodeGenerator *) const override;
 };

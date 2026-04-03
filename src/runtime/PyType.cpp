@@ -199,9 +199,7 @@ std::vector<PyObject *> mro_(PyType *type)
 		if (auto *precomputed_mro = base->__mro__) {
 			std::vector<PyObject *> base_mro;
 			base_mro.reserve(precomputed_mro->size());
-			for (const auto &el : precomputed_mro->elements()) {
-				base_mro.push_back(std::get<PyObject *>(el));
-			}
+			for (const auto &el : precomputed_mro->elements()) { base_mro.push_back(el.as_ptr()); }
 			bases_mro.push_back(base_mro);
 		} else {
 			bases_mro.push_back(mro_(base));
@@ -331,8 +329,8 @@ namespace {
 					"__abstractmethods__",
 					[](PyType *self) -> PyResult<PyObject *> {
 						if (self != types::type()) {
-							if (auto result =
-									(*self->attributes())[String{ "__abstractmethods__" }];
+							if (auto result = (*self->attributes())[RtValue::from_ptr(
+									PyString::create("__abstractmethods__").unwrap())];
 								result.has_value()) {
 								return PyObject::from(*result);
 							}
@@ -345,7 +343,9 @@ namespace {
 						// 新代码: 使用 PyObject::true_()，不依赖 VM
 						auto abstract = value->true_();
 						if (abstract.is_err()) { return Err(abstract.unwrap_err()); }
-						self->attributes()->insert(String{ "__abstractmethods__" }, value);
+						self->attributes()->insert(
+							RtValue::from_ptr(PyString::create("__abstractmethods__").unwrap()),
+							value);
 						return Ok(std::monostate{});
 					})
 				.type);
@@ -418,8 +418,8 @@ std::optional<PyResult<PyObject *>> PyType::lookup(PyObject *name) const
 	auto mro = mro_internal();
 	if (mro.is_err()) { return mro; }
 	for (const auto &t_ : mro.unwrap()->elements()) {
-		ASSERT(std::holds_alternative<PyObject *>(t_));
-		auto *t = as<PyType>(std::get<PyObject *>(t_));
+		ASSERT(t_.is_heap_object());
+		auto *t = as<PyType>(t_.as_ptr());
 		ASSERT(t);
 		ASSERT(t->underlying_type().__dict__);
 		const auto &dict = t->underlying_type().__dict__->map();
@@ -433,9 +433,9 @@ std::optional<PyResult<PyObject *>> PyType::lookup(PyObject *name) const
 // 	return type->mro()
 // 		.and_then([type](PyList *mro) -> PyResult<PyObject *> {
 // 			for (const auto &el : mro->elements()) {
-// 				ASSERT(std::holds_alternative<PyObject *>(el));
-// 				ASSERT(as<PyType>(std::get<PyObject *>(el)));
-// 				auto *t = as<PyType>(std::get<PyObject *>(el));
+// 				ASSERT(el.is_heap_object());
+// 				ASSERT(as<PyType>(el.as_ptr()));
+// 				auto *t = as<PyType>(el.as_ptr());
 // 				if (!t->underlying_type().is_heaptype) {
 // 					return t->underlying_type().__alloc__(type);
 // 				}
@@ -460,9 +460,9 @@ std::optional<PyResult<PyObject *>> PyType::lookup(PyObject *name) const
 //     return type->mro_internal()
 //         .and_then([type](PyTuple *mro_tuple) -> PyResult<PyObject *> {
 //             for (const auto &el : mro_tuple->elements()) {
-// 				ASSERT(std::holds_alternative<PyObject *>(el));
-// 				ASSERT(as<PyType>(std::get<PyObject *>(el)));
-// 				auto *t = as<PyType>(std::get<PyObject *>(el));
+// 				ASSERT(el.is_heap_object());
+// 				ASSERT(as<PyType>(el.as_ptr()));
+// 				auto *t = as<PyType>(el.as_ptr());
 // 				if (!t->underlying_type().is_heaptype) {
 // 					return t->underlying_type().__alloc__(type);
 // 				}
@@ -485,9 +485,9 @@ PyResult<PyObject *> PyType::heap_object_allocation(PyType *type)
 {
 	return type->mro_internal().and_then([type](PyTuple *mro_tuple) -> PyResult<PyObject *> {
 		for (const auto &el : mro_tuple->elements()) {
-			ASSERT(std::holds_alternative<PyObject *>(el));
-			ASSERT(as<PyType>(std::get<PyObject *>(el)));
-			auto *t = as<PyType>(std::get<PyObject *>(el));
+			ASSERT(el.is_heap_object());
+			ASSERT(as<PyType>(el.as_ptr()));
+			auto *t = as<PyType>(el.as_ptr());
 			if (!t->underlying_type().is_heaptype) { return t->underlying_type().__alloc__(type); }
 		}
 		return types::object()->underlying_type().__alloc__(type);
@@ -503,7 +503,8 @@ PyResult<std::monostate> PyType::initialize(const std::string &name,
 	if (dict_.is_err()) { return Err(dict_.unwrap_err()); }
 	auto *dict = dict_.unwrap();
 	bool may_add_dict = base->attributes() == nullptr;
-	if (auto it = dict->map().find(String{ "__slots__" }); it != dict->map().end()) {
+	if (auto it = dict->map().find(RtValue::from_ptr(PyString::create("__slots__").unwrap()));
+		it != dict->map().end()) {
 		// has slots
 		auto slots_ = PyObject::from(it->second);
 		ASSERT(slots_.is_ok());
@@ -558,20 +559,23 @@ PyResult<std::monostate> PyType::initialize(const std::string &name,
 	underlying_type().__dict__ = dict;
 	m_attributes = dict;
 
-	if (!m_attributes->map().contains(String{ "__module__" })) {
+	if (!m_attributes->map().contains(RtValue::from_ptr(PyString::create("__module__").unwrap()))) {
 		// 旧代码:
 		// auto *globals = VirtualMachine::the().interpreter().execution_frame()->globals();
 		// 新代码: 通过 RuntimeContext 获取 globals
 		auto *g =
 			RuntimeContext::has_current() ? RuntimeContext::current().current_globals() : nullptr;
 		if (g) {
-			if (auto it = g->map().find(String{ "__name__" }); it != g->map().end()) {
-				m_attributes->insert(String{ "__module__" }, it->second);
+			if (auto it = g->map().find(RtValue::from_ptr(PyString::create("__name__").unwrap()));
+				it != g->map().end()) {
+				m_attributes->insert(
+					RtValue::from_ptr(PyString::create("__module__").unwrap()), it->second);
 			}
 		}
 	}
 
-	if (auto it = m_attributes->map().find(String{ "__qualname__" });
+	if (auto it =
+			m_attributes->map().find(RtValue::from_ptr(PyString::create("__qualname__").unwrap()));
 		it != m_attributes->map().end()) {
 		auto qualname_ = PyObject::from(it->second);
 		ASSERT(qualname_.is_ok());
@@ -584,7 +588,8 @@ PyResult<std::monostate> PyType::initialize(const std::string &name,
 		__qualname__ = PyString::create(underlying_type().__name__).unwrap();
 	}
 
-	if (auto it = m_attributes->map().find(String{ "__doc__" }); it != m_attributes->map().end()) {
+	if (auto it = m_attributes->map().find(RtValue::from_ptr(PyString::create("__doc__").unwrap()));
+		it != m_attributes->map().end()) {
 		auto doc_ = PyObject::from(it->second);
 		ASSERT(doc_.is_ok());
 		if (auto doc_str = as<PyString>(doc_.unwrap())) {
@@ -593,7 +598,8 @@ PyResult<std::monostate> PyType::initialize(const std::string &name,
 		}
 	}
 
-	if (auto it = m_attributes->map().find(String{ "__new__" }); it != m_attributes->map().end()) {
+	if (auto it = m_attributes->map().find(RtValue::from_ptr(PyString::create("__new__").unwrap()));
+		it != m_attributes->map().end()) {
 		auto new_slot_ = PyObject::from(it->second);
 		ASSERT(new_slot_.is_ok());
 		auto *new_slot = new_slot_.unwrap();
@@ -601,13 +607,14 @@ PyResult<std::monostate> PyType::initialize(const std::string &name,
 			auto new_fn = PyStaticMethod::create(fn);
 			ASSERT(new_fn.is_ok());
 			new_slot = new_fn.unwrap();
-			m_attributes->insert(String{ "__new__" }, new_slot);
+			m_attributes->insert(RtValue::from_ptr(PyString::create("__new__").unwrap()), new_slot);
 		}
 		underlying_type().__new__ = new_slot;
 	}
 
 	// TODO: uncomment when classmethod is fixed
-	// if (auto it = m_attributes->map().find(String{ "__init_subclass__" });
+	// if (auto it =
+	// m_attributes->map().find(RtValue::from_ptr(PyString::create("__init_subclass__").unwrap()));
 	// 	it != m_attributes->map().end()) {
 	// 	auto init_subclass_slot_ = PyObject::from(it->second);
 	// 	ASSERT(init_subclass_slot_.is_ok());
@@ -616,12 +623,14 @@ PyResult<std::monostate> PyType::initialize(const std::string &name,
 	// 		auto new_fn = PyClassMethod::create(fn);
 	// 		ASSERT(new_fn.is_ok());
 	// 		underlying_type().__new__ = new_fn.unwrap();
-	// 		m_attributes->insert(String{ "__init_subclass__" }, new_fn.unwrap());
+	// 		m_attributes->insert(RtValue::from_ptr(PyString::create("__init_subclass__").unwrap()),
+	// new_fn.unwrap());
 	// 	}
 	// }
 
 	// TODO: uncomment when classmethod is fixed
-	// if (auto it = m_attributes->map().find(String{ "___class_getitem__" });
+	// if (auto it =
+	// m_attributes->map().find(RtValue::from_ptr(PyString::create("___class_getitem__").unwrap()));
 	// 	it != m_attributes->map().end()) {
 	// 	auto class_getitem_slot_ = PyObject::from(it->second);
 	// 	ASSERT(class_getitem_slot_.is_ok());
@@ -630,11 +639,13 @@ PyResult<std::monostate> PyType::initialize(const std::string &name,
 	// 		auto new_fn = PyClassMethod::create(fn);
 	// 		ASSERT(new_fn.is_ok());
 	// 		underlying_type().__new__ = new_fn.unwrap();
-	// 		m_attributes->insert(String{ "___class_getitem__" }, new_fn.unwrap());
+	// 		m_attributes->insert(RtValue::from_ptr(PyString::create("___class_getitem__").unwrap()),
+	// new_fn.unwrap());
 	// 	}
 	// }
 
-	if (auto it = m_attributes->map().find(String{ "__classcell__" });
+	if (auto it =
+			m_attributes->map().find(RtValue::from_ptr(PyString::create("__classcell__").unwrap()));
 		it != m_attributes->map().end()) {
 		auto classcell_ = PyObject::from(it->second);
 		ASSERT(classcell_.is_ok());
@@ -1001,7 +1012,8 @@ PyResult<std::monostate> PyType::add_operators()
 	for (auto &&slot : get_slotdefs()) {
 		if (!slot.has_member) { continue; }// ?
 		if (slot.name == "__new__") { continue; }
-		if (auto it = m_attributes->map().find(String{ std::string{ slot.name } });
+		if (auto it = m_attributes->map().find(
+				RtValue::from_ptr(PyString::create(std::string{ slot.name }).unwrap()));
 			it != m_attributes->map().end()) {
 			auto fn = PyObject::from(it->second);
 			if (fn.is_err()) return Err(fn.unwrap_err());
@@ -1013,15 +1025,19 @@ PyResult<std::monostate> PyType::add_operators()
 			if (name.is_err()) { return Err(name.unwrap_err()); }
 			auto descr = slot.create_slot_wrapper(this);
 			if (descr.is_err()) return Err(descr.unwrap_err());
-			m_attributes->insert(String{ std::string{ slot.name } }, descr.unwrap());
+			m_attributes->insert(
+				RtValue::from_ptr(PyString::create(std::string{ slot.name }).unwrap()),
+				descr.unwrap());
 		}
 	}
 
 	if (underlying_type().__new__.has_value()) {
-		if (!m_attributes->map().contains(String{ "__new__" })) {
+		if (!m_attributes->map().contains(
+				RtValue::from_ptr(PyString::create("__new__").unwrap()))) {
 			auto new_fn_obj = PyNativeFunction::create("__new__", new_wrapper, this);
 			if (new_fn_obj.is_err()) return Err(new_fn_obj.unwrap_err());
-			m_attributes->insert(String{ "__new__" }, new_fn_obj.unwrap());
+			m_attributes->insert(
+				RtValue::from_ptr(PyString::create("__new__").unwrap()), new_fn_obj.unwrap());
 		}
 	}
 
@@ -1049,9 +1065,12 @@ PyResult<std::monostate> PyType::add_methods()
 		if (descriptor.is_err()) { return Err(descriptor.unwrap_err()); }
 
 		// TODO: Could this check be done before constructing the descriptor?
-		if (m_attributes->map().contains(String{ name })) { continue; }
+		if (m_attributes->map().contains(RtValue::from_ptr(PyString::create(name).unwrap()))) {
+			continue;
+		}
 
-		m_attributes->insert(String{ name }, descriptor.unwrap());
+		m_attributes->insert(
+			RtValue::from_ptr(PyString::create(name).unwrap()), descriptor.unwrap());
 	}
 
 	return Ok(std::monostate{});
@@ -1070,9 +1089,12 @@ PyResult<std::monostate> PyType::add_members()
 		if (descriptor.is_err()) { return Err(descriptor.unwrap_err()); }
 
 		// TODO: Could this check be done before constructing the descriptor?
-		if (m_attributes->map().contains(String{ name })) { continue; }
+		if (m_attributes->map().contains(RtValue::from_ptr(PyString::create(name).unwrap()))) {
+			continue;
+		}
 
-		m_attributes->insert(String{ name }, descriptor.unwrap());
+		m_attributes->insert(
+			RtValue::from_ptr(PyString::create(name).unwrap()), descriptor.unwrap());
 	}
 	return Ok(std::monostate{});
 }
@@ -1091,9 +1113,12 @@ PyResult<std::monostate> PyType::add_properties()
 		if (descriptor.is_err()) { return Err(descriptor.unwrap_err()); }
 
 		// TODO: Could this check be done before constructing the descriptor?
-		if (m_attributes->map().contains(String{ name })) { continue; }
+		if (m_attributes->map().contains(RtValue::from_ptr(PyString::create(name).unwrap()))) {
+			continue;
+		}
 
-		m_attributes->insert(String{ name }, descriptor.unwrap());
+		m_attributes->insert(
+			RtValue::from_ptr(PyString::create(name).unwrap()), descriptor.unwrap());
 	}
 	return Ok(std::monostate{});
 }
@@ -1370,20 +1395,23 @@ PyResult<std::monostate> PyType::ready()
 	}
 
 	if (underlying_type().__doc__.has_value()) {
-		m_attributes->insert(
-			String{ "__doc__" }, String{ std::string{ *underlying_type().__doc__ } });
+		m_attributes->insert(RtValue::from_ptr(PyString::create("__doc__").unwrap()),
+			RtValue::from_ptr(
+				PyString::create(std::string{ *underlying_type().__doc__ }).unwrap()));
 	} else {
-		m_attributes->insert(String{ "__doc__" }, py_none());
+		m_attributes->insert(RtValue::from_ptr(PyString::create("__doc__").unwrap()), py_none());
 	}
 
 	if (!underlying_type().__hash__.has_value()) {
-		if (auto it = m_attributes->map().find(String{ "__hash__" });
+		if (auto it =
+				m_attributes->map().find(RtValue::from_ptr(PyString::create("__hash__").unwrap()));
 			it != m_attributes->map().end()) {
 			auto hash_fn_ = PyObject::from(it->second);
 			if (hash_fn_.is_err()) return Err(hash_fn_.unwrap_err());
 			underlying_type().__hash__ = hash_fn_.unwrap();
 		} else {
-			m_attributes->insert(String{ "__hash__" }, py_none());
+			m_attributes->insert(
+				RtValue::from_ptr(PyString::create("__hash__").unwrap()), py_none());
 		}
 	}
 
@@ -1455,8 +1483,9 @@ namespace {
 			ASSERT(base_astype);
 			auto *dict = base_astype->attributes();
 			ASSERT(dict);
-			if (auto it = dict->map().find(String{ std::string{ slot.name } });
-				it != dict->map().end()) {
+			if (auto str_key = PyString::create(std::string{ slot.name }).unwrap();
+				dict->map().find(RtValue::from_ptr(str_key)) != dict->map().end()) {
+				auto it = dict->map().find(RtValue::from_ptr(str_key));
 				descr_ = PyObject::from(it->second).unwrap();
 				break;
 			}
@@ -1521,7 +1550,7 @@ namespace {
 				specific = reinterpret_cast<void *>(*fn_ptr);
 			} else {
 				ASSERT(std::get<PyObject *>(*new_slot));
-				specific = std::get<PyObject *>(*new_slot);
+				specific = reinterpret_cast<void *>(std::get<PyObject *>(*new_slot));
 			}
 		} else if (descr == py_none() && slot.name == "__hash__") {
 			TODO();
@@ -1847,7 +1876,7 @@ bool PyType::issubclass(const PyType *other) const
 	auto this_mro = mro_internal();
 	if (this_mro.is_err()) { TODO(); }
 	for (const auto &el : this_mro.unwrap()->elements()) {
-		if (std::get<PyObject *>(el) == other) { return true; }
+		if (el.as_ptr() == other) { return true; }
 	}
 
 	return false;

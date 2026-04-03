@@ -6,18 +6,18 @@
 
 using namespace py;
 
-PyResult<Value> FunctionCallEx::execute(VirtualMachine &vm, Interpreter &) const
+PyResult<RtValue> FunctionCallEx::execute(VirtualMachine &vm, Interpreter &) const
 {
 	auto func = vm.reg(m_function);
-	ASSERT(std::get_if<PyObject *>(&func));
-	auto callable_object = std::get<PyObject *>(func);
+	ASSERT(func.is_heap_object());
+	auto callable_object = func.as_ptr();
 
 	auto args = [&]() -> PyResult<PyTuple *> {
 		if (m_expand_args) {
 			auto tuple = vm.reg(m_args);
-			ASSERT(std::holds_alternative<PyObject *>(tuple));
-			ASSERT(as<PyTuple>(std::get<PyObject *>(tuple)));
-			return Ok(as<PyTuple>(std::get<PyObject *>(tuple)));
+			ASSERT(tuple.is_heap_object());
+			ASSERT(as<PyTuple>(tuple.as_ptr()));
+			return Ok(as<PyTuple>(tuple.as_ptr()));
 		} else {
 			return PyTuple::create();
 		}
@@ -27,9 +27,9 @@ PyResult<Value> FunctionCallEx::execute(VirtualMachine &vm, Interpreter &) const
 	auto kwargs = [&]() -> PyResult<PyDict *> {
 		if (m_expand_kwargs) {
 			auto dict = vm.reg(m_kwargs);
-			ASSERT(std::holds_alternative<PyObject *>(dict));
-			ASSERT(as<PyDict>(std::get<PyObject *>(dict)));
-			return Ok(as<PyDict>(std::get<PyObject *>(dict)));
+			ASSERT(dict.is_heap_object());
+			ASSERT(as<PyDict>(dict.as_ptr()));
+			return Ok(as<PyDict>(dict.as_ptr()));
 		} else {
 			return PyDict::create();
 		}
@@ -43,7 +43,7 @@ PyResult<Value> FunctionCallEx::execute(VirtualMachine &vm, Interpreter &) const
 
 	return callable_object->call(args.unwrap(), kwargs.unwrap()).and_then([&vm](PyObject *result) {
 		vm.reg(0) = result;
-		return Ok(result);
+		return Ok(RtValue(result));
 	});
 }
 

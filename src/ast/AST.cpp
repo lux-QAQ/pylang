@@ -1,6 +1,7 @@
 #include "AST.hpp"
 
 #include "runtime/PyBool.hpp"
+#include "runtime/PyFloat.hpp"
 #include "runtime/PyObject.hpp"
 #include "runtime/Value.hpp"
 #include "runtime/types/api.hpp"
@@ -783,37 +784,36 @@ std::vector<std::shared_ptr<ASTNode>> NodeTransformVisitor::visit(std::shared_pt
 }
 
 Constant::Constant(double value, SourceLocation source_location)
-	: ASTNode(ASTNodeType::Constant, source_location),
-	  m_value(std::make_unique<py::Value>(py::Number{ value }))
+	: ASTNode(ASTNodeType::Constant, source_location), m_value(py::PyFloat::create(value).unwrap())
 {}
 
 Constant::Constant(int64_t value, SourceLocation source_location)
 	: ASTNode(ASTNodeType::Constant, source_location),
-	  m_value(std::make_unique<py::Value>(py::Number{ value }))
+	  m_value(py::PyInteger::create(value).unwrap())
 {}
 
 Constant::Constant(mpz_class value, SourceLocation source_location)
 	: ASTNode(ASTNodeType::Constant, source_location),
-	  m_value(std::make_unique<py::Value>(py::Number{ value }))
+	  m_value(py::PyInteger::create(value).unwrap())
 {}
 
 Constant::Constant(bool value, SourceLocation source_location)
 	: ASTNode(ASTNodeType::Constant, source_location),
-	  m_value(std::make_unique<py::Value>(value ? py::py_true() : py::py_false()))
+	  m_value(value ? py::py_true() : py::py_false())
 {}
 
 Constant::Constant(std::string value, SourceLocation source_location)
 	: ASTNode(ASTNodeType::Constant, source_location),
-	  m_value(std::make_unique<py::Value>(py::String{ std::move(value) }))
+	  m_value(py::PyString::create(std::move(value)).unwrap())
 {}
 
 Constant::Constant(const char *value, SourceLocation source_location)
 	: ASTNode(ASTNodeType::Constant, source_location),
-	  m_value(std::make_unique<py::Value>(py::String{ std::string(value) }))
+	  m_value(py::PyString::create(std::string(value)).unwrap())
 {}
 
-Constant::Constant(const py::Value &value, SourceLocation source_location)
-	: ASTNode(ASTNodeType::Constant, source_location), m_value(std::make_unique<py::Value>(value))
+Constant::Constant(py::PyObject *value, SourceLocation source_location)
+	: ASTNode(ASTNodeType::Constant, source_location), m_value(value)
 {}
 
 void Expression::print_this_node(const std::string &indent) const
@@ -831,16 +831,13 @@ void Constant::print_this_node(const std::string &indent) const
 		source_location().start.column + 1,
 		source_location().end.row + 1,
 		source_location().end.column + 1);
-	std::visit(overloaded{ [&indent](const py::String &value) {
-							  spdlog::debug("{}  - value: \"{}\"", indent, value.to_string());
-						  },
-				   [&indent](const auto &value) {
-					   spdlog::debug("{}  - value: {}", indent, value.to_string());
-				   },
-				   [&indent](py::PyObject *const value) {
-					   spdlog::debug("{}  - value: {}", indent, value->to_string());
-				   } },
-		*m_value);
+	if (m_value) {
+		if (m_value->type() == py::types::str()) {
+			spdlog::debug("{}  - value: \"{}\"", indent, m_value->to_string());
+		} else {
+			spdlog::debug("{}  - value: {}", indent, m_value->to_string());
+		}
+	}
 }
 
 void List::print_this_node(const std::string &indent) const

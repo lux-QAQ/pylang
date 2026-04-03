@@ -149,8 +149,11 @@ namespace {
 			}
 			auto key = env_pair.substr(0, delimiter);
 			auto value = env_pair.substr(delimiter + 1);
-			environ_dict.emplace(Bytes::from_unescaped_string(std::string{ key }),
-				Bytes::from_unescaped_string(std::string{ value }));
+			environ_dict.emplace(
+				RtValue::from_ptr(
+					PyBytes::create(Bytes::from_unescaped_string(std::string{ key })).unwrap()),
+				RtValue::from_ptr(
+					PyBytes::create(Bytes::from_unescaped_string(std::string{ value })).unwrap()));
 		}
 		return PyDict::create(std::move(environ_dict));
 	}

@@ -443,6 +443,20 @@ class PyObject : public Cell
 
 	template<typename T> static PyResult<PyObject *> from(const T &value);
 
+	// 让所有的 PyObject 派生类指针也能正确进入 from 拆包装
+	template<typename T>
+	static std::enable_if_t<
+		std::is_pointer_v<std::remove_reference_t<T>>
+			&& std::is_base_of_v<PyObject, std::remove_pointer_t<std::remove_reference_t<T>>>,
+		PyResult<PyObject *>>
+		from(T &&value)
+	{
+		return Ok(static_cast<PyObject *>(value));
+	}
+
+	// 让 std::vector<PyObject *> 的打包兼容
+	static PyResult<PyObject *> from(const std::vector<PyObject *> &value);
+
 	void visit_graph(Visitor &) override;
 
 	PyResult<PyMappingWrapper> as_mapping();

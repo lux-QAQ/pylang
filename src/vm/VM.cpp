@@ -194,47 +194,34 @@ void VirtualMachine::dump() const
 	std::cout << "bp: " << static_cast<const void *>(bp()) << " \n";
 	std::cout << "sp: " << static_cast<const void *>(sp()) << " \n";
 	for (const auto &register_ : stack_locals()) {
-		std::visit(overloaded{ [](const auto &stack_value) {
-								  std::ostringstream os;
-								  os << stack_value;
-								  std::cout << fmt::format("@{}:  {}\n",
-									  static_cast<const void *>(&stack_value),
-									  os.str());
-							  },
-					   [](const PyObject *&obj) {
-						   if (obj) {
-							   //    std::cout << fmt::format("[{}]  {} ({})\n",
-							   // 	   i++,
-							   // 	   static_cast<const void *>(obj),
-							   // 	   obj->to_string());
-							   std::cout << fmt::format("@{}:  {}\n",
-								   static_cast<const void *>(&obj),
-								   static_cast<const void *>(obj));
-						   } else {
-							   std::cout << fmt::format(
-								   "@{}:  (Empty)\n", static_cast<const void *>(&obj));
-						   }
-					   } },
-			register_);
+		if (register_.is_heap_object()) {
+			PyObject *obj = register_.as_ptr();
+			if (obj) {
+				std::cout << fmt::format("@{}:  {} ({})\n",
+					static_cast<const void *>(&register_),
+					static_cast<const void *>(obj),
+					obj->to_string());
+			} else {
+				std::cout << fmt::format("@{}:  (Empty)\n", static_cast<const void *>(&register_));
+			}
+		} else {
+			std::cout << fmt::format("@{}:  Tag (int)\n", static_cast<const void *>(&register_));
+		}
 	}
 
 	std::cout << "Register state: " << (void *)(registers()->get().data()) << " \n";
 	for (size_t i = 0; const auto &register_ : registers()->get()) {
-		std::visit(
-			overloaded{ [&i](const auto &register_value) {
-						   std::ostringstream os;
-						   os << register_value;
-						   std::cout << fmt::format("[{}]  {}\n", i, os.str());
-					   },
-				[&i](PyObject *obj) {
-					if (obj) {
-						std::cout << fmt::format(
-							"[{}]  {} ({})\n", i, static_cast<const void *>(obj), obj->to_string());
-					} else {
-						std::cout << fmt::format("[{}]  (Empty)\n", i);
-					}
-				} },
-			register_);
+		if (register_.is_heap_object()) {
+			PyObject *obj = register_.as_ptr();
+			if (obj) {
+				std::cout << fmt::format(
+					"[{}]  {} ({})\n", i, static_cast<const void *>(obj), obj->to_string());
+			} else {
+				std::cout << fmt::format("[{}]  (Empty)\n", i);
+			}
+		} else {
+			std::cout << fmt::format("[{}]  Tag (int)\n", i);
+		}
 		++i;
 	}
 }

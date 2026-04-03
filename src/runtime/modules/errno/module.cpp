@@ -166,9 +166,10 @@ PyModule *errno_module()
 
 	PyDict::MapType errorcode;
 	for (auto [errno_value, errno_name] : kErrnoValues) {
-		module->add_symbol(
-			PyString::create(std::string{ errno_name }).unwrap(), Number{ errno_value });
-		errorcode[Number{ errno_value }] = String{ errno_name };
+		module->add_symbol(PyString::create(std::string{ errno_name }).unwrap(),
+			RtValue::from_int_or_box(errno_value));
+		errorcode.insert({ RtValue::from_int_or_box(errno_value),
+			RtValue::from_ptr(PyString::create(errno_name).unwrap()) });
 	}
 	module->add_symbol(PyString::create("errorcode").unwrap(), PyDict::create(errorcode).unwrap());
 

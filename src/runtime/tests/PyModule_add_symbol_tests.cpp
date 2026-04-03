@@ -102,14 +102,14 @@ TEST_F(PyModuleAddSymbolTest, ConstructorSymbolsPreserved)
 {
 	// 构造函数插入的 __name__, __doc__ 等不应被 add_symbol 破坏
 	auto &map = mod->symbol_table()->map();
-	EXPECT_TRUE(map.contains(String{ "__name__" }));
-	EXPECT_TRUE(map.contains(String{ "__doc__" }));
-	EXPECT_TRUE(map.contains(String{ "__package__" }));
-	EXPECT_TRUE(map.contains(String{ "__loader__" }));
-	EXPECT_TRUE(map.contains(String{ "__spec__" }));
+	EXPECT_TRUE(map.contains(RtValue::from_ptr(PyString::create("__name__").unwrap())));
+	EXPECT_TRUE(map.contains(RtValue::from_ptr(PyString::create("__doc__").unwrap())));
+	EXPECT_TRUE(map.contains(RtValue::from_ptr(PyString::create("__package__").unwrap())));
+	EXPECT_TRUE(map.contains(RtValue::from_ptr(PyString::create("__loader__").unwrap())));
+	EXPECT_TRUE(map.contains(RtValue::from_ptr(PyString::create("__spec__").unwrap())));
 
 	// 新增 key 后原有 key 仍在
 	mod->add_symbol(PyString::create("new_key").unwrap(), Value{ py_none() });
-	EXPECT_TRUE(map.contains(String{ "__name__" }));
-	EXPECT_TRUE(map.contains(String{ "new_key" }));
+	EXPECT_TRUE(map.contains(RtValue::from_ptr(PyString::create("__name__").unwrap())));
+	EXPECT_TRUE(map.contains(RtValue::from_ptr(PyString::create("new_key").unwrap())));
 }

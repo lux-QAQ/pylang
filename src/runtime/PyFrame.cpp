@@ -69,7 +69,9 @@ PyFrame *PyFrame::create(PyFrame *parent,
 	} else {
 		auto builtins = [new_frame]() -> PyResult<PyObject *> {
 			if (auto *locals = as<PyDict>(new_frame->m_locals)) {
-				if (auto value = (*locals)[String{ "__builtins__" }]; value.has_value()) {
+				if (auto value =
+						(*locals)[RtValue::from_ptr(PyString::create("__builtins__").unwrap())];
+					value.has_value()) {
 					return PyObject::from(*value);
 				} else {
 					return Err(key_error("__builtins__"));
@@ -119,9 +121,9 @@ BaseException *PyFrame::pop_exception()
 
 PyResult<std::monostate> PyFrame::put_local(const std::string &name, const Value &value)
 {
-	ASSERT(!std::holds_alternative<PyObject *>(value) || std::get<PyObject *>(value));
+	ASSERT(!value.is_heap_object() || value.as_ptr());
 	if (auto *locals = as<PyDict>(m_locals)) {
-		locals->insert(String{ name }, value);
+		locals->insert(RtValue::from_ptr(PyString::create(name).unwrap()), value);
 		return Ok(std::monostate{});
 	} else {
 		return m_locals->as_mapping().unwrap().setitem(
@@ -132,7 +134,7 @@ PyResult<std::monostate> PyFrame::put_local(const std::string &name, const Value
 PyResult<std::monostate> PyFrame::put_global(const std::string &name, const Value &value)
 {
 	if (auto *globals = as<PyDict>(m_globals)) {
-		globals->insert(String{ name }, value);
+		globals->insert(RtValue::from_ptr(PyString::create(name).unwrap()), value);
 		return Ok(std::monostate{});
 	} else {
 		return m_globals->as_mapping().unwrap().setitem(
@@ -164,10 +166,10 @@ PyObject *PyFrame::locals() const
 	for (size_t i = 0; i < m_f_code->m_varnames.size(); ++i) {
 		const auto &varname = m_f_code->m_varnames[i];
 		const auto &value = ctx.stack_local(i);
-		if (std::holds_alternative<PyObject *>(value) && !std::get<PyObject *>(value)) {
-			remove(String{ varname });
+		if (value.is_heap_object() && !value.as_ptr()) {
+			remove(RtValue::from_ptr(PyString::create(varname).unwrap()));
 		} else {
-			insert(String{ varname }, value);
+			insert(RtValue::from_ptr(PyString::create(varname).unwrap()), value);
 		}
 	}
 
@@ -175,9 +177,9 @@ PyObject *PyFrame::locals() const
 	for (const auto &cell_name : m_f_code->m_cellvars) {
 		const auto &cell = freevars()[i++];
 		if (!cell || cell->empty()) {
-			remove(String{ cell_name });
+			remove(RtValue::from_ptr(PyString::create(cell_name).unwrap()));
 		} else {
-			insert(String{ cell_name }, cell->content());
+			insert(RtValue::from_ptr(PyString::create(cell_name).unwrap()), cell->content());
 		}
 	}
 
@@ -185,9 +187,9 @@ PyObject *PyFrame::locals() const
 		for (const auto &freevar_name : m_f_code->m_freevars) {
 			const auto &cell = freevars()[i++];
 			if (!cell || cell->empty()) {
-				remove(String{ freevar_name });
+				remove(RtValue::from_ptr(PyString::create(freevar_name).unwrap()));
 			} else {
-				insert(String{ freevar_name }, cell->content());
+				insert(RtValue::from_ptr(PyString::create(freevar_name).unwrap()), cell->content());
 			}
 		}
 	}

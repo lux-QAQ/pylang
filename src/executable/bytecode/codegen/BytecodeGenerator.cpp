@@ -99,20 +99,7 @@ using namespace ast;
 namespace codegen {
 
 namespace {
-	bool compare_values(const py::Value &lhs, const py::Value &rhs)
-	{
-		if (lhs.index() != rhs.index()) { return false; }
-		return std::visit(
-			overloaded{
-				[&]<typename T>(const T &lhs_value) { return lhs_value == std::get<T>(rhs); },
-				[&](const py::Number &lhs_value) {
-					// make sure that doubles and integers are stored independently even when their
-					// values are equivalent
-					return lhs_value.value.index() == std::get<py::Number>(rhs).value.index()
-						   && lhs_value == std::get<py::Number>(rhs);
-				} },
-			lhs);
-	}
+	bool compare_values(const py::Value &lhs, const py::Value &rhs) { return lhs == rhs; }
 }// namespace
 
 BytecodeValue *BytecodeGenerator::build_dict_simple(
@@ -248,7 +235,7 @@ void BytecodeGenerator::make_function(Register dst,
 	const std::vector<Register> &kw_defaults,
 	const std::optional<Register> &captures_tuple)
 {
-	auto *name_value_const = load_const(py::String{ name }, m_function_id);
+	auto *name_value_const = load_const(py::PyString::create(name).unwrap(), m_function_id);
 	auto *name_value = create_value();
 	emit<LoadConst>(name_value->get_register(), name_value_const->get_index());
 
@@ -409,10 +396,12 @@ void BytecodeGenerator::delete_var(const std::string &name)
 	switch (symbol.get().visibility) {
 	case VariablesResolver::Visibility::EXPLICIT_GLOBAL:
 	case VariablesResolver::Visibility::IMPLICIT_GLOBAL: {
-		emit<DeleteGlobal>(load_const(py::String{ name }, m_function_id)->get_index());
+		emit<DeleteGlobal>(
+			load_const(py::PyString::create(name).unwrap(), m_function_id)->get_index());
 	} break;
 	case VariablesResolver::Visibility::NAME: {
-		emit<DeleteName>(load_const(py::String{ name }, m_function_id)->get_index());
+		emit<DeleteName>(
+			load_const(py::PyString::create(name).unwrap(), m_function_id)->get_index());
 	} break;
 	case VariablesResolver::Visibility::LOCAL: {
 		auto *value = [&]() -> BytecodeStackValue * {
@@ -432,7 +421,8 @@ void BytecodeGenerator::delete_var(const std::string &name)
 		TODO();
 	} break;
 	case VariablesResolver::Visibility::HIDDEN: {
-		emit<DeleteName>(load_const(py::String{ name }, m_function_id)->get_index());
+		emit<DeleteName>(
+			load_const(py::PyString::create(name).unwrap(), m_function_id)->get_index());
 	} break;
 	}
 }
@@ -484,7 +474,7 @@ Value *BytecodeGenerator::visit(const Name *node)
 Value *BytecodeGenerator::visit(const Constant *node)
 {
 	auto *dst = create_value();
-	auto *value = load_const(*node->value(), m_function_id);
+	auto *value = load_const(py::RtValue::from_ptr(node->value()), m_function_id);
 	emit<LoadConst>(dst->get_register(), value->get_index());
 	return dst;
 }
@@ -1294,7 +1284,8 @@ Value *BytecodeGenerator::visit(const Call *node)
 					auto *key = create_value();
 					auto *value = generate(el.get(), m_function_id);
 					emit<LoadConst>(key->get_register(),
-						load_const(py::String{ name }, m_function_id)->get_index());
+						load_const(py::PyString::create(name).unwrap(), m_function_id)
+							->get_index());
 					if (first_kwargs_expansion) {
 						key_registers.push_back(key->get_register());
 						value_registers.push_back(value->get_register());
@@ -1713,8 +1704,8 @@ Value *BytecodeGenerator::visit(const ClassDefinition *node)
 	// class definition preamble, a la CPython
 	emit<LoadName>(name_register, "__name__");
 	emit<StoreName>("__module__", name_register);
-	emit<LoadConst>(
-		qualname_register, load_const(py::String{ node->name() }, class_id)->get_index());
+	emit<LoadConst>(qualname_register,
+		load_const(py::PyString::create(node->name()).unwrap(), class_id)->get_index());
 	emit<StoreName>("__qualname__", qualname_register);
 
 	if (class_scope->requires_class_ref) {
@@ -1797,7 +1788,7 @@ Value *BytecodeGenerator::visit(const ClassDefinition *node)
 
 	emit<LoadBuildClass>(builtin_build_class_register);
 	emit<LoadConst>(class_name_register,
-		load_const(py::String{ class_mangled_name }, m_function_id)->get_index());
+		load_const(py::PyString::create(class_mangled_name).unwrap(), m_function_id)->get_index());
 	make_function(class_builder_func->get_register(), class_mangled_name, {}, {}, captures_tuple);
 
 	if (kwarg_registers.empty()) {
@@ -1968,7 +1959,7 @@ Value *BytecodeGenerator::visit(const Import *node)
 	for (const auto &n : node->names()) {
 		auto *name = load_name(n.name, m_function_id);
 		auto *from_list = load_const(py::py_none(), m_function_id);
-		auto *level = load_const(py::Number{ int64_t{ 0 } }, m_function_id);
+		auto *level = load_const(py::PyInteger::create(0).unwrap(), m_function_id);
 
 		auto *from_list_value = create_value();
 		auto *level_value = create_value();
@@ -2000,7 +1991,7 @@ Value *BytecodeGenerator::visit(const ast::ImportFrom *node)
 {
 	std::vector<Register> names;
 	for (const auto &n : node->names()) {
-		auto name = load_const(py::String{ n.name }, m_function_id);
+		auto name = load_const(py::PyString::create(n.name).unwrap(), m_function_id);
 		auto name_value = create_value();
 		emit<LoadConst>(name_value->get_register(), name->get_index());
 		names.push_back(name_value->get_register());
@@ -2008,7 +1999,7 @@ Value *BytecodeGenerator::visit(const ast::ImportFrom *node)
 
 	auto *name = load_name(node->module(), m_function_id);
 	auto *from_list_value = build_tuple(names);
-	auto *level = load_const(py::Number{ static_cast<int64_t>(node->level()) }, m_function_id);
+	auto *level = load_const(py::PyInteger::create(node->level()).unwrap(), m_function_id);
 
 	auto *level_value = create_value();
 
@@ -2507,34 +2498,36 @@ Value *BytecodeGenerator::visit(const JoinedStr *node)
 {
 	const auto only_static_strings = std::all_of(
 		node->values().begin(), node->values().end(), [](const std::shared_ptr<ASTNode> &value) {
-			return as<Constant>(value)
-				   && std::holds_alternative<py::String>(*as<Constant>(value)->value());
+			return as<Constant>(value) && as<py::PyString>(as<Constant>(value)->value());
 		});
 	if (only_static_strings) {
 		const auto string = std::accumulate(node->values().begin(),
 			node->values().end(),
-			py::String{},
-			[](py::String s, const std::shared_ptr<ASTNode> &value) {
-				return py::String{ s.s + std::get<py::String>(*as<Constant>(value)->value()).s };
+			std::string{},
+			[](std::string s, const std::shared_ptr<ASTNode> &value) {
+				return s + as<py::PyString>(as<Constant>(value)->value())->value();
 			});
-		auto *static_string = load_const(string, m_function_id);
+		auto *static_string =
+			load_const(py::RtValue::from_ptr(py::PyString::create(string).unwrap()), m_function_id);
 		auto *string_value = create_value();
 		emit<LoadConst>(string_value->get_register(), static_string->get_index());
 		return string_value;
 	}
-	py::String current_string;
+	std::string current_string;
 	std::vector<Register> strings;
 	for (const auto &value : node->values()) {
-		if (auto c = as<Constant>(value); c && std::holds_alternative<py::String>(*c->value())) {
-			current_string.s += std::get<py::String>(*as<Constant>(value)->value()).s;
+		if (auto c = as<Constant>(value); c && as<py::PyString>(c->value())) {
+			current_string += as<py::PyString>(c->value())->value();
 		} else {
 			BytecodeValue *string_value = nullptr;
-			if (!current_string.s.empty()) {
-				auto *static_string = load_const(current_string, m_function_id);
+			if (!current_string.empty()) {
+				auto *static_string =
+					load_const(py::RtValue::from_ptr(py::PyString::create(current_string).unwrap()),
+						m_function_id);
 				string_value = create_value();
 				emit<LoadConst>(string_value->get_register(), static_string->get_index());
 				strings.push_back(string_value->get_register());
-				current_string.s.clear();
+				current_string.clear();
 			}
 			ASSERT(as<FormattedValue>(value));
 			auto *str_value = generate(value.get(), m_function_id);
@@ -2542,8 +2535,9 @@ Value *BytecodeGenerator::visit(const JoinedStr *node)
 			strings.push_back(str_value->get_register());
 		}
 	}
-	if (!current_string.s.empty()) {
-		auto *static_string = load_const(current_string, m_function_id);
+	if (!current_string.empty()) {
+		auto *static_string = load_const(
+			py::RtValue::from_ptr(py::PyString::create(current_string).unwrap()), m_function_id);
 		auto *string_value = create_value();
 		emit<LoadConst>(string_value->get_register(), static_string->get_index());
 		strings.push_back(string_value->get_register());

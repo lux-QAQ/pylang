@@ -286,6 +286,7 @@ include_directories(
   SYSTEM PUBLIC # 使用 SYSTEM 可以抑制第三方库的警告
   ${yalantinglibs_SOURCE_DIR}/include
   ${yalantinglibs_SOURCE_DIR}/include/ylt/thirdparty
+  ${ordered_map_SOURCE_DIR}/include # 新增：将 tsl/ordered_map 也就是 ordered_map_SOURCE_DIR 加入全局搜索
 )
 
 # 如果开启了 Boehm GC，也要全局暴露 gc.h
@@ -336,6 +337,7 @@ target_link_libraries(python-cpp
   ICU::data
   ${GMPXX_LIBRARIES}
   ${GMP_LIBRARIES}
+  tsl::ordered_map
   spdlog::spdlog
   cpptrace::cpptrace
 )
@@ -346,6 +348,7 @@ target_include_directories(python-cpp
   .
   ${yalantinglibs_SOURCE_DIR}/include
   ${yalantinglibs_SOURCE_DIR}/include/ylt/thirdparty
+  ${ordered_map_SOURCE_DIR}/include # 修改：将横杠替换为下划线 ordered_map_SOURCE_DIR
   PRIVATE
   ${GMP_INCLUDES}
   ${CMAKE_CURRENT_BINARY_DIR}
@@ -542,7 +545,7 @@ endif()
 # =========================================================================
 if(LLVM_FOUND)
 
-  # 1. 定位资源
+  # 1. 定定位资源
   set(RUNTIME_BC_FILE "${CMAKE_BINARY_DIR}/runtime.bc")
   set(EMBEDDED_HEADER "${CMAKE_CURRENT_BINARY_DIR}/generated/EmbeddedResources.hpp")
   set(EMBED_SCRIPT "${CMAKE_SOURCE_DIR}/cmake/EmbedResources.cmake")

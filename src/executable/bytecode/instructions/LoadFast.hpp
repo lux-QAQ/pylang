@@ -24,7 +24,7 @@ class LoadFast final : public Instruction
 	Register stack_index() const { return m_stack_index; }
 	const std::string &object_name() const { return m_object_name; }
 
-	py::PyResult<py::Value> execute(VirtualMachine &vm, Interpreter &) const final;
+	py::PyResult<py::RtValue> execute(VirtualMachine &vm, Interpreter &) const final;
 
 	void relocate(size_t) final {}
 

@@ -90,30 +90,24 @@ PyResult<PyObject *> print(const PyTuple *args, const PyDict *kwargs)
 	std::string separator = " ";
 	std::string end = "\n";
 	if (kwargs) {
-		static const Value separator_keyword = String{ "sep" };
-		static const Value end_keyword = String{ "end" };
+		auto separator_keyword = PyString::create("sep").unwrap();
+		auto end_keyword = PyString::create("end").unwrap();
 
-		if (auto it = kwargs->map().find(separator_keyword); it != kwargs->map().end()) {
-			auto maybe_str = it->second;
-			if (!std::holds_alternative<String>(maybe_str)) {
-				auto obj =
-					std::visit([](const auto &value) { return PyObject::from(value); }, maybe_str);
-				if (obj.is_err()) return obj;
-				return Err(type_error(
-					"sep must be None or a string, not {}", obj.unwrap()->type()->name()));
+		if (auto it = kwargs->map().find(RtValue::from_ptr(separator_keyword));
+			it != kwargs->map().end()) {
+			auto obj = it->second.box();
+			if (!as<PyString>(obj)) {
+				return Err(type_error("sep must be None or a string, not {}", obj->type()->name()));
 			}
-			separator = std::get<String>(maybe_str).s;
+			separator = as<PyString>(obj)->value();
 		}
-		if (auto it = kwargs->map().find(end_keyword); it != kwargs->map().end()) {
-			auto maybe_str = it->second;
-			if (!std::holds_alternative<String>(maybe_str)) {
-				auto obj =
-					std::visit([](const auto &value) { return PyObject::from(value); }, maybe_str);
-				if (obj.is_err()) return obj;
-				return Err(type_error(
-					"end must be None or a string, not {}", obj.unwrap()->type()->name()));
+		if (auto it = kwargs->map().find(RtValue::from_ptr(end_keyword));
+			it != kwargs->map().end()) {
+			auto obj = it->second.box();
+			if (!as<PyString>(obj)) {
+				return Err(type_error("end must be None or a string, not {}", obj->type()->name()));
 			}
-			end = std::get<String>(maybe_str).s;
+			end = as<PyString>(obj)->value();
 		}
 	}
 	auto strfunc = [](const PyResult<PyObject *> &arg) -> PyResult<PyString *> {
@@ -187,9 +181,9 @@ PyResult<PyObject *> build_class(const PyTuple *args, const PyDict *kwargs)
 	bool metaclass_is_class = false;
 	auto metaclass_ = [kwargs, &metaclass_is_class]() -> PyResult<PyObject *> {
 		if (kwargs && kwargs->map().size() > 0) {
-			auto it = kwargs->map().find(String{ "metaclass" });
-			if (it != kwargs->map().end()) {
-				return PyObject::from(it->second).and_then([&metaclass_is_class](PyObject *obj) {
+			auto it = kwargs->operator[](RtValue::from_ptr(PyString::create("metaclass").unwrap()));
+			if (it) {
+				return PyObject::from(*it).and_then([&metaclass_is_class](PyObject *obj) {
 					if (obj->type()->issubclass(py::types::type())) { metaclass_is_class = true; }
 					return Ok(obj);
 				});
@@ -285,7 +279,10 @@ PyResult<PyObject *> build_class(const PyTuple *args, const PyDict *kwargs)
 			auto new_kwargs_ = [kwargs]() {
 				if (kwargs && !kwargs->map().empty()) {
 					auto prepare_kwargs = kwargs->map();
-					prepare_kwargs.erase(String{ "metaclass" });
+					auto mc_key = RtValue::from_ptr(PyString::create("metaclass").unwrap());
+					if (auto item = prepare_kwargs.find(mc_key); item != prepare_kwargs.end()) {
+						prepare_kwargs.erase(item);
+					}
 					return PyDict::create(prepare_kwargs);
 				} else {
 					return PyDict::create();
@@ -620,15 +617,13 @@ PyResult<PyObject *> dir(const PyTuple *args, const PyDict *)
 		}
 	} else {
 		const auto &arg = args->elements()[0];
-		if (std::holds_alternative<PyObject *>(arg) && as<PyModule>(std::get<PyObject *>(arg))) {
-			auto *pymodule = as<PyModule>(std::get<PyObject *>(arg));
+		if (as<PyModule>(arg.box())) {
+			auto *pymodule = as<PyModule>(arg.box());
 			for (const auto &[k, _] : pymodule->symbol_table()->map()) {
 				dir_list->elements().push_back(k);
 			}
 		} else {
-			auto object_ = PyObject::from(arg);
-			if (object_.is_err()) return object_;
-			auto *object = object_.unwrap();
+			auto *object = arg.box();
 			for (const auto &[k, _] : object->attributes()->map()) {
 				dir_list->elements().push_back(k);
 			}
@@ -923,8 +918,9 @@ PyResult<PyObject *> exec(const PyTuple *args, const PyDict *)
 		return Err(type_error("locals must be a mapping or None, not {}", locals->type()->name()));
 	}
 
-	if (!as<PyDict>(globals)->map().contains(String{ "__builtin__" })) {
-		as<PyDict>(globals)->insert(String{ "__builtin__" }, interp.execution_frame()->builtins());
+	auto builtin_key = RtValue::from_ptr(PyString::create("__builtin__").unwrap());
+	if (!as<PyDict>(globals)->operator[](builtin_key)) {
+		as<PyDict>(globals)->insert(builtin_key, interp.execution_frame()->builtins());
 	}
 
 	if (auto *code = as<PyCode>(source)) {
@@ -981,8 +977,9 @@ PyResult<PyObject *> eval(PyTuple *args, PyDict *kwargs)
 
 	ASSERT(globals && globals != py_none() && locals && locals != py_none());
 
-	if (!as<PyDict>(globals)->map().contains(String{ "__builtin__" })) {
-		as<PyDict>(globals)->insert(String{ "__builtin__" }, interp.execution_frame()->builtins());
+	auto builtin_key2 = RtValue::from_ptr(PyString::create("__builtin__").unwrap());
+	if (!as<PyDict>(globals)->operator[](builtin_key2)) {
+		as<PyDict>(globals)->insert(builtin_key2, interp.execution_frame()->builtins());
 	}
 
 	if (!as<PyDict>(locals)) { TODO(); }
@@ -1131,14 +1128,8 @@ PyResult<PyObject *> callable(const PyTuple *args, const PyDict *kwargs)
 		return Err(type_error("callable() takes no keyword arguments", args->size()));
 	}
 
-	auto obj = args->elements()[0];
-	return std::visit(overloaded{
-						  [](auto) { return false; },
-						  [](PyObject *obj) { return obj->type_prototype().__call__.has_value(); },
-					  },
-			   obj)
-			   ? Ok(py_true())
-			   : Ok(py_false());
+	auto obj = args->elements()[0].box();
+	return obj->type_prototype().__call__.has_value() ? Ok(py_true()) : Ok(py_false());
 }
 
 PyResult<PyObject *> ascii(PyTuple *args, PyDict *kwargs)
@@ -1172,7 +1163,9 @@ PyResult<PyObject *> sorted(PyTuple *args, PyDict *kwargs)
 	bool reverse = false;
 
 	if (kwargs) {
-		if (auto it = kwargs->map().find(String{ "key" }); it != kwargs->map().end()) {
+		if (auto key_obj = py::PyString::create("key").unwrap();
+			kwargs->map().find(RtValue::from_ptr(key_obj)) != kwargs->map().end()) {
+			auto it = kwargs->map().find(RtValue::from_ptr(key_obj));
 			auto key_ = PyObject::from(it->second);
 			if (key_.is_err()) { return key_; }
 			if (!key_.unwrap()->type_prototype().__call__.has_value()) {
@@ -1180,8 +1173,10 @@ PyResult<PyObject *> sorted(PyTuple *args, PyDict *kwargs)
 			}
 			key = key_.unwrap();
 		}
-		if (auto it = kwargs->map().find(String{ "reverse" }); it != kwargs->map().end()) {
-			auto t = truthy(it->second, interp);
+		if (auto key_obj = py::PyString::create("reverse").unwrap();
+			kwargs->map().find(RtValue::from_ptr(key_obj)) != kwargs->map().end()) {
+			auto it = kwargs->map().find(RtValue::from_ptr(key_obj));
+			auto t = truthy(it->second, current_interpreter());
 			if (t.is_err()) { return Err(t.unwrap_err()); }
 			reverse = t.unwrap();
 		}

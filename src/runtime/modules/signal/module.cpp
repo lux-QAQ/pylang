@@ -70,18 +70,18 @@ PyResult<PyObject *> signal(PyTuple *args, PyDict *kwargs)
 	auto [signalnum, handler] = result.unwrap();
 
 	__sighandler_t sighandler = +[](int signumber) {
-		if (auto it = handlers->map().find(Number{ signumber }); it != handlers->map().end()) {
-			ASSERT(std::holds_alternative<PyObject *>(it->second));
-			std::get<PyObject *>(it->second)
-				->call(PyTuple::create(Number{ signumber }, py_none()).unwrap(), nullptr);
+		if (auto it = handlers->map().find(RtValue::from_int_or_box(signumber));
+			it != handlers->map().end()) {
+			it->second.box()->call(
+				PyTuple::create(RtValue::from_int_or_box(signumber), py_none()).unwrap(), nullptr);
 		}
 	};
 
 	PyObject *previous_handler = py_none();
 
-	if (auto it = handlers->map().find(Number{ signalnum }); it != handlers->map().end()) {
-		ASSERT(std::holds_alternative<PyObject *>(it->second));
-		previous_handler = std::get<PyObject *>(it->second);
+	if (auto it = handlers->map().find(RtValue::from_int_or_box(signalnum));
+		it != handlers->map().end()) {
+		previous_handler = it->second.box();
 	}
 
 	if (signalnum >= NSIG) { return Err(value_error("signal number out of range")); }
@@ -91,7 +91,7 @@ PyResult<PyObject *> signal(PyTuple *args, PyDict *kwargs)
 		return Err(value_error("error setting signal handler"));
 	}
 
-	handlers->insert(Number{ signalnum }, handler);
+	handlers->insert(RtValue::from_int_or_box(signalnum), RtValue::from_ptr(handler));
 
 	return Ok(previous_handler);
 }
@@ -108,8 +108,9 @@ PyResult<PyObject *> getsignal(PyTuple *args, PyDict *kwargs)
 
 	auto [signalnum] = result.unwrap();
 
-	if (auto it = handlers->map().find(Number{ signalnum }); it != handlers->map().end()) {
-		return PyObject::from(it->second);
+	if (auto it = handlers->map().find(RtValue::from_int_or_box(signalnum));
+		it != handlers->map().end()) {
+		return Ok(it->second.box());
 	}
 
 	return Ok(py_none());

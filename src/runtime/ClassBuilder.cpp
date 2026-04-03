@@ -26,7 +26,7 @@ PyResult<PyObject *>
 	PyObject *metaclass = py_none();
 
 	if (kwargs && !kwargs->map().empty()) {
-		auto it = kwargs->map().find(String{ "metaclass" });
+		auto it = kwargs->map().find(RtValue::from_ptr(PyString::create("metaclass").unwrap()));
 		if (it != kwargs->map().end()) {
 			auto mc = PyObject::from(it->second);
 			if (mc.is_err()) { return mc; }
@@ -91,7 +91,7 @@ PyResult<PyObject *>
 			PyDict *new_kwargs = nullptr;
 			if (kwargs && !kwargs->map().empty()) {
 				auto prepare_kwargs = kwargs->map();
-				prepare_kwargs.erase(String{ "metaclass" });
+				prepare_kwargs.erase(RtValue::from_ptr(PyString::create("metaclass").unwrap()));
 				if (!prepare_kwargs.empty()) {
 					auto kw = PyDict::create(prepare_kwargs);
 					if (kw.is_err()) { return Err(kw.unwrap_err()); }
@@ -118,8 +118,8 @@ PyResult<PyObject *>
 	// Step 4: 预设 namespace 特殊属性
 	// =================================================================
 	if (auto *ns_dict = as<PyDict>(ns)) {
-		ns_dict->insert(String{ "__name__" }, class_name);
-		ns_dict->insert(String{ "__qualname__" }, class_name);
+		ns_dict->insert(RtValue::from_ptr(PyString::create("__name__").unwrap()), class_name);
+		ns_dict->insert(RtValue::from_ptr(PyString::create("__qualname__").unwrap()), class_name);
 	}
 
 	// =================================================================
@@ -162,14 +162,11 @@ PyResult<PyObject *>
 	//   这使 super() 无参调用能正确引用 __class__
 	// =================================================================
 	if (auto *ns_dict = as<PyDict>(ns)) {
-		String classcell_key{ "__classcell__" };
-		auto it = ns_dict->map().find(classcell_key);
-		if (it != ns_dict->map().end()) {
-			auto cell = PyObject::from(it->second);
-			if (cell.is_ok()) {
-				if (auto *cell_obj = as<PyCell>(cell.unwrap())) {
-					cell_obj->set_cell(Value{ cls.unwrap() });
-				}
+		auto *classcell_key = py::PyString::create("__classcell__").unwrap();
+		if (auto it = ns_dict->get(classcell_key, nullptr); it.is_ok() && it.unwrap() != nullptr) {
+			auto cell = it.unwrap();
+			if (auto *cell_obj = as<PyCell>(cell)) {
+				cell_obj->set_cell(py::RtValue::from_ptr(cls.unwrap()));
 			}
 		}
 	}

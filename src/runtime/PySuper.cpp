@@ -95,8 +95,8 @@ PyResult<PyObject *> PySuper::__getattribute__(PyObject *name) const
 	const auto &mro = m_object_type->__mro__->elements();
 
 	auto it = std::find_if(mro.begin(), mro.end() - 1, [this](const auto &el) {
-		ASSERT(std::holds_alternative<PyObject *>(el));
-		return std::get<PyObject *>(el) == m_type;
+		ASSERT(el.is_heap_object());
+		return el.as_ptr() == m_type;
 	});
 	if (it == mro.end() - 1) { return PyObject::__getattribute__(name); }
 
@@ -179,9 +179,7 @@ PyResult<PyObject *> PySuper::infer_object(PyFrame *, PyCode *)
 	// 修改：使用 RuntimeContext 替代 VirtualMachine::the().stack_local()
 	ASSERT(RuntimeContext::has_current());
 	auto first_arg = RuntimeContext::current().stack_local(0);
-	if (std::holds_alternative<PyObject *>(first_arg) && !std::get<PyObject *>(first_arg)) {
-		TODO();
-	}
+	if (first_arg.is_heap_object() && !first_arg.as_ptr()) { TODO(); }
 	return PyObject::from(first_arg);
 }
 
@@ -195,8 +193,8 @@ PyResult<PyType *> PySuper::infer_type(PyFrame *frame, PyCode *code)
 			}
 
 			auto content = as<PyCell>(cell)->content();
-			ASSERT(std::holds_alternative<PyObject *>(content));
-			auto type = std::get<PyObject *>(content);
+			ASSERT(content.is_heap_object());
+			auto type = content.as_ptr();
 			if (!type) { return Err(runtime_error("super(): empty __class__ cell")); }
 
 			if (!as<PyType>(type)) {

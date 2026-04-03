@@ -10,9 +10,9 @@ PyResult<Value> ListAppend::execute(VirtualMachine &vm, Interpreter &) const
 	auto &list = vm.reg(m_list);
 	auto &value = vm.reg(m_value);
 
-	ASSERT(std::holds_alternative<PyObject *>(list));
+	ASSERT(list.is_heap_object());
 
-	auto *pylist = std::get<PyObject *>(list);
+	auto *pylist = list.as_ptr();
 	ASSERT(pylist);
 	ASSERT(as<PyList>(pylist));
 

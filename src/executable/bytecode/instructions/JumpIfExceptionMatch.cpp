@@ -12,12 +12,12 @@
 
 using namespace py;
 
-PyResult<Value> JumpIfExceptionMatch::execute(VirtualMachine &vm, Interpreter &interpreter) const
+PyResult<RtValue> JumpIfExceptionMatch::execute(VirtualMachine &vm, Interpreter &interpreter) const
 {
 	ASSERT(m_offset.has_value());
 	const auto &exception_type = vm.reg(m_exception_type_reg);
-	ASSERT(std::holds_alternative<PyObject *>(exception_type));
-	auto *exception_type_obj = std::get<PyObject *>(exception_type);
+	ASSERT(exception_type.is_heap_object());
+	auto *exception_type_obj = exception_type.as_ptr();
 
 	// there has to be at least one active exception in the current frame
 	if (!interpreter.execution_frame()->exception_info().has_value()) { TODO(); }

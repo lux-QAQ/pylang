@@ -5,6 +5,23 @@
 #include "runtime/Value.hpp"
 #include "runtime/types/api.hpp"
 
+#include "runtime/PyBool.hpp"
+#include "runtime/PyBytes.hpp"
+#include "runtime/PyDict.hpp"
+#include "runtime/PyEllipsis.hpp"
+#include "runtime/PyFloat.hpp"
+#include "runtime/PyGenericAlias.hpp"
+#include "runtime/PyInteger.hpp"
+#include "runtime/PyIterator.hpp"
+#include "runtime/PyNone.hpp"
+#include "runtime/PyNumber.hpp"
+#include "runtime/PySlotWrapper.hpp"
+#include "runtime/PyStaticMethod.hpp"
+#include "runtime/PyString.hpp"
+#include "runtime/PyTuple.hpp"
+#include "runtime/PyType.hpp"
+
+
 #include <gmpxx.h>
 
 #include <sstream>
@@ -1552,7 +1569,6 @@ struct StarTargetsPattern : PatternV2<StarTargetsPattern>
 
 std::shared_ptr<Constant> parse_bytes(Token string)
 {
-	Bytes byte_collection;
 	auto *start = string.start().pointer_to_program;
 	const auto *end = string.end().pointer_to_program;
 
@@ -1571,7 +1587,8 @@ std::shared_ptr<Constant> parse_bytes(Token string)
 		}
 	}();
 	return std::make_shared<Constant>(
-		Bytes::from_unescaped_string(value), SourceLocation{ string.start(), string.end() });
+		py::PyBytes::create(py::Bytes::from_unescaped_string(value)).unwrap(),
+		SourceLocation{ string.start(), string.end() });
 }
 
 template<> struct traits<struct FStringReplacementFieldPattern>
@@ -1746,7 +1763,8 @@ struct FStringMiddlePattern : PatternV2<FStringMiddlePattern>
 					str.push_back(middle_str[i]);
 				}
 			}
-			return std::make_shared<Constant>(String::from_unescaped_string(std::move(str)),
+			return std::make_shared<Constant>(
+				py::PyString::create(py::String::from_unescaped_string(std::move(str)).s).unwrap(),
 				SourceLocation{ middle.token.start(), middle.token.end() });
 		}
 
@@ -1867,10 +1885,13 @@ struct StringPattern : PatternV2<StringPattern>
 			}
 
 			if (is_raw_string) {
-				return std::make_shared<Constant>(String(std::string{ value }),
+				return std::make_shared<Constant>(
+					py::PyString::create(std::string{ value }).unwrap(),
 					SourceLocation{ str.token.start(), str.token.end() });
 			}
-			return std::make_shared<Constant>(String::from_unescaped_string(std::string{ value }),
+			return std::make_shared<Constant>(
+				py::PyString::create(py::String::from_unescaped_string(std::string{ value }).s)
+					.unwrap(),
 				SourceLocation{ str.token.start(), str.token.end() });
 		}
 		return {};
@@ -1913,19 +1934,23 @@ struct StringsPattern : PatternV2<StringsPattern>
 				string_nodes.end(),
 				[](const auto &el) -> bool { return static_cast<bool>(as<Constant>(el)); });
 			if (all_constant) {
-				if (std::holds_alternative<Bytes>(*as<Constant>(string_nodes.front())->value())) {
-					Bytes bytes;
+				if (as<Constant>(string_nodes.front())->value()->type() == py::types::bytes()) {
+					py::PyObject *bytes_obj = py::PyBytes::create().unwrap();
 					for (const auto &el : string_nodes) {
 						ASSERT(as<Constant>(el));
 						auto c = as<Constant>(el);
-						if (!std::holds_alternative<Bytes>(*c->value())) {
+						if (c->value()->type() != py::types::bytes()) {
 							std::cerr << "SyntaxError: cannot mix bytes and nonbytes literals\n";
 							std::abort();
 						}
-						const auto &byte = std::get<Bytes>(*c->value());
-						bytes.b.insert(bytes.b.end(), byte.b.begin(), byte.b.end());
+						py::PyBytes *b1 = static_cast<py::PyBytes *>(bytes_obj);
+						py::PyBytes *b2 = static_cast<py::PyBytes *>(c->value());
+
+						std::vector<std::byte> new_b = b1->value().b;
+						new_b.insert(new_b.end(), b2->value().b.begin(), b2->value().b.end());
+						bytes_obj = py::PyBytes::create(py::Bytes{ std::move(new_b) }).unwrap();
 					}
-					return std::make_shared<Constant>(bytes, sl);
+					return std::make_shared<Constant>(bytes_obj, sl);
 				} else {
 					auto str = std::accumulate(string_nodes.begin(),
 						string_nodes.end(),
@@ -1933,8 +1958,8 @@ struct StringsPattern : PatternV2<StringsPattern>
 						[](std::string acc, const auto &el) {
 							ASSERT(as<Constant>(el));
 							auto c = as<Constant>(el);
-							ASSERT(std::holds_alternative<String>(*c->value()));
-							return acc + std::get<String>(*c->value()).s;
+							ASSERT(c->value()->type() == py::types::str());
+							return acc + static_cast<py::PyString *>(c->value())->value();
 						});
 					return std::make_shared<Constant>(std::move(str), sl);
 				}
@@ -2534,10 +2559,10 @@ struct AtomPattern : PatternV2<AtomPattern>
 				token.token.end().pointer_to_program };
 			if (name == "True") {
 				return std::make_shared<Constant>(
-					true, SourceLocation{ token.token.start(), token.token.end() });
+					py::py_true(), SourceLocation{ token.token.start(), token.token.end() });
 			} else if (name == "False") {
 				return std::make_shared<Constant>(
-					false, SourceLocation{ token.token.start(), token.token.end() });
+					py::py_false(), SourceLocation{ token.token.start(), token.token.end() });
 			} else if (name == "None") {
 				return std::make_shared<Constant>(
 					py::py_none(), SourceLocation{ token.token.start(), token.token.end() });
@@ -2593,8 +2618,8 @@ struct AtomPattern : PatternV2<AtomPattern>
 		using pattern11 = PatternMatchV2<SingleTokenPatternV2<Token::TokenType::ELLIPSIS>>;
 		if (auto result = pattern11::match(p)) {
 			auto [token] = *result;
-			return std::make_shared<Constant>(py::Value{ py::py_ellipsis() },
-				SourceLocation{ token.token.start(), token.token.end() });
+			return std::make_shared<Constant>(
+				py::py_ellipsis(), SourceLocation{ token.token.start(), token.token.end() });
 		}
 
 		return {};
@@ -4726,7 +4751,7 @@ struct YieldExpressionPattern : PatternV2<YieldExpressionPattern>
 			}
 			const auto end = p.lexer().peek_token(p.token_position() - 1);
 			auto value = std::make_shared<Constant>(
-				py::Value{ py::py_none() }, SourceLocation{ end->start(), end->end() });
+				py::py_none(), SourceLocation{ end->start(), end->end() });
 			return std::make_shared<Yield>(
 				value, SourceLocation{ yield_token.start(), value->source_location().end });
 		}

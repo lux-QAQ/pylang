@@ -11,12 +11,12 @@ PyResult<Value> DictUpdate::execute(VirtualMachine &vm, Interpreter &) const
 	auto &dst = vm.reg(m_dst);
 	auto &src = vm.reg(m_src);
 
-	ASSERT(std::holds_alternative<PyObject *>(dst));
-	ASSERT(std::holds_alternative<PyObject *>(src));
+	ASSERT(dst.is_heap_object());
+	ASSERT(src.is_heap_object());
 
-	auto *dst_dict = as<PyDict>(std::get<PyObject *>(dst));
+	auto *dst_dict = as<PyDict>(dst.as_ptr());
 	ASSERT(dst_dict);
-	auto args = PyTuple::create(std::get<PyObject *>(src), py_true());
+	auto args = PyTuple::create(src.as_ptr(), py_true());
 	return dst_dict->merge(args.unwrap(), nullptr);
 }
 

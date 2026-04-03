@@ -34,7 +34,7 @@ PyResult<PyCell *> PyCell::create()
 
 PyResult<PyCell *> PyCell::create(const Value &content)
 {
-	if (std::holds_alternative<PyObject *>(content)) { ASSERT(std::get<PyObject *>(content)); }
+	if (content.is_heap_object()) { ASSERT(content.as_ptr()); }
 	auto *obj = PYLANG_ALLOC(PyCell, content);
 	if (!obj) { return Err(memory_error(sizeof(PyCell))); }
 	return Ok(obj);
@@ -42,8 +42,8 @@ PyResult<PyCell *> PyCell::create(const Value &content)
 
 std::string PyCell::to_string() const
 {
-	if (std::holds_alternative<PyObject *>(m_content)) {
-		if (auto *obj = std::get<PyObject *>(m_content)) {
+	if (m_content.is_heap_object()) {
+		if (auto *obj = m_content.as_ptr()) {
 			return fmt::format("<cell at {}: {} object at {}>",
 				(void *)this,
 				obj->type()->to_string(),
@@ -62,8 +62,8 @@ std::string PyCell::to_string() const
 void PyCell::visit_graph(Visitor &visitor)
 {
 	PyObject::visit_graph(visitor);
-	if (std::holds_alternative<PyObject *>(m_content)) {
-		if (auto *obj = std::get<PyObject *>(m_content)) { visitor.visit(*obj); }
+	if (m_content.is_heap_object()) {
+		if (auto *obj = m_content.as_ptr()) { visitor.visit(*obj); }
 	}
 }
 
@@ -75,8 +75,8 @@ const Value &PyCell::content() const { return m_content; }
 
 bool PyCell::empty() const
 {
-	if (std::holds_alternative<PyObject *>(m_content)) {
-		if (!std::get<PyObject *>(m_content)) { return true; }
+	if (m_content.is_heap_object()) {
+		if (!m_content.as_ptr()) { return true; }
 	}
 	return false;
 }

@@ -18,6 +18,7 @@
 #include "runtime/PyObject.hpp"
 #include "runtime/TypeError.hpp"
 #include "runtime/Value.hpp"
+#include "taggered_pointer/RtValue.hpp"
 #include "types/api.hpp"
 #include "types/builtin.hpp"
 
@@ -255,18 +256,7 @@ PyResult<PyObject *> PyList::__repr__() const
 	} cleanup{ this, !visited_set().contains(const_cast<PyList *>(this)) };
 	visited_set().insert(const_cast<PyList *>(this));
 
-	auto repr = [](const auto &el) -> PyResult<PyString *> {
-		return std::visit(overloaded{
-							  [](const auto &value) { return PyString::create(value.to_string()); },
-							  [](PyObject *value) {
-								  if (visited_set().contains(value)) {
-									  return PyString::create("[...]");
-								  }
-								  return value->repr();
-							  },
-						  },
-			el);
-	};
+	auto repr = [](const auto &el) -> PyResult<PyString *> { return el.box()->repr(); };
 	os << "[";
 	if (!m_elements.empty()) {
 		auto it = m_elements.begin();
@@ -604,10 +594,12 @@ PyResult<PyObject *> PyList::sort(PyTuple *args, PyDict *kwargs)
 		return Err(type_error("sort() takes no positional arguments"));
 	}
 	if (kwargs) {
-		if (auto it = kwargs->map().find(String{ "key" }); it != kwargs->map().end()) {
+		if (auto it = kwargs->map().find(RtValue::from_ptr(PyString::create("key").unwrap()));
+			it != kwargs->map().end()) {
 			key = PyObject::from(it->second).unwrap();
 		}
-		if (auto it = kwargs->map().find(String{ "reverse" }); it != kwargs->map().end()) {
+		if (auto it = kwargs->map().find(RtValue::from_ptr(PyString::create("reverse").unwrap()));
+			it != kwargs->map().end()) {
 			if (RuntimeContext::has_current()) {
 				reverse = RuntimeContext::current().is_true(PyObject::from(it->second).unwrap());
 			}
@@ -714,8 +706,8 @@ void PyList::visit_graph(Visitor &visitor)
 {
 	PyObject::visit_graph(visitor);
 	for (auto &el : m_elements) {
-		if (std::holds_alternative<PyObject *>(el)) {
-			if (std::get<PyObject *>(el) != this) visitor.visit(*std::get<PyObject *>(el));
+		if (el.is_heap_object()) {
+			if (el.as_ptr() != this) visitor.visit(*el.as_ptr());
 		}
 	}
 }
@@ -794,8 +786,7 @@ PyResult<PyObject *> PyListIterator::__repr__() const { return PyString::create(
 PyResult<PyObject *> PyListIterator::__next__()
 {
 	if (m_current_index < m_pylist.elements().size())
-		return std::visit([](const auto &element) { return PyObject::from(element); },
-			m_pylist.elements()[m_current_index++]);
+		return PyObject::from(m_pylist.elements()[m_current_index++]);
 	return Err(stop_iteration());
 }
 
@@ -852,8 +843,7 @@ PyResult<PyObject *> PyListReverseIterator::__next__()
 {
 	if (m_pylist.has_value()) {
 		if (m_current_index < m_pylist->get().elements().size())
-			return std::visit([](const auto &element) { return PyObject::from(element); },
-				m_pylist->get().elements()[m_current_index--]);
+			return PyObject::from(m_pylist->get().elements()[m_current_index--]);
 		m_pylist = std::nullopt;
 	}
 	return Err(stop_iteration());

@@ -9,6 +9,7 @@
 #include "ValueError.hpp"
 #include "runtime/PyObject.hpp"
 #include "runtime/Value.hpp"
+#include "taggered_pointer/RtValue.hpp"
 #include "types/api.hpp"
 #include "types/builtin.hpp"
 
@@ -76,47 +77,41 @@ std::string PyDict::to_string() const
 
 	auto it = m_map.begin();
 	while (std::next(it) != m_map.end()) {
-		std::visit(overloaded{ [&os](PyObject *key) {
-								  auto r = key->repr();
-								  ASSERT(r.is_ok());
-								  os << r.unwrap()->to_string();
-							  },
-					   [&os](const auto &key) { os << key; } },
-			it->first);
+		[&os](const auto &v) {
+			auto r = v.box()->repr();
+			ASSERT(r.is_ok());
+			os << r.unwrap()->to_string();
+		}(it->first);
 		os << ": ";
-		std::visit(overloaded{ [&os, this](PyObject *value) {
-								  if (value == this) {
-									  os << "{...}";
-								  } else {
-									  auto r = value->repr();
-									  ASSERT(r.is_ok());
-									  os << r.unwrap()->to_string();
-								  }
-							  },
-					   [&os](const auto &value) { os << value; } },
-			it->second);
+		[&os, this](const auto &v) {
+			auto *obj = v.box();
+			if (obj == this) {
+				os << "{...}";
+			} else {
+				auto r = obj->repr();
+				ASSERT(r.is_ok());
+				os << r.unwrap()->to_string();
+			}
+		}(it->second);
 		os << ", ";
 
 		std::advance(it, 1);
 	}
-	std::visit(overloaded{ [&os](PyObject *key) {
-							  auto r = key->repr();
-							  ASSERT(r.is_ok());
-							  os << r.unwrap()->to_string() << ": ";
-						  },
-				   [&os](const auto &key) { os << key << ": "; } },
-		it->first);
-	std::visit(overloaded{ [&os, this](PyObject *value) {
-							  if (value == this) {
-								  os << "{...}";
-							  } else {
-								  auto r = value->repr();
-								  ASSERT(r.is_ok());
-								  os << r.unwrap()->to_string();
-							  }
-						  },
-				   [&os](const auto &value) { os << value; } },
-		it->second);
+	[&os](const auto &v) {
+		auto r = v.box()->repr();
+		ASSERT(r.is_ok());
+		os << r.unwrap()->to_string();
+	}(it->first);
+	[&os, this](const auto &v) {
+		auto *obj = v.box();
+		if (obj == this) {
+			os << "{...}";
+		} else {
+			auto r = obj->repr();
+			ASSERT(r.is_ok());
+			os << r.unwrap()->to_string();
+		}
+	}(it->second);
 	os << "}";
 
 	return os.str();
@@ -216,13 +211,11 @@ void PyDict::visit_graph(Visitor &visitor)
 {
 	PyObject::visit_graph(visitor);
 	for (auto &[key, value] : m_map) {
-		if (std::holds_alternative<PyObject *>(value)) {
-			if (std::get<PyObject *>(value) && std::get<PyObject *>(value) != this)
-				visitor.visit(*std::get<PyObject *>(value));
+		if (value.is_heap_object()) {
+			if (value.as_ptr() && value.as_ptr() != this) visitor.visit(*value.as_ptr());
 		}
-		if (std::holds_alternative<PyObject *>(key)) {
-			if (std::get<PyObject *>(key) && std::get<PyObject *>(key) != this)
-				visitor.visit(*std::get<PyObject *>(key));
+		if (key.is_heap_object()) {
+			if (key.as_ptr() && key.as_ptr() != this) visitor.visit(*key.as_ptr());
 		}
 	}
 }
@@ -721,18 +714,7 @@ PyResult<PyObject *> PyDictValues::__repr__() const
 	} cleanup{ this, !visited_dict_values_set().contains(const_cast<PyDictValues *>(this)) };
 	visited_dict_values_set().insert(const_cast<PyDictValues *>(this));
 
-	auto repr = [](const auto &el) -> PyResult<PyString *> {
-		return std::visit(overloaded{
-							  [](const auto &value) { return PyString::create(value.to_string()); },
-							  [](PyObject *value) {
-								  if (visited_dict_values_set().contains(value)) {
-									  return PyString::create("...");
-								  }
-								  return value->repr();
-							  },
-						  },
-			el);
-	};
+	auto repr = [](const auto &el) -> PyResult<PyString *> { return el.box()->repr(); };
 	os << "dict_values([";
 	if (!m_pydict->get().map().empty()) {
 		auto it = m_pydict->get().map().begin();
@@ -850,11 +832,11 @@ void PyDictItemsIterator::visit_graph(Visitor &visitor)
 {
 	PyObject::visit_graph(visitor);
 	if (m_current_iterator != m_pydictitems->get().m_pydict->get().map().end()) {
-		if (std::holds_alternative<PyObject *>(m_current_iterator->first)) {
-			visitor.visit(*std::get<PyObject *>(m_current_iterator->first));
+		if (m_current_iterator->first.is_heap_object()) {
+			visitor.visit(*m_current_iterator->first.as_ptr());
 		}
-		if (std::holds_alternative<PyObject *>(m_current_iterator->second)) {
-			visitor.visit(*std::get<PyObject *>(m_current_iterator->second));
+		if (m_current_iterator->second.is_heap_object()) {
+			visitor.visit(*m_current_iterator->second.as_ptr());
 		}
 	}
 	visitor.visit(const_cast<PyDictItems &>(m_pydictitems->get()));
@@ -952,8 +934,8 @@ void PyDictKeyIterator::visit_graph(Visitor &visitor)
 {
 	PyObject::visit_graph(visitor);
 	if (m_current_iterator != m_pydictkeys->get().m_pydict->get().map().end()) {
-		if (std::holds_alternative<PyObject *>(m_current_iterator->first)) {
-			visitor.visit(*std::get<PyObject *>(m_current_iterator->first));
+		if (m_current_iterator->first.is_heap_object()) {
+			visitor.visit(*m_current_iterator->first.as_ptr());
 		}
 	}
 	visitor.visit(const_cast<PyDictKeys &>(m_pydictkeys->get()));
@@ -1049,8 +1031,8 @@ PyResult<PyDictValueIterator *> PyDictValueIterator::create(const PyDictValues &
 void PyDictValueIterator::visit_graph(Visitor &visitor)
 {
 	PyObject::visit_graph(visitor);
-	if (std::holds_alternative<PyObject *>(m_current_iterator->second)) {
-		visitor.visit(*std::get<PyObject *>(m_current_iterator->second));
+	if (m_current_iterator->second.is_heap_object()) {
+		visitor.visit(*m_current_iterator->second.as_ptr());
 	}
 
 	visitor.visit(const_cast<PyDictValues &>(m_pydictvalues->get()));

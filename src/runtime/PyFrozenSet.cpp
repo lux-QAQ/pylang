@@ -56,18 +56,18 @@ std::string PyFrozenSet::to_string() const
 	if (!m_elements.empty()) {
 		auto it = m_elements.begin();
 		while (std::next(it) != m_elements.end()) {
-			std::visit(overloaded{
-						   [&os](const auto &value) { os << value << ", "; },
-						   [&os](PyObject *value) { os << value->to_string() << ", "; },
-					   },
-				*it);
+			[&os](const auto &v) {
+				auto r = v.box()->repr();
+				ASSERT(r.is_ok());
+				os << r.unwrap()->to_string() << ", ";
+			}(*it);
 			std::advance(it, 1);
 		}
-		std::visit(overloaded{
-					   [&os](const auto &value) { os << value; },
-					   [&os](PyObject *value) { os << value->to_string(); },
-				   },
-			*it);
+		[&os](const auto &v) {
+			auto r = v.box()->repr();
+			ASSERT(r.is_ok());
+			os << r.unwrap()->to_string();
+		}(*it);
 	}
 	os << "})";
 
@@ -166,8 +166,8 @@ void PyFrozenSet::visit_graph(Visitor &visitor)
 {
 	PyObject::visit_graph(visitor);
 	for (auto &el : m_elements) {
-		if (std::holds_alternative<PyObject *>(el)) {
-			if (std::get<PyObject *>(el) != this) visitor.visit(*std::get<PyObject *>(el));
+		if (el.is_heap_object()) {
+			if (el.as_ptr() != this) visitor.visit(*el.as_ptr());
 		}
 	}
 }

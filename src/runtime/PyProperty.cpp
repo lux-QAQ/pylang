@@ -21,8 +21,8 @@ namespace py {
 // 		if (args && args->size() >= 1) {
 // 			return PyObject::from(args->elements()[0]);
 // 		} else if (kwargs) {
-// 			if (auto it = kwargs->map().find(String{ "fget" }); it != kwargs->map().end()) {
-// 				return PyObject::from(it->second);
+// 			if (auto it = kwargs->map().find(RtValue::from_ptr(PyString::create("fget").unwrap()));
+// it != kwargs->map().end()) { 				return PyObject::from(it->second);
 // 			}
 // 		}
 // 		return Ok(py_none());
@@ -33,8 +33,8 @@ namespace py {
 // 		if (args && args->size() >= 2) {
 // 			return PyObject::from(args->elements()[1]);
 // 		} else if (kwargs) {
-// 			if (auto it = kwargs->map().find(String{ "fset" }); it != kwargs->map().end()) {
-// 				return PyObject::from(it->second);
+// 			if (auto it = kwargs->map().find(RtValue::from_ptr(PyString::create("fset").unwrap()));
+// it != kwargs->map().end()) { 				return PyObject::from(it->second);
 // 			}
 // 		}
 // 		return Ok(py_none());
@@ -45,8 +45,8 @@ namespace py {
 // 		if (args && args->size() >= 3) {
 // 			return PyObject::from(args->elements()[1]);
 // 		} else if (kwargs) {
-// 			if (auto it = kwargs->map().find(String{ "fdel" }); it != kwargs->map().end()) {
-// 				return PyObject::from(it->second);
+// 			if (auto it = kwargs->map().find(RtValue::from_ptr(PyString::create("fdel").unwrap()));
+// it != kwargs->map().end()) { 				return PyObject::from(it->second);
 // 			}
 // 		}
 // 		return Ok(py_none());
@@ -57,8 +57,8 @@ namespace py {
 // 		if (args && args->size() >= 3) {
 // 			return PyObject::from(args->elements()[1]);
 // 		} else if (kwargs) {
-// 			if (auto it = kwargs->map().find(String{ "doc" }); it != kwargs->map().end()) {
-// 				return PyObject::from(it->second);
+// 			if (auto it = kwargs->map().find(RtValue::from_ptr(PyString::create("doc").unwrap()));
+// it != kwargs->map().end()) { 				return PyObject::from(it->second);
 // 			}
 // 		}
 // 		return Ok(py_none());
@@ -76,7 +76,8 @@ PyResult<PyObject *> PyProperty::__new__(const PyType *type, PyTuple *args, PyDi
 		if (args && args->size() >= 1) {
 			return PyObject::from(args->elements()[0]);
 		} else if (kwargs) {
-			if (auto it = kwargs->map().find(String{ "fget" }); it != kwargs->map().end()) {
+			if (auto it = kwargs->map().find(RtValue::from_ptr(PyString::create("fget").unwrap()));
+				it != kwargs->map().end()) {
 				return PyObject::from(it->second);
 			}
 		}
@@ -88,7 +89,8 @@ PyResult<PyObject *> PyProperty::__new__(const PyType *type, PyTuple *args, PyDi
 		if (args && args->size() >= 2) {
 			return PyObject::from(args->elements()[1]);
 		} else if (kwargs) {
-			if (auto it = kwargs->map().find(String{ "fset" }); it != kwargs->map().end()) {
+			if (auto it = kwargs->map().find(RtValue::from_ptr(PyString::create("fset").unwrap()));
+				it != kwargs->map().end()) {
 				return PyObject::from(it->second);
 			}
 		}
@@ -100,7 +102,8 @@ PyResult<PyObject *> PyProperty::__new__(const PyType *type, PyTuple *args, PyDi
 		if (args && args->size() >= 3) {
 			return PyObject::from(args->elements()[2]);// FIX: was [1]
 		} else if (kwargs) {
-			if (auto it = kwargs->map().find(String{ "fdel" }); it != kwargs->map().end()) {
+			if (auto it = kwargs->map().find(RtValue::from_ptr(PyString::create("fdel").unwrap()));
+				it != kwargs->map().end()) {
 				return PyObject::from(it->second);
 			}
 		}
@@ -112,7 +115,8 @@ PyResult<PyObject *> PyProperty::__new__(const PyType *type, PyTuple *args, PyDi
 		if (args && args->size() >= 4) {// FIX: was >= 3
 			return PyObject::from(args->elements()[3]);// FIX: was [1]
 		} else if (kwargs) {
-			if (auto it = kwargs->map().find(String{ "doc" }); it != kwargs->map().end()) {
+			if (auto it = kwargs->map().find(RtValue::from_ptr(PyString::create("doc").unwrap()));
+				it != kwargs->map().end()) {
 				return PyObject::from(it->second);
 			}
 		}

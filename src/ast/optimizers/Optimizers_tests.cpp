@@ -2,7 +2,12 @@
 #include "ast/AST.hpp"
 #include "executable/Program.hpp"
 #include "parser/Parser.hpp"
+#include "runtime/PyFloat.hpp"
+#include "runtime/PyInteger.hpp"
+#include "runtime/PyObject.hpp"
+#include "runtime/PyString.hpp"
 #include "runtime/Value.hpp"
+#include "runtime/types/builtin.hpp"
 #include "utilities.hpp"
 
 #include "gtest/gtest.h"
@@ -18,34 +23,21 @@ void compare_constant(const std::shared_ptr<ASTNode> &result,
 	const std::shared_ptr<ASTNode> &expected)
 {
 	ASSERT_EQ(result->node_type(), ASTNodeType::Constant);
-	const auto result_value = as<Constant>(result)->value();
 	const auto expected_value = as<Constant>(expected)->value();
 
-	ASSERT_EQ(result_value->index(), expected_value->index());
-	std::visit(
-		overloaded{ [&](const Number &number_value) {
-					   if (auto *int_result = std::get_if<BigIntType>(&number_value.value)) {
-						   ASSERT_EQ(*int_result,
-							   std::get<BigIntType>(std::get<Number>(*expected_value).value));
-					   } else if (auto *double_result = std::get_if<double>(&number_value.value)) {
-						   ASSERT_EQ(*double_result,
-							   std::get<double>(std::get<Number>(*expected_value).value));
-					   } else {
-						   TODO();
-					   }
-				   },
-			[&](const String &string_value) {
-				ASSERT_EQ(string_value.s, std::get<String>(*expected_value).s);
-			},
-			[&](PyObject *obj_value) {
-				ASSERT_EQ(obj_value, std::get<PyObject *>(*expected_value));
-			},
-			[&](const auto &val) {
-				(void)val;
-				TODO();
-				// ASSERT_EQ(result_, std::get<result_.index()>(expected_));
-			} },
-		*result_value);
+	auto *result_value = as<ast::Constant>(result)->value();
+
+	if (result_value->type() != expected_value->type()) { FAIL() << "Type mismatch in constants"; }
+
+	if (result_value->type() == py::types::integer()) {
+		EXPECT_EQ(as<py::PyInteger>(result_value)->as_i64(), 20);
+	} else if (result_value->type() == py::types::float_()) {
+		EXPECT_EQ(std::get<double>(as<py::PyFloat>(result_value)->value().value), 20.0);
+	} else if (result_value->type() == py::types::str()) {
+		EXPECT_EQ(as<py::PyString>(result_value)->value(), "20");
+	} else {
+		ASSERT_EQ(result_value, expected_value);
+	}
 }
 
 void compare_assign(const std::shared_ptr<ASTNode> &result,

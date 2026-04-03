@@ -16,7 +16,7 @@ class DeleteAttr final : public Instruction
 		return fmt::format("DELETE_ATTR     r{:<3} ({})", m_self, m_attr_name);
 	}
 
-	py::PyResult<py::Value> execute(VirtualMachine &vm, Interpreter &interpreter) const final;
+	py::PyResult<py::RtValue> execute(VirtualMachine &vm, Interpreter &interpreter) const final;
 
 	void relocate(size_t) final {}
 

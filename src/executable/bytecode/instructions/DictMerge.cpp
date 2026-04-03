@@ -5,19 +5,16 @@
 
 using namespace py;
 
-PyResult<Value> DictMerge::execute(VirtualMachine &vm, Interpreter &) const
+PyResult<RtValue> DictMerge::execute(VirtualMachine &vm, Interpreter &) const
 {
-	auto &this_dict = vm.reg(m_this_dict);
-	auto &other_dict = vm.reg(m_other_dict);
+	auto this_dict = vm.reg(m_this_dict);
+	auto other_dict = vm.reg(m_other_dict);
 
-	ASSERT(std::holds_alternative<PyObject *>(this_dict));
-	ASSERT(std::holds_alternative<PyObject *>(other_dict));
-
-	auto *this_pydict = std::get<PyObject *>(this_dict);
+	auto *this_pydict = this_dict.box();
 	ASSERT(this_pydict);
 	ASSERT(as<PyDict>(this_pydict));
 
-	auto *other_pydict = std::get<PyObject *>(other_dict);
+	auto *other_pydict = other_dict.box();
 	ASSERT(other_pydict);
 	ASSERT(as<PyDict>(other_pydict));
 

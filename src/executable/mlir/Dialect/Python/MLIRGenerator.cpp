@@ -1,6 +1,15 @@
 #include "Python/MLIRGenerator.hpp"
 #include "Python/IR/Dialect.hpp"
 #include "Python/IR/PythonOps.hpp"
+#include "runtime/PyBool.hpp"
+#include "runtime/PyBytes.hpp"
+#include "runtime/PyEllipsis.hpp"
+#include "runtime/PyFloat.hpp"
+#include "runtime/PyInteger.hpp"
+#include "runtime/PyNone.hpp"
+#include "runtime/PyString.hpp"
+#include "runtime/PyTuple.hpp"
+#include "runtime/types/api.hpp"
 
 #include "ast/AST.hpp"
 #include "executable/Mangler.hpp"
@@ -1436,73 +1445,51 @@ ast::Value *MLIRGenerator::visit(const ast::Comprehension *node)
 
 ast::Value *MLIRGenerator::visit(const ast::Constant *node)
 {
-	const auto &value = *node->value();
-	return std::visit(
-		overloaded{
-			[this, node](const py::Number &number) -> ast::Value * {
-				return std::visit(overloaded{
-									  [this, node](double value) {
-										  mlir::py::ConstantOp op =
-											  m_context.builder().create<mlir::py::ConstantOp>(
-												  loc(m_context.builder(),
-													  m_context.filename(),
-													  node->source_location()),
-												  value);
-										  return new_value(op);
-									  },
-									  [this, node](const py::BigIntType &int_value) {
-										  return new_value(load_const(m_context.builder(),
-											  int_value,
-											  m_context.filename(),
-											  node->source_location()));
-									  },
-								  },
-					number.value);
-			},
-			[this, node](const py::NameConstant &c) -> ast::Value * {
-				return std::visit(
-					overloaded{
-						[this, node](bool value) {
-							auto op = m_context.builder().create<mlir::py::ConstantOp>(
-								loc(m_context.builder(),
-									m_context.filename(),
-									node->source_location()),
-								value);
-							return new_value(op);
-						},
-						[this, node](py::NoneType) {
-							auto op = m_context.builder().create<mlir::py::ConstantOp>(
-								loc(m_context.builder(),
-									m_context.filename(),
-									node->source_location()),
-								m_context.builder().getNoneType());
-							return new_value(op);
-						},
-					},
-					c.value);
-			},
-			[this, node](const py::String &s) -> ast::Value * {
-				return new_value(load_const(
-					m_context.builder(), s.s, m_context.filename(), node->source_location()));
-			},
-			[this, node](const py::Bytes &b) -> ast::Value * {
-				mlir::py::ConstantOp op = m_context.builder().create<mlir::py::ConstantOp>(
-					loc(m_context.builder(), m_context.filename(), node->source_location()), b.b);
-				return new_value(op);
-			},
-			[this, node](py::Ellipsis) -> ast::Value * {
-				mlir::py::ConstantOp op = m_context.builder().create<mlir::py::ConstantOp>(
-					loc(m_context.builder(), m_context.filename(), node->source_location()),
-					m_context->pyellipsis_type());
-				return new_value(op);
-			},
-			[](auto) -> ast::Value * {
-				TODO();
-				return nullptr;
-			},
-		},
-		value);
+	auto val = node->value();
+	if (val->type() == py::types::float_()) {
+		double value = py::as<py::PyFloat>(val)->as_f64();
+		mlir::py::ConstantOp op = m_context.builder().create<mlir::py::ConstantOp>(
+			loc(m_context.builder(), m_context.filename(), node->source_location()), value);
+		return new_value(op);
+	} else if (val->type() == py::types::integer()) {
+		auto int_value = py::as<py::PyInteger>(val)->as_big_int();
+		return new_value(load_const(
+			m_context.builder(), int_value, m_context.filename(), node->source_location()));
+	} else if (val->type() == py::types::bool_()) {
+		bool value = py::as<py::PyBool>(val)->value();
+		auto op = m_context.builder().create<mlir::py::ConstantOp>(
+			loc(m_context.builder(), m_context.filename(), node->source_location()), value);
+		return new_value(op);
+	} else if (val == py::py_none()) {
+		auto op = m_context.builder().create<mlir::py::ConstantOp>(
+			loc(m_context.builder(), m_context.filename(), node->source_location()),
+			m_context.builder().getNoneType());
+		return new_value(op);
+	} else if (val->type() == py::types::str()) {
+		auto s = py::as<py::PyString>(val)->value();
+		return new_value(
+			load_const(m_context.builder(), s, m_context.filename(), node->source_location()));
+	} else if (val->type() == py::types::bytes()) {
+		// 修改：正确访问 PyBytes 内部的 Bytes 结构，并抽取内部的 vector 容器 .b
+		auto b = py::as<py::PyBytes>(val)->value().b;
+		// 修改：直接使用 std::vector<std::byte> 进行传递给 ConstantOp
+		mlir::py::ConstantOp op = m_context.builder().create<mlir::py::ConstantOp>(
+			loc(m_context.builder(), m_context.filename(), node->source_location()),
+			std::vector<std::byte>(b.begin(), b.end()));
+		return new_value(op);
+	} else if (val == py::py_ellipsis()) {
+		mlir::py::ConstantOp op = m_context.builder().create<mlir::py::ConstantOp>(
+			loc(m_context.builder(), m_context.filename(), node->source_location()),
+			m_context->pyellipsis_type());
+		return new_value(op);
+	} else if (val->type() == py::types::tuple()) {
+		TODO();
+	}
+
+	TODO();
+	return {};
 }
+
 
 ast::Value *MLIRGenerator::visit(const ast::Delete *node)
 {
@@ -1819,19 +1806,18 @@ ast::Value *MLIRGenerator::visit(const ast::ImportFrom *node)
 
 ast::Value *MLIRGenerator::visit(const ast::JoinedStr *node)
 {
-	py::String current_string;
+	std::string current_string;
 	std::vector<mlir::Value> strings;
 	for (const auto &value : node->values()) {
-		if (auto c = as<ast::Constant>(value);
-			c && std::holds_alternative<py::String>(*c->value())) {
-			current_string.s += std::get<py::String>(*as<ast::Constant>(value)->value()).s;
+		if (auto c = as<ast::Constant>(value); c && dynamic_cast<py::PyString *>(c->value())) {
+			current_string += dynamic_cast<py::PyString *>(c->value())->value();
 		} else {
-			if (!current_string.s.empty()) {
+			if (!current_string.empty()) {
 				strings.push_back(load_const(m_context.builder(),
-					current_string.s,
+					current_string,
 					m_context.filename(),
 					value->source_location()));
-				current_string.s.clear();
+				current_string.clear();
 			}
 			ASSERT(as<ast::FormattedValue>(value));
 			auto *str_value = value->codegen(this);
@@ -1839,9 +1825,9 @@ ast::Value *MLIRGenerator::visit(const ast::JoinedStr *node)
 			strings.push_back(static_cast<MLIRValue &>(*str_value).value);
 		}
 	}
-	if (!current_string.s.empty()) {
+	if (!current_string.empty()) {
 		strings.push_back(load_const(
-			m_context.builder(), current_string.s, m_context.filename(), node->source_location()));
+			m_context.builder(), current_string, m_context.filename(), node->source_location()));
 	}
 	return new_value(m_context.builder().create<mlir::py::BuildStringOp>(
 		loc(m_context.builder(), m_context.filename(), node->source_location()),

@@ -50,7 +50,8 @@ PyFunction::PyFunction(std::vector<Value> defaults,
 	if (!m_closure) { m_closure = PyTuple::create().unwrap(); }
 
 	if (auto g = as<PyDict>(globals)) {
-		if (auto it = g->map().find(String{ "__name__" }); it != g->map().end()) {
+		if (auto it = g->map().find(RtValue::from_ptr(PyString::create("__name__").unwrap()));
+			it != g->map().end()) {
 			m_module = PyObject::from(it->second).unwrap();
 		}
 	} else {
@@ -142,9 +143,7 @@ PyResult<PyNativeFunction *> PyNativeFunction::create_aot(std::string name,
 
 		if (argc > 0) {
 			raw_args = static_cast<PyObject **>(alloca(sizeof(PyObject *) * argc));
-			for (size_t i = 0; i < argc; ++i) {
-				raw_args[i] = RtValue::from_value(args->elements()[i]).box();
-			}
+			for (size_t i = 0; i < argc; ++i) { raw_args[i] = args->elements()[i].box(); }
 		}
 
 		auto *r =
@@ -179,13 +178,13 @@ void PyFunction::visit_graph(Visitor &visitor)
 	if (m_globals) visitor.visit(*m_globals);
 	if (m_dict) visitor.visit(*m_dict);
 	for (const auto &el : m_defaults) {
-		if (std::holds_alternative<PyObject *>(el)) {
-			if (std::get<PyObject *>(el)) { visitor.visit(*std::get<PyObject *>(el)); }
+		if (el.is_heap_object()) {
+			if (el.as_ptr()) { visitor.visit(*el.as_ptr()); }
 		}
 	}
 	for (const auto &el : m_kwonly_defaults) {
-		if (std::holds_alternative<PyObject *>(el)) {
-			if (std::get<PyObject *>(el)) { visitor.visit(*std::get<PyObject *>(el)); }
+		if (el.is_heap_object()) {
+			if (el.as_ptr()) { visitor.visit(*el.as_ptr()); }
 		}
 	}
 	if (m_closure) visitor.visit(*m_closure);
@@ -338,9 +337,7 @@ PyResult<PyObject *> PyNativeFunction::call_raw(std::span<const Value> args, PyD
 			if (m_aot_ptr) {
 				PyObject **raw_args =
 					static_cast<PyObject **>(alloca(sizeof(PyObject *) * total_argc));
-				for (size_t i = 0; i < total_argc; ++i) {
-					raw_args[i] = RtValue::from_value(stack_args[i]).box();
-				}
+				for (size_t i = 0; i < total_argc; ++i) { raw_args[i] = stack_args[i].box(); }
 				auto *res = m_aot_ptr(
 					m_module_ref, m_closure, raw_args, static_cast<int32_t>(total_argc), kwargs);
 				if (res) return Ok(res);
@@ -356,9 +353,7 @@ PyResult<PyObject *> PyNativeFunction::call_raw(std::span<const Value> args, PyD
 	// 2. 原始函数快速路径
 	if (m_aot_ptr) {
 		PyObject **raw_args = static_cast<PyObject **>(alloca(sizeof(PyObject *) * args.size()));
-		for (size_t i = 0; i < args.size(); ++i) {
-			raw_args[i] = RtValue::from_value(args[i]).box();
-		}
+		for (size_t i = 0; i < args.size(); ++i) { raw_args[i] = args[i].box(); }
 		auto *res =
 			m_aot_ptr(m_module_ref, m_closure, raw_args, static_cast<int32_t>(args.size()), kwargs);
 		if (res) return Ok(res);

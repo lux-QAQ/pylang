@@ -10,14 +10,9 @@ PyResult<Value> YieldValue::execute(VirtualMachine &vm, Interpreter &interpreter
 {
 	auto result = vm.reg(m_source);
 
-	std::visit(
-		overloaded{ [](const auto &val) {
-					   std::ostringstream os;
-					   os << val;
-					   spdlog::debug("Return value: {}", os.str());
-				   },
-			[](const PyObject *val) { spdlog::debug("Return value: {}", val->to_string()); } },
-		result);
+	if (auto obj_res = PyObject::from(result); obj_res.is_ok()) {
+		spdlog::debug("Return value: {}", obj_res.unwrap()->to_string());
+	}
 
 	ASSERT(interpreter.execution_frame()->generator() != nullptr);
 

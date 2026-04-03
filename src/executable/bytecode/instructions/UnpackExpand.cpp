@@ -23,8 +23,9 @@ PyResult<Value> UnpackExpand::execute(VirtualMachine &vm, Interpreter &) const
 	const auto &source = vm.reg(m_source);
 
 	return [&]() -> PyResult<Value> {
-		if (auto *obj = std::get_if<PyObject *>(&source)) {
-			if (auto *pytuple = as<PyTuple>(*obj)) {
+		if (source.is_heap_object()) {
+			auto *obj_ptr = source.as_ptr();
+			if (auto *pytuple = as<PyTuple>(obj_ptr)) {
 				if (pytuple->elements().size() < m_destination.size()) {
 					return Err(
 						value_error("not enough values to unpack (expected at least {}, got 0)",
@@ -43,7 +44,7 @@ PyResult<Value> UnpackExpand::execute(VirtualMachine &vm, Interpreter &) const
 						return Ok(Value{ py_none() });
 					});
 				}
-			} else if (auto *pylist = as<PyList>(*obj)) {
+			} else if (auto *pylist = as<PyList>(obj_ptr)) {
 				if (pylist->elements().size() < m_destination.size()) {
 					return Err(value_error("not enough values to unpack (expected {}, got {})",
 						m_destination.size(),
@@ -62,8 +63,32 @@ PyResult<Value> UnpackExpand::execute(VirtualMachine &vm, Interpreter &) const
 						return Ok(Value{ py_none() });
 					});
 				}
+			} else if (auto *pystr = as<PyString>(obj_ptr)) {
+				const auto &str = pystr->value();
+				if (str.size() < m_destination.size()) {
+					return Err(value_error("not enough values to unpack (expected {}, got {})",
+						m_destination.size(),
+						str.size()));
+				} else {
+					size_t i = 0;
+					for (; i < m_destination.size(); ++i) {
+						auto r = PyString::create(std::string{ str[i] });
+						if (r.is_err()) { return Err(r.unwrap_err()); }
+						vm.reg(m_destination[i]) = Value::from_ptr(r.unwrap());
+					}
+					std::vector<Value> rest;
+					for (; i < str.size(); ++i) {
+						auto r = PyString::create(std::string{ str[i] });
+						if (r.is_err()) { return Err(r.unwrap_err()); }
+						rest.push_back(Value::from_ptr(r.unwrap()));
+					}
+					return PyList::create(std::move(rest)).and_then([this, &vm](auto *rest) {
+						vm.reg(m_rest) = rest;
+						return Ok(Value{ py_none() });
+					});
+				}
 			} else {
-				auto mapping = (*obj)->as_mapping();
+				auto mapping = obj_ptr->as_mapping();
 				if (mapping.is_err()) { return Err(mapping.unwrap_err()); }
 				const auto source_size = [&] {
 					[[maybe_unused]] RAIIStoreNonCallInstructionData non_call_instruction_data;
@@ -78,57 +103,8 @@ PyResult<Value> UnpackExpand::execute(VirtualMachine &vm, Interpreter &) const
 				}
 				TODO();
 			}
-		} else if (std::holds_alternative<Number>(source)) {
+		} else if (source.is_tagged_int()) {
 			return Err(type_error("cannot unpack non-iterable int object"));
-		} else if (std::holds_alternative<String>(source)) {
-			const auto str = std::get<String>(source);
-			if (str.s.size() < m_destination.size()) {
-				return Err(value_error("not enough values to unpack (expected {}, got {})",
-					m_destination.size(),
-					str.s.size()));
-			} else {
-				size_t i = 0;
-				for (; i < m_destination.size(); ++i) {
-					vm.reg(m_destination[i]) = String{ std::string{ str.s[i] } };
-				}
-				std::vector<Value> rest;
-				for (; i < str.s.size(); ++i) { rest.push_back(String{ std::string{ str.s[i] } }); }
-				return PyList::create(std::move(rest)).and_then([this, &vm](auto *rest) {
-					vm.reg(m_rest) = rest;
-					return Ok(Value{ py_none() });
-				});
-			}
-		} else if (std::holds_alternative<Bytes>(source)) {
-			const auto bytes = std::get<Bytes>(source);
-			if (bytes.b.size() < m_destination.size()) {
-				return Err(value_error("not enough values to unpack (expected {}, got {})",
-					m_destination.size(),
-					bytes.b.size()));
-			} else {
-				size_t i = 0;
-				for (; i < m_destination.size(); ++i) {
-					vm.reg(m_destination[i]) = Number{ std::to_integer<int64_t>(bytes.b[i]) };
-				}
-				std::vector<Value> rest;
-				for (; i < bytes.b.size(); ++i) {
-					rest.push_back(Number{ std::to_integer<int64_t>(bytes.b[i]) });
-				}
-				return PyList::create(std::move(rest)).and_then([this, &vm](auto *rest) {
-					vm.reg(m_rest) = rest;
-					return Ok(Value{ py_none() });
-				});
-			}
-		} else if (std::holds_alternative<PyObject *>(source)) {
-			auto obj = std::get<PyObject *>(source);
-			if (obj == py_ellipsis()) {
-				return Err(type_error("cannot unpack non-iterable ellipsis object"));
-			} else if (obj == py_true() || obj == py_false()) {
-				return Err(type_error("cannot unpack non-iterable bool object"));
-			} else if (obj == py_none()) {
-				return Err(type_error("cannot unpack non-iterable NoneType object"));
-			} else {
-				return Err(type_error("cannot unpack non-iterable object"));
-			}
 		} else {
 			return Err(type_error("cannot unpack non-iterable object"));
 		}

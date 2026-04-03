@@ -7,6 +7,7 @@
 #include "parser/Parser.hpp"
 #include "runtime/PyObject.hpp"
 #include "runtime/Value.hpp"
+#include "runtime/export/rt_lifecycle.cpp"
 
 #include <cstdlib>
 #include <fstream>
@@ -27,6 +28,8 @@ class SimpleDriverTest : public ::testing::Test
 
 	static void SetUpTestSuite()
 	{
+
+		rt_init();
 		log::set_level(spdlog::level::info);
 
 		PYLANG_TIMER_INFO("SetUpTestSuite::create_shared_driver");

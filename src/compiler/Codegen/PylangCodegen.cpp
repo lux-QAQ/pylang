@@ -3,7 +3,23 @@
 #include "compiler/Support/Log.hpp"
 #include "compiler/Support/ScopeTimer.hpp"
 
+#include "runtime/PyBool.hpp"
+#include "runtime/PyBytes.hpp"
+#include "runtime/PyDict.hpp"
+#include "runtime/PyEllipsis.hpp"
+#include "runtime/PyFloat.hpp"
+#include "runtime/PyGenericAlias.hpp"
+#include "runtime/PyInteger.hpp"
+#include "runtime/PyIterator.hpp"
+#include "runtime/PyNone.hpp"
+#include "runtime/PyNumber.hpp"
+#include "runtime/PySlotWrapper.hpp"
+#include "runtime/PyStaticMethod.hpp"
+#include "runtime/PyString.hpp"
+#include "runtime/PyTuple.hpp"
+#include "runtime/PyType.hpp"
 #include "runtime/Value.hpp"
+#include "runtime/types/api.hpp"
 
 #include <llvm/IR/Constants.h>
 #include <llvm/IR/Verifier.h>
@@ -473,45 +489,33 @@ ast::Value *PylangCodegen::visit(const ast::Constant *node)
 	auto *val = node->value();
 	llvm::Value *result = nullptr;
 
-	std::visit(
-		overloaded{
-			[&](const py::Number &num) {
-				std::visit(overloaded{
-							   [&](double d) { result = m_emitter.create_float(d); },
-							   [&](const py::BigIntType &big) {
-								   if (big.fits_slong_p()) {
-									   result = m_emitter.create_integer(big.get_si());
-								   } else {
-									   result = m_emitter.create_integer_big(big.get_str());
-								   }
-							   },
-						   },
-					num.value);
-			},
-			//[&](const py::Complex &c) { result = m_emitter.create_complex(c.real, c.imag); },
-			[&](const py::String &str) { result = m_emitter.create_string(str.s); },
-			[&](const py::Bytes &bytes) {
-				std::string_view data(
-					reinterpret_cast<const char *>(bytes.b.data()), bytes.b.size());
-				result = m_emitter.create_bytes(data);
-			},
-			[&](const py::Ellipsis &) { result = m_emitter.get_ellipsis(); },
-			[&](const py::NoneType &) { result = m_emitter.get_none(); },
-			[&](const py::NameConstant &nc) {
-				std::visit(
-					overloaded{
-						[&](bool b) { result = b ? m_emitter.get_true() : m_emitter.get_false(); },
-						[&](const py::NoneType &) { result = m_emitter.get_none(); },
-					},
-					nc.value);
-			},
-			[&](const py::Tuple &) {
-				// 常量 tuple: Phase 3+
-				result = m_emitter.get_none();
-			},
-			[&](const py::PyObject *) { result = m_emitter.get_none(); },
-		},
-		*val);
+	if (val->type() == py::types::float_()) {
+		result = m_emitter.create_float(py::as<py::PyFloat>(val)->as_f64());
+	} else if (val->type() == py::types::integer()) {
+		auto *i = py::as<py::PyInteger>(val);
+		if (i->as_big_int().fits_slong_p()) {
+			result = m_emitter.create_integer(i->as_big_int().get_si());
+		} else {
+			result = m_emitter.create_integer_big(i->as_big_int().get_str());
+		}
+	} else if (val->type() == py::types::str()) {
+		result = m_emitter.create_string(py::as<py::PyString>(val)->value());
+	} else if (val->type() == py::types::bytes()) {
+		auto *b = py::as<py::PyBytes>(val);
+		std::string_view data(
+			reinterpret_cast<const char *>(b->value().b.data()), b->value().b.size());
+		result = m_emitter.create_bytes(data);
+	} else if (val->type() == py::types::bool_()) {
+		result = py::as<py::PyBool>(val)->value() ? m_emitter.get_true() : m_emitter.get_false();
+	} else if (val == py::py_none()) {
+		result = m_emitter.get_none();
+	} else if (val == py::py_ellipsis()) {
+		result = m_emitter.get_ellipsis();
+	} else if (val->type() == py::types::tuple()) {
+		result = m_emitter.get_none();
+	} else {
+		result = m_emitter.get_none();
+	}
 
 	return make_value(result);
 }

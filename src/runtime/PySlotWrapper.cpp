@@ -122,9 +122,7 @@ PyResult<PyObject *> PySlotWrapper::call_fast_ptrs(PyObject **args, size_t argc,
 
 	py::GCVector<Value> slice_args;
 	slice_args.reserve(argc - 1);
-	for (size_t i = 1; i < argc; ++i) {
-		slice_args.push_back(RtValue::from_ptr(args[i]).to_value());
-	}
+	for (size_t i = 1; i < argc; ++i) { slice_args.push_back(RtValue::from_ptr(args[i])); }
 
 	return PyTuple::create(std::move(slice_args))
 		.and_then([this, self, kwargs](

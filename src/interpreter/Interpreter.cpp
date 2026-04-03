@@ -69,7 +69,11 @@ void Interpreter::internal_setup(const std::string &name,
 		// 同步到 m_modules dict (解释器路径仍需要)
 		for (const auto &[mod_name, _] : py::builtin_modules) {
 			auto *mod = py::ModuleRegistry::instance().find(std::string(mod_name));
-			if (mod) { m_modules->insert(py::String{ std::string{ mod_name } }, mod); }
+			if (mod) {
+				m_modules->insert(
+					py::RtValue::from_ptr(py::PyString::create(std::string{ mod_name }).unwrap()),
+					py::RtValue::from_ptr(mod));
+			}
 		}
 
 		auto name_ = PyString::create(name);
@@ -81,7 +85,7 @@ void Interpreter::internal_setup(const std::string &name,
 		m_module = main_module;
 		m_module->set_program(std::move(program));
 		m_module->add_symbol(PyString::create("__builtins__").unwrap(), m_builtins);
-		m_modules->insert(name_.unwrap(), m_module);
+		m_modules->insert(py::RtValue::from_ptr(name_.unwrap()), py::RtValue::from_ptr(m_module));
 	}
 
 	auto code = PyCode::create(m_module->program());
@@ -101,7 +105,8 @@ void Interpreter::internal_setup(const std::string &name,
 	// }
 
 	{
-		auto open = io_module()->symbol_table()->map().at(String{ "open" });
+		auto open = io_module()->symbol_table()->map().at(
+			py::RtValue::from_ptr(py::PyString::create("open").unwrap()));
 		m_builtins->add_symbol(PyString::create("open").unwrap(), open);
 	}
 
@@ -111,10 +116,12 @@ void Interpreter::internal_setup(const std::string &name,
 		auto importlib = import_frozen_module(importlib_name);
 		ASSERT(importlib.is_ok());
 		m_importlib = importlib.unwrap();
-		m_modules->insert(String{ "_frozen_importlib" }, m_importlib);
+		m_modules->insert(py::RtValue::from_ptr(py::PyString::create("_frozen_importlib").unwrap()),
+			py::RtValue::from_ptr(m_importlib));
 
-		m_import_func =
-			PyObject::from(m_builtins->symbol_table()->map().at(String{ "__import__" })).unwrap();
+		m_import_func = PyObject::from(m_builtins->symbol_table()->map().at(py::RtValue::from_ptr(
+										   py::PyString::create("__import__").unwrap())))
+							.unwrap();
 		auto install = m_importlib->get_method(PyString::create("_install").unwrap());
 		if (install.is_err()) { TODO(); }
 
@@ -274,13 +281,7 @@ PyResult<std::monostate> Interpreter::store_object(const std::string &name, cons
 	if (spdlog::get_level() == spdlog::level::debug) {
 		spdlog::debug("Interpreter::store_object(name={}, value={}, current_frame={})",
 			name,
-			std::visit(
-				[](const auto &val) {
-					std::ostringstream os;
-					os << val;
-					return os.str();
-				},
-				value),
+			value.box()->to_string(),
 			(void *)m_current_frame);
 	}
 	return m_current_frame->put_local(name, value);
@@ -297,11 +298,16 @@ PyResult<Value> Interpreter::get_object(const std::string &name)
 	const auto &builtins = execution_frame()->builtins()->symbol_table()->map();
 
 	return [&]() -> PyResult<Value> {
-		const auto &name_value = String{ name };
 		PyString *pystr_name = nullptr;
 
 		if (auto *locals_ = as<PyDict>(locals)) {
-			if (const auto &it = locals_->map().find(name_value); it != locals_->map().end()) {
+			if (!pystr_name) {
+				auto name_ = PyString::create(name);
+				if (name_.is_err()) { return name_; }
+				pystr_name = name_.unwrap();
+			}
+			if (const auto &it = locals_->map().find(py::RtValue::from_ptr(pystr_name));
+				it != locals_->map().end()) {
 				return Ok(std::move(it->second));
 			}
 		} else {
@@ -318,7 +324,13 @@ PyResult<Value> Interpreter::get_object(const std::string &name)
 		}
 
 		if (auto *globals_ = as<PyDict>(globals)) {
-			if (const auto &it = globals_->map().find(name_value); it != globals_->map().end()) {
+			if (!pystr_name) {
+				auto name_ = PyString::create(name);
+				if (name_.is_err()) { return name_; }
+				pystr_name = name_.unwrap();
+			}
+			if (const auto &it = globals_->map().find(py::RtValue::from_ptr(pystr_name));
+				it != globals_->map().end()) {
 				return Ok(std::move(it->second));
 			}
 		} else {

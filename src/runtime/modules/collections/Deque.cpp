@@ -124,16 +124,9 @@ PyResult<PyObject *> Deque::__repr__() const
 	visited_set().insert(const_cast<Deque *>(this));
 
 	auto repr = [](const auto &el) -> PyResult<PyString *> {
-		return std::visit(overloaded{
-							  [](const auto &value) { return PyString::create(value.to_string()); },
-							  [](PyObject *value) {
-								  if (visited_set().contains(value)) {
-									  return PyString::create("[...]");
-								  }
-								  return value->repr();
-							  },
-						  },
-			el);
+		auto *value = el.box();
+		if (visited_set().contains(value)) { return PyString::create("[...]"); }
+		return value->repr();
 	};
 	os << type()->name() << "([";
 	if (!m_deque.empty()) {
@@ -310,8 +303,8 @@ void Deque::visit_graph(Visitor &visitor)
 {
 	PyObject::visit_graph(visitor);
 	for (auto &el : m_deque) {
-		if (std::holds_alternative<PyObject *>(el)) {
-			if (std::get<PyObject *>(el)) { visitor.visit(*std::get<PyObject *>(el)); }
+		if (el.is_heap_object()) {
+			if (el.as_ptr()) { visitor.visit(*el.as_ptr()); }
 		}
 	}
 }

@@ -21,7 +21,8 @@ PyResult<PyObject *> ImportError::__new__(const PyType *type, PyTuple *args, PyD
 	ASSERT(type == types::import_error());
 	if (auto result = ImportError::create(args)) {
 		if (kwargs) {
-			if (auto it = kwargs->map().find(String{ "name" }); it != kwargs->map().end()) {
+			if (auto it = kwargs->map().find(RtValue::from_ptr(PyString::create("name").unwrap()));
+				it != kwargs->map().end()) {
 				result->m_name = PyObject::from(it->second).unwrap();
 			}
 		}
@@ -36,7 +37,8 @@ PyResult<int32_t> ImportError::__init__(PyTuple *args, PyDict *kwargs)
 {
 	m_args = args;
 	if (kwargs) {
-		if (auto it = kwargs->map().find(String{ "name" }); it != kwargs->map().end()) {
+		if (auto it = kwargs->map().find(RtValue::from_ptr(PyString::create("name").unwrap()));
+			it != kwargs->map().end()) {
 			m_name = PyObject::from(it->second).unwrap();
 		}
 	}

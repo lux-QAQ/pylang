@@ -146,7 +146,7 @@ TEST(ValueTruthy, NameConstantNone)
 
 TEST(ValueTruthy, NumberZero)
 {
-	Value v{ Number{ int64_t{ 0 } } };
+	Value v = RtValue::from_int(0);
 	auto r = truthy(v);
 	ASSERT_TRUE(r.is_ok());
 	EXPECT_FALSE(r.unwrap());
@@ -154,7 +154,7 @@ TEST(ValueTruthy, NumberZero)
 
 TEST(ValueTruthy, NumberNonZero)
 {
-	Value v{ Number{ int64_t{ 42 } } };
+	Value v = RtValue::from_int(42);
 	auto r = truthy(v);
 	ASSERT_TRUE(r.is_ok());
 	EXPECT_TRUE(r.unwrap());

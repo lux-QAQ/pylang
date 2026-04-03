@@ -56,11 +56,11 @@ PyResult<int32_t> PyNamespace::__init__(PyTuple *args, PyDict *kwargs)
 	if (args || args->size() > 0) { return Err(type_error("no positional arguments expected")); }
 	if (kwargs) {
 		for (const auto &[key, value] : kwargs->map()) {
-			if (std::holds_alternative<PyObject *>(key)) {
-				if (!as<PyString>(std::get<PyObject *>(key))) {
+			if (key.is_heap_object()) {
+				if (!as<PyString>(key.as_ptr())) {
 					return Err(type_error("keywords must be strings"));
 				}
-			} else if (!std::holds_alternative<String>(key)) {
+			} else {
 				return Err(type_error("keywords must be strings"));
 			}
 		}

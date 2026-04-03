@@ -4,6 +4,7 @@
 #include "../utilities.hpp"
 #include "forward.hpp"
 #include "memory/GCTracingAllocator.hpp"
+#include "runtime/taggered_pointer/RtValue.hpp"
 
 #include <gmpxx.h>
 #include <spdlog/fmt/bundled/format.h>
@@ -24,6 +25,7 @@ template<> struct fmt::formatter<mpz_class> : fmt::formatter<std::string>
 		return fmt::formatter<std::string>::format(os.str(), ctx);
 	}
 };
+
 
 namespace py {
 
@@ -350,6 +352,5 @@ PyResult<bool> in(const Value &lhs, const Value &rhs, Interpreter &interpreter);
 PyResult<bool> truthy(const Value &lhs, Interpreter &);
 PyResult<bool> truthy(const Value &lhs);
 
-bool operator==(const Value &lhs, const Value &rhs);
 
 }// namespace py

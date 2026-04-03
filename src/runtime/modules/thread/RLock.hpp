@@ -46,8 +46,9 @@ class RLock : public PyBaseObject
 			if (args) {
 				if (args->size() > 0) { return PyObject::from(args->elements()[0]); }
 			} else if (kwargs) {
-				if (kwargs->map().contains(String{ "blocking" })) {
-					return PyObject::from(kwargs->map().at(String{ "blocking" }));
+				if (auto key = PyString::create("blocking").unwrap();
+					kwargs->map().contains(RtValue::from_ptr(key))) {
+					return PyObject::from(kwargs->map().at(RtValue::from_ptr(key)));
 				}
 			}
 			return Ok(py_true());
@@ -65,8 +66,9 @@ class RLock : public PyBaseObject
 			if (args) {
 				if (args->size() > 1) { return PyObject::from(args->elements()[1]); }
 			} else if (kwargs) {
-				if (kwargs->map().contains(String{ "timeout" })) {
-					return PyObject::from(kwargs->map().at(String{ "timeout" }));
+				if (auto key = PyString::create("timeout").unwrap();
+					kwargs->map().contains(RtValue::from_ptr(key))) {
+					return PyObject::from(kwargs->map().at(RtValue::from_ptr(key)));
 				}
 			}
 			return Ok(py_none());

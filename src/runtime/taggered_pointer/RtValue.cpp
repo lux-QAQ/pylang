@@ -38,40 +38,6 @@ PyObject *RtValue::box() const
 	__builtin_unreachable();
 }
 
-py::Value RtValue::to_value() const
-{
-	if (is_tagged_int()) {
-		// 如果是 Tagged Integer，存入 Value 的 Number 分支（无堆分配）
-		return py::Value(py::Number(as_int()));
-	}
-	// 如果是堆对象或空，存入 PyObject* 分支
-	return py::Value(as_ptr());
-}
-
-RtValue RtValue::from_value(const py::Value &v)
-{
-	return std::visit(overloaded{
-						  [](const py::Number &n) -> RtValue {
-							  // [核心修复]：Number 内部 variant 不含 int64_t，需从 mpz_class 提取
-							  if (std::holds_alternative<mpz_class>(n.value)) {
-								  const auto &gmp_val = std::get<mpz_class>(n.value);
-								  if (gmp_val.fits_slong_p()) {
-									  long raw_val = gmp_val.get_si();
-									  if (fits_tagged_int(raw_val)) return from_int(raw_val);
-								  }
-							  }
-							  // 否则（是 double 或超大整数）必须装箱
-							  return flatten(PyObject::from(n).unwrap());
-						  },
-						  [](PyObject *obj) -> RtValue { return flatten(obj); },
-						  [](const auto &other) -> RtValue {
-							  // 处理 String, Tuple, Bytes 等其他 variant 分支
-							  return flatten(PyObject::from(other).unwrap());
-						  },
-					  },
-		v);
-}
-
 RtValue RtValue::flatten(PyObject *ptr)
 {
 	RtValue rt = from_ptr(ptr);

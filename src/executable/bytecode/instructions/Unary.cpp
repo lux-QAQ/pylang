@@ -10,63 +10,20 @@ using namespace py;
 namespace {
 PyResult<Value> unary_positive(const Value &val)
 {
-	return std::visit(
-		overloaded{ [](const Number &val) -> PyResult<Value> { return Ok(Value{ val }); },
-			[](const String &) -> PyResult<Value> {
-				return Err(type_error("bad operand type for unary +: 'str'"));
-			},
-			[](const Bytes &) -> PyResult<Value> {
-				return Err(type_error("bad operand type for unary +: 'bytes'"));
-			},
-			[](const Ellipsis &) -> PyResult<Value> {
-				return Err(type_error("bad operand type for unary +: 'ellipsis'"));
-			},
-			[](const NameConstant &c) -> PyResult<Value> {
-				return PyObject::from(c).unwrap()->pos();
-			},
-			[](const Tuple &) -> PyResult<Value> {
-				return Err(type_error("bad operand type for unary +: 'tuple'"));
-			},
-			[](PyObject *obj) -> PyResult<Value> {
-				if (auto r = obj->pos(); r.is_ok()) {
-					return Ok(Value{ r.unwrap() });
-				} else {
-					return Err(r.unwrap_err());
-				}
-			} },
-		val);
+	if (auto r = val.box()->pos(); r.is_ok()) {
+		return Ok(Value{ r.unwrap() });
+	} else {
+		return Err(r.unwrap_err());
+	}
 }
 
 PyResult<Value> unary_negative(const Value &val)
 {
-	return std::visit(
-		overloaded{ [](const Number &val) -> PyResult<Value> {
-					   return Ok(std::visit(
-						   [](const auto &v) { return Value{ Number{ -v } }; }, val.value));
-				   },
-			[](const String &) -> PyResult<Value> {
-				return Err(type_error("bad operand type for unary -: 'str'"));
-			},
-			[](const Bytes &) -> PyResult<Value> {
-				return Err(type_error("bad operand type for unary -: 'bytes'"));
-			},
-			[](const Ellipsis &) -> PyResult<Value> {
-				return Err(type_error("bad operand type for unary -: 'ellipsis'"));
-			},
-			[](const NameConstant &c) -> PyResult<Value> {
-				return PyObject::from(c).unwrap()->neg();
-			},
-			[](const Tuple &) -> PyResult<Value> {
-				return Err(type_error("bad operand type for unary -: 'tuple'"));
-			},
-			[](PyObject *obj) -> PyResult<Value> {
-				if (auto r = obj->neg(); r.is_ok()) {
-					return Ok(Value{ r.unwrap() });
-				} else {
-					return Err(r.unwrap_err());
-				}
-			} },
-		val);
+	if (auto r = val.box()->neg(); r.is_ok()) {
+		return Ok(Value{ r.unwrap() });
+	} else {
+		return Err(r.unwrap_err());
+	}
 }
 
 PyResult<Value> unary_not(const Value &val, Interpreter &interpreter)
@@ -76,34 +33,11 @@ PyResult<Value> unary_not(const Value &val, Interpreter &interpreter)
 
 PyResult<Value> unary_invert(const Value &val)
 {
-	return std::visit(
-		overloaded{ [](const Number &val) -> PyResult<Value> {
-					   return Ok(std::visit(
-						   [](const auto &v) { return Value{ Number{ -v } }; }, val.value));
-				   },
-			[](const String &) -> PyResult<Value> {
-				return Err(type_error("bad operand type for unary ~: 'str'"));
-			},
-			[](const Bytes &) -> PyResult<Value> {
-				return Err(type_error("bad operand type for unary ~: 'bytes'"));
-			},
-			[](const Ellipsis &) -> PyResult<Value> {
-				return Err(type_error("bad operand type for unary ~: 'ellipsis'"));
-			},
-			[](const NameConstant &c) -> PyResult<Value> {
-				return PyObject::from(c).unwrap()->invert();
-			},
-			[](const Tuple &) -> PyResult<Value> {
-				return Err(type_error("bad operand type for unary ~: 'tuple'"));
-			},
-			[](PyObject *obj) -> PyResult<Value> {
-				if (auto r = obj->invert(); r.is_ok()) {
-					return Ok(Value{ r.unwrap() });
-				} else {
-					return Err(r.unwrap_err());
-				}
-			} },
-		val);
+	if (auto r = val.box()->invert(); r.is_ok()) {
+		return Ok(Value{ r.unwrap() });
+	} else {
+		return Err(r.unwrap_err());
+	}
 }
 
 }// namespace

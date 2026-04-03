@@ -16,7 +16,7 @@ class SetAdd final : public Instruction
 		return fmt::format("SET_ADD         r{:<3} r{:<3}", m_set, m_value);
 	}
 
-	py::PyResult<py::Value> execute(VirtualMachine &vm, Interpreter &interpreter) const final;
+	py::PyResult<py::RtValue> execute(VirtualMachine &vm, Interpreter &interpreter) const final;
 
 	void relocate(size_t) final {}
 

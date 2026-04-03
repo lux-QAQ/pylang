@@ -21,7 +21,9 @@ PyResult<Value> LoadGlobal::execute(VirtualMachine &vm, Interpreter &interpreter
 	PyString *name = nullptr;
 
 	if (auto *g = as<PyDict>(globals)) {
-		if (const auto &it = g->map().find(String{ object_name }); it != g->map().end()) {
+		if (const auto &it =
+				g->map().find(py::RtValue::from_ptr(PyString::create(object_name).unwrap()));
+			it != g->map().end()) {
 			vm.reg(m_destination) = it->second;
 			return Ok(it->second);
 		}
@@ -47,7 +49,7 @@ PyResult<Value> LoadGlobal::execute(VirtualMachine &vm, Interpreter &interpreter
 		name = name_.unwrap();
 	}
 
-	if (const auto &it = builtins.find(name); it != builtins.end()) {
+	if (const auto &it = builtins.find(py::RtValue::from_ptr(name)); it != builtins.end()) {
 		vm.reg(m_destination) = it->second;
 		return Ok(it->second);
 	}

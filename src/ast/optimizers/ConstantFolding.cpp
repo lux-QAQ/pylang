@@ -1,28 +1,28 @@
 #include "ConstantFolding.hpp"
+#include "runtime/PyObject.hpp"
 #include "runtime/Value.hpp"
+#include "runtime/types/api.hpp"
 
 namespace ast {
 namespace optimizer {
 
-	std::variant<py::Value, std::shared_ptr<BinaryExpr>> evaluate_binary_expr(
+	std::variant<py::PyObject *, std::shared_ptr<BinaryExpr>> evaluate_binary_expr(
 		const std::shared_ptr<BinaryExpr> &node)
 	{
 		if (node->lhs()->node_type() == ASTNodeType::Constant
 			&& node->rhs()->node_type() == ASTNodeType::Constant) {
-			const auto &lhs = as<Constant>(node->lhs())->value();
-			const auto &rhs = as<Constant>(node->rhs())->value();
+			auto lhs = as<Constant>(node->lhs())->value();
+			auto rhs = as<Constant>(node->rhs())->value();
 			ASSERT(lhs);
 			ASSERT(rhs);
 			switch (node->op_type()) {
 			case BinaryOpType::PLUS: {
-				auto result = std::visit(
-					overloaded{ [](const py::Number &lhs_value, const py::Number &rhs_value)
-									-> std::optional<py::Value> { return lhs_value + rhs_value; },
-						[](const auto &, const auto &) -> std::optional<py::Value> { return {}; } },
-					*lhs,
-					*rhs);
-				if (result) { return *result; }
-
+				if (lhs->type() == py::types::integer() && rhs->type() == py::types::integer()) {
+					return lhs->add(rhs).unwrap();
+				} else if (lhs->type() == py::types::float_()
+						   && rhs->type() == py::types::float_()) {
+					return lhs->add(rhs).unwrap();
+				}
 			} break;
 			case BinaryOpType::MINUS: {
 				TODO();
@@ -70,11 +70,11 @@ namespace optimizer {
 	{
 		spdlog::debug("Constant folding optimization");
 		if (node->node_type() == ASTNodeType::BinaryExpr) {
-			auto result = evaluate_binary_expr(as<BinaryExpr>(node));
-			if (std::holds_alternative<py::Value>(result)) {
+			auto result = evaluate_binary_expr(std::static_pointer_cast<BinaryExpr>(node));
+			if (std::holds_alternative<py::PyObject *>(result)) {
 				spdlog::debug("Evaluated binary node - creating new constant node");
 				return std::make_shared<Constant>(
-					std::get<py::Value>(result), node->source_location());
+					std::get<py::PyObject *>(result), node->source_location());
 			}
 		} else if (node->node_type() == ASTNodeType::Constant) {
 		} else if (node->node_type() == ASTNodeType::Assign) {

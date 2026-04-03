@@ -44,8 +44,8 @@ TEST_F(ProviderChainTest, StackLocalReadWrite)
 	ctx.stack_local(1) = Value{ PyInteger::create(20).unwrap() };
 
 	// 验证
-	auto *v0 = std::get<PyObject *>(ctx.stack_local(0));
-	auto *v1 = std::get<PyObject *>(ctx.stack_local(1));
+	auto *v0 = ctx.stack_local(0).as_ptr();
+	auto *v1 = ctx.stack_local(1).as_ptr();
 	EXPECT_EQ(as<PyInteger>(v0)->as_i64(), 10);
 	EXPECT_EQ(as<PyInteger>(v1)->as_i64(), 20);
 }
@@ -58,7 +58,7 @@ TEST_F(ProviderChainTest, StackLocalOverwrite)
 	ctx.stack_local(0) = Value{ PyInteger::create(1).unwrap() };
 	ctx.stack_local(0) = Value{ PyInteger::create(2).unwrap() };
 
-	auto *v = std::get<PyObject *>(ctx.stack_local(0));
+	auto *v = ctx.stack_local(0).as_ptr();
 	EXPECT_EQ(as<PyInteger>(v)->as_i64(), 2);
 }
 
@@ -154,7 +154,7 @@ TEST_F(ProviderChainTest, AllProvidersSimultaneous)
 	ctx.stack_local(0) = Value{ PyInteger::create(1).unwrap() };
 	globals->insert(PyString::create("g").unwrap(), PyInteger::create(2).unwrap());
 
-	EXPECT_EQ(as<PyInteger>(std::get<PyObject *>(ctx.stack_local(0)))->as_i64(), 1);
+	EXPECT_EQ(as<PyInteger>(ctx.stack_local(0).as_ptr())->as_i64(), 1);
 	EXPECT_NE(ctx.current_globals(), nullptr);
 	EXPECT_TRUE(ctx.is_true(PyInteger::create(1).unwrap()));
 	EXPECT_EQ(ctx.equals(PyInteger::create(1).unwrap(), PyInteger::create(1).unwrap()), py_true());

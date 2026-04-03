@@ -8,10 +8,10 @@
 
 using namespace py;
 
-PyResult<Value> LoadFast::execute(VirtualMachine &vm, Interpreter &interpreter) const
+PyResult<RtValue> LoadFast::execute(VirtualMachine &vm, Interpreter &interpreter) const
 {
 	auto result = vm.stack_local(m_stack_index);
-	if (std::holds_alternative<PyObject *>(result) && !std::get<PyObject *>(result)) {
+	if (result.is_heap_object() && !result.as_ptr()) {
 		auto varname = interpreter.execution_frame()->code()->varnames().begin();
 		const auto &cellvars = interpreter.execution_frame()->code()->m_cellvars;
 		size_t idx = 0;

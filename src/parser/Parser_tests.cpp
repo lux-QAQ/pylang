@@ -1,5 +1,6 @@
 #include "ast/AST.hpp"
 #include "parser/Parser.hpp"
+#include "runtime/PyBytes.hpp"
 #include "runtime/Value.hpp"
 #include "runtime/types/api.hpp"
 #include "utilities.hpp"
@@ -20,32 +21,9 @@ void compare_constant(const std::shared_ptr<ASTNode> &result,
 	const auto result_value = as<Constant>(result)->value();
 	const auto expected_value = as<Constant>(expected)->value();
 
-	ASSERT_EQ(result_value->index(), expected_value->index());
-	std::visit(
-		overloaded{ [&](const Number &number_value) {
-					   if (auto *int_result = std::get_if<BigIntType>(&number_value.value)) {
-						   ASSERT_EQ(*int_result,
-							   std::get<BigIntType>(std::get<Number>(*expected_value).value));
-					   } else if (auto *double_result = std::get_if<double>(&number_value.value)) {
-						   ASSERT_EQ(*double_result,
-							   std::get<double>(std::get<Number>(*expected_value).value));
-					   } else {
-						   TODO();
-					   }
-				   },
-			[&](const String &string_value) {
-				ASSERT_EQ(string_value.s, std::get<String>(*expected_value).s);
-			},
-			[&](PyObject *obj_value) {
-				ASSERT_EQ(obj_value, std::get<PyObject *>(*expected_value));
-			},
-			[&](const Bytes &bytes) { ASSERT_EQ(bytes.b, std::get<Bytes>(*expected_value).b); },
-			[&](const auto &val) {
-				(void)val;
-				TODO();
-				// ASSERT_EQ(result_, std::get<result_.index()>(expected_));
-			} },
-		*result_value);
+	ASSERT_TRUE(
+		RtValue::compare_eq(RtValue::from_ptr(result_value), RtValue::from_ptr(expected_value))
+			.is_truthy());
 }
 
 void compare_assign(const std::shared_ptr<ASTNode> &result,
@@ -1221,7 +1199,7 @@ TEST(Parser, SingleValueAssignmentTuple)
 			"_CASE_INSENSITIVE_PLATFORMS_STR_KEY", ContextType::STORE, SourceLocation{}) },
 		std::make_shared<ast::Tuple>(
 			std::vector<std::shared_ptr<ASTNode>>{
-				std::make_shared<Constant>(String{ "win" }, SourceLocation{}),
+				std::make_shared<Constant>(std::string{ "win" }, SourceLocation{}),
 			},
 			ContextType::LOAD,
 			SourceLocation{}),
@@ -3463,11 +3441,12 @@ TEST(Parser, Bytes)
 	constexpr std::string_view program = "b\"hello\"\n";
 
 	auto expected_ast = create_test_module();
-	expected_ast->emplace(std::make_shared<Constant>(Bytes{ { std::byte{ 'h' },
-														 std::byte{ 'e' },
-														 std::byte{ 'l' },
-														 std::byte{ 'l' },
-														 std::byte{ 'o' } } },
+	expected_ast->emplace(std::make_shared<Constant>(py::PyBytes::create(Bytes{ { std::byte{ 'h' },
+																			 std::byte{ 'e' },
+																			 std::byte{ 'l' },
+																			 std::byte{ 'l' },
+																			 std::byte{ 'o' } } })
+														 .unwrap(),
 		SourceLocation{}));
 	assert_generates_ast(program, expected_ast);
 }

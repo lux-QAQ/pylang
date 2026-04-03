@@ -450,7 +450,8 @@ PyResult<PyObject *> PyByteArray::translate(PyTuple *args, PyDict *kwargs) const
 				type_error("a bytes-like object is required, not '{}'", el1->type()->name()));
 		}
 	} else if (kwargs) {
-		if (auto it = kwargs->map().find(String{ "delete" }); it != kwargs->map().end()) {
+		if (auto it = kwargs->map().find(RtValue::from_ptr(PyString::create("delete").unwrap()));
+			it != kwargs->map().end()) {
 			auto *el1 = PyObject::from(it->second).unwrap();
 			if (el1->type()->issubclass(types::bytes())) {
 				to_delete = static_cast<const PyBytes &>(*el1).value();

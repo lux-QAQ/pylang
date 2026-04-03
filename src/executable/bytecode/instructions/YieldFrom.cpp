@@ -18,8 +18,8 @@ PyResult<Value> YieldFrom::execute(VirtualMachine &vm, Interpreter &interpreter)
 
 	auto src = vm.reg(m_receiver);
 	auto value = vm.reg(m_value);
-	ASSERT(std::holds_alternative<PyObject *>(src));
-	auto receiver = std::get<PyObject *>(src);
+	ASSERT(src.is_heap_object());
+	auto receiver = src.as_ptr();
 	auto v = PyObject::from(value);
 	if (v.is_err()) { return v; }
 

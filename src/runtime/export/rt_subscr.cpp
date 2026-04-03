@@ -100,9 +100,9 @@ py::PyObject *rt_getitem(py::PyObject *obj, py::PyObject *key)
 	// if (b_type == py::types::dict()) {
 	// 	auto *dict = static_cast<py::PyDict *>(b_obj);
 	// 	// 直接在底层 std::unordered_map 中查找，绕过 getitem 虚函数和 MRO
-	// 	auto it = dict->map().find(r_key.to_value());
+	// 	auto it = dict->map().find(r_key);
 	// 	if (it != dict->map().end()) {
-	// 		return py::RtValue::from_value(it->second).as_pyobject_raw();
+	// 		return it->second.as_pyobject_raw();
 	// 	}
 	// }
 	if (b_obj->type() == py::types::dict()) {
@@ -110,8 +110,7 @@ py::PyObject *rt_getitem(py::PyObject *obj, py::PyObject *key)
 		// 如果 key 已经是 PyString*，直接用指针参与哈希比较，跳过 variant 转换
 		if (py::ensure_box(key)->type() == py::types::str()) {
 			auto it = dict->map().find(py::Value(static_cast<py::PyString *>(key)));
-			if (it != dict->map().end())
-				return py::RtValue::from_value(it->second).as_pyobject_raw();
+			if (it != dict->map().end()) return it->second.as_pyobject_raw();
 		}
 	}
 
@@ -159,15 +158,13 @@ py::PyObject *rt_getitem(py::PyObject *obj, py::PyObject *key)
 			if (index < 0) { index += sz; }
 			if (index >= 0 && index < sz) {
 				// [优化]：直接从 Value 恢复为 RtValue，避免 __getitem__ 的装箱
-				return py::RtValue::from_value(list->elements()[index]).as_pyobject_raw();
+				return list->elements()[index].as_pyobject_raw();
 			}
 		} else if (b_obj->type() == py::types::tuple()) {
 			auto *tuple = static_cast<py::PyTuple *>(b_obj);
 			int64_t sz = static_cast<int64_t>(tuple->size());
 			if (index < 0) { index += sz; }
-			if (index >= 0 && index < sz) {
-				return py::RtValue::from_value(tuple->elements()[index]).as_pyobject_raw();
-			}
+			if (index >= 0 && index < sz) { return tuple->elements()[index].as_pyobject_raw(); }
 		}
 	}
 	return rt_unwrap(b_obj->getitem(r_key.box()));
@@ -215,9 +212,9 @@ void rt_list_append(py::PyObject *list, py::PyObject *value)
 	if (rt_val.is_tagged_int()) {
 		// [核心修复]：如果是 Tagged Integer，转存为 Value 的 Number 分支
 		// 这样既消灭了 PyInteger 对象分配，又保证了 ValueEq 的类型安全
-		b_list->elements().push_back(py::Value(py::Number(rt_val.as_int())));
+		b_list->elements().push_back(rt_val);
 	} else {
-		b_list->elements().push_back(py::Value(value));
+		b_list->elements().push_back(rt_val);
 	}
 }
 
@@ -233,7 +230,7 @@ void rt_set_add(py::PyObject *set, py::PyObject *value)
 // 	auto *b_set = static_cast<py::PySet *>(py::ensure_box(set));
 // 	// 碾平后再存入，确保 set 内部存储的是 Value(Number)，而不是 Value(PyObject*)
 // 	auto rt_val = py::RtValue::flatten(value);
-// 	b_set->add(rt_val.to_value());
+// 	b_set->add(rt_val);
 // }
 
 PYLANG_EXPORT_SUBSCR("list_extend", "void", "obj,obj")

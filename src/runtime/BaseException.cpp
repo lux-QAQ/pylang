@@ -176,8 +176,8 @@ bool check_exception_match(PyObject *exc, PyObject *exc_type)
 	// exc_type 可能是 tuple of types: except (TypeError, ValueError)
 	if (auto *tuple = as<PyTuple>(exc_type)) {
 		for (const auto &elem : tuple->elements()) {
-			if (!std::holds_alternative<PyObject *>(elem)) { continue; }
-			auto *type_obj = std::get<PyObject *>(elem);
+			if (!elem.is_heap_object()) { continue; }
+			auto *type_obj = elem.as_ptr();
 			if (check_exception_match(exc, type_obj)) { return true; }
 		}
 		return false;

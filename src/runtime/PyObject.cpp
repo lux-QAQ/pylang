@@ -83,39 +83,9 @@ void TypePrototype::visit_graph(::Cell::Visitor &visitor)
 
 size_t ValueHash::operator()(const Value &value) const
 {
-	// TODO: put these hash functions somewhere global so they can be reused by the respective
-	//       PyObject classes
-	const auto result = std::visit(
-		overloaded{ [](const Number &number) -> size_t {
-					   if (std::holds_alternative<double>(number.value)) {
-						   return static_cast<size_t>(
-							   PyFloat::hash_f64(std::get<double>(number.value)));
-					   } else {
-						   return static_cast<size_t>(
-							   PyInteger::hash_big_int(std::get<BigIntType>(number.value)));
-					   }
-				   },
-			[](const String &s) -> size_t { return std::hash<std::string>{}(s.s); },
-			[](const Bytes &b) -> size_t {
-				std::string_view sv{ bit_cast<char *>(b.b.data()), b.b.size() };
-				return static_cast<int64_t>(std::hash<std::string_view>{}(sv));
-			},
-			[](const Ellipsis &) -> size_t { return ::bit_cast<size_t>(py_ellipsis()); },
-			[](const NameConstant &c) -> size_t {
-				if (std::holds_alternative<bool>(c.value)) {
-					return std::get<bool>(c.value) ? 0 : 1;
-				} else {
-					return bit_cast<size_t>(py_none()) >> 4;
-				}
-			},
-			[](const Tuple &t) -> size_t { return ::bit_cast<size_t>(t.elements.data()); },
-			[](PyObject *obj) -> size_t {
-				auto val = obj->hash();
-				ASSERT(val.is_ok());
-				return val.unwrap();
-			} },
-		value);
-	return result;
+	auto val = value.box()->hash();
+	ASSERT(val.is_ok());
+	return val.unwrap();
 }
 
 bool ValueEq::operator()(const Value &lhs, const Value &rhs) const
@@ -433,10 +403,7 @@ template<> PyResult<PyObject *> PyObject::from(const Tuple &tuple)
 	return PyTuple::create(tuple.elements);
 }
 
-template<> PyResult<PyObject *> PyObject::from(const Value &value)
-{
-	return std::visit([](const auto &v) { return PyObject::from(v); }, value);
-}
+template<> PyResult<PyObject *> PyObject::from(const Value &value) { return Ok(value.box()); }
 
 PyObject::PyObject(const TypePrototype &type) : Cell()
 {
@@ -445,6 +412,14 @@ PyObject::PyObject(const TypePrototype &type) : Cell()
 		spdlog::error("bootstrap type missing: {}", type.__name__);
 		ASSERT(m_bits_type && "PyType must be initialized before object creation.");
 	}
+}
+
+// 实现 vector 装箱
+PyResult<PyObject *> PyObject::from(const std::vector<PyObject *> &value)
+{
+	auto tuple = PyTuple::create(value);
+	if (tuple.is_err()) return Err(tuple.unwrap_err());
+	return Ok(tuple.unwrap());
 }
 
 PyObject::PyObject(PyType *type) : Cell(), m_bits_type(type) { /* ASSERT(type); */ }

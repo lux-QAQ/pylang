@@ -11,6 +11,7 @@
 #include "ValueError.hpp"
 #include "interpreter/InterpreterCore.hpp"
 #include "runtime/compat.hpp"
+#include "taggered_pointer/RtValue.hpp"
 #include "types/api.hpp"
 #include "types/builtin.hpp"
 
@@ -70,7 +71,7 @@ PyTuple::PyTuple(PyType *type, std::vector<Value> elements)
 							  std::make_move_iterator(elements.end()))// 修复迭代移动
 {
 	ASSERT(std::all_of(m_elements.begin(), m_elements.end(), [](const auto &el) {
-		if (std::holds_alternative<PyObject *>(el)) return std::get<PyObject *>(el) != nullptr;
+		if (el.is_heap_object()) return el.as_ptr() != nullptr;
 		return true;
 	}));
 }
@@ -81,7 +82,7 @@ PyTuple::PyTuple(std::vector<Value> &&elements)
 		  std::make_move_iterator(elements.end()))// 修复迭代移动
 {
 	ASSERT(std::all_of(m_elements.begin(), m_elements.end(), [](const auto &el) {
-		if (std::holds_alternative<PyObject *>(el)) return std::get<PyObject *>(el) != nullptr;
+		if (el.is_heap_object()) return el.as_ptr() != nullptr;
 		return true;
 	}));
 }
@@ -166,23 +167,19 @@ std::string PyTuple::to_string() const
 	if (!m_elements.empty()) {
 		auto it = m_elements.begin();
 		while (std::next(it) != m_elements.end()) {
-			std::visit(overloaded{ [&os](const auto &value) { os << value; },
-						   [&os](PyObject *value) {
-							   auto r = value->repr();
-							   ASSERT(r.is_ok());
-							   os << r.unwrap()->to_string();
-						   } },
-				*it);
+			[&os](const auto &v) {
+				auto r = v.box()->repr();
+				ASSERT(r.is_ok());
+				os << r.unwrap()->to_string();
+			}(*it);
 			std::advance(it, 1);
 			os << ", ";
 		}
-		std::visit(overloaded{ [&os](const auto &value) { os << value; },
-					   [&os](PyObject *value) {
-						   auto r = value->repr();
-						   ASSERT(r.is_ok());
-						   os << r.unwrap()->to_string();
-					   } },
-			*it);
+		[&os](const auto &v) {
+			auto r = v.box()->repr();
+			ASSERT(r.is_ok());
+			os << r.unwrap()->to_string();
+		}(*it);
 	}
 	if (m_elements.size() == 1) { os << ','; }
 	os << ")";
@@ -329,15 +326,15 @@ PyTupleIterator PyTuple::end() const { return PyTupleIterator(*this, m_elements.
 
 PyResult<PyObject *> PyTuple::operator[](size_t idx) const
 {
-	return std::visit([](const auto &value) { return PyObject::from(value); }, m_elements[idx]);
+	return PyObject::from(m_elements[idx]);
 }
 
 void PyTuple::visit_graph(Visitor &visitor)
 {
 	PyObject::visit_graph(visitor);
 	for (auto &el : m_elements) {
-		if (std::holds_alternative<PyObject *>(el)) {
-			if (std::get<PyObject *>(el) != this) { visitor.visit(*std::get<PyObject *>(el)); }
+		if (el.is_heap_object()) {
+			if (el.as_ptr() != this) { visitor.visit(*el.as_ptr()); }
 		}
 	}
 }
@@ -393,8 +390,7 @@ PyResult<PyObject *> PyTupleIterator::__repr__() const { return PyString::create
 PyResult<PyObject *> PyTupleIterator::__next__()
 {
 	if (m_current_index < m_pytuple.elements().size())
-		return std::visit([](const auto &element) { return PyObject::from(element); },
-			m_pytuple.elements()[m_current_index++]);
+		return PyObject::from(m_pytuple.elements()[m_current_index++]);
 	return Err(stop_iteration());
 }
 
@@ -417,8 +413,7 @@ PyTupleIterator &PyTupleIterator::operator--()
 
 PyResult<PyObject *> PyTupleIterator::operator*() const
 {
-	return std::visit([](const auto &element) { return PyObject::from(element); },
-		m_pytuple.elements()[m_current_index]);
+	return PyObject::from(m_pytuple.elements()[m_current_index]);
 }
 
 void PyTupleIterator::visit_graph(Visitor &visitor)

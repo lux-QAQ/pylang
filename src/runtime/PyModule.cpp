@@ -34,11 +34,11 @@ PyModule::PyModule(PyDict *symbol_table, PyString *module_name, PyObject *doc)
 
 	m_attributes = symbol_table;
 	m_dict = m_attributes;
-	m_attributes->insert(String{ "__name__" }, m_module_name);
-	m_attributes->insert(String{ "__doc__" }, m_doc);
-	m_attributes->insert(String{ "__package__" }, m_package);
-	m_attributes->insert(String{ "__loader__" }, m_loader);
-	m_attributes->insert(String{ "__spec__" }, m_spec);
+	m_attributes->insert(RtValue::from_ptr(PyString::create("__name__").unwrap()), m_module_name);
+	m_attributes->insert(RtValue::from_ptr(PyString::create("__doc__").unwrap()), m_doc);
+	m_attributes->insert(RtValue::from_ptr(PyString::create("__package__").unwrap()), m_package);
+	m_attributes->insert(RtValue::from_ptr(PyString::create("__loader__").unwrap()), m_loader);
+	m_attributes->insert(RtValue::from_ptr(PyString::create("__spec__").unwrap()), m_spec);
 }
 
 PyResult<PyObject *> PyModule::__repr__() const
@@ -90,8 +90,8 @@ PyResult<int32_t> PyModule::__init__(PyTuple *args, PyDict *kwargs)
 	m_dict = m_attributes;
 
 	// 使用 String key，与构造函数一致
-	m_attributes->insert(String{ "__name__" }, m_module_name);
-	m_attributes->insert(String{ "__doc__" }, m_doc);
+	m_attributes->insert(RtValue::from_ptr(PyString::create("__name__").unwrap()), m_module_name);
+	m_attributes->insert(RtValue::from_ptr(PyString::create("__doc__").unwrap()), m_doc);
 
 	return Ok(0);
 }
@@ -99,13 +99,7 @@ PyResult<int32_t> PyModule::__init__(PyTuple *args, PyDict *kwargs)
 /// 添加符号并递增版本号
 void PyModule::add_symbol(PyString *key, const Value &value)
 {
-	// 必须使用 String key（不是 PyObject* key）！
-	// 原因：PyDict 的 ValueEq 在比较两个 PyObject* key 时会调用
-	// richcompare → py_true() → truthy() → true_()
-	// 如果 py_true() 所在的 Arena block 已被释放，会导致 use-after-free。
-	// 使用 String key 后，比较路径是 String==String → 返回 bool，
-	// 永远不调用 true_()。
-	m_attributes->insert(String{ key->value() }, value);
+	m_attributes->insert(RtValue::from_ptr(key), value);
 	// 粗粒度: 全局 dict version 递增
 	m_dict_version = s_global_version.fetch_add(1, std::memory_order_relaxed);
 	// 细粒度: 该 key 的 version 递增
@@ -133,21 +127,23 @@ PyResult<PyObject *> PyModule::__getattribute__(PyObject *attribute) const
 	auto attr = PyObject::__getattribute__(attribute);
 	if (attr.is_ok() || attr.unwrap_err()->type() != AttributeError::class_type()) { return attr; }
 
-	String getattr_str{ "__getattr__" };
-	String name_str{ "__name__" };
-
-	if (auto it = m_attributes->map().find(getattr_str); it != m_attributes->map().end()) {
+	if (auto it =
+			m_attributes->map().find(RtValue::from_ptr(PyString::create("__getattr__").unwrap()));
+		it != m_attributes->map().end()) {
 		auto getattr = PyObject::from(it->second);
 		ASSERT(getattr.is_ok());
 		auto args = PyTuple::create(attribute);
 		ASSERT(args.is_ok());
 		return getattr.unwrap()->call(args.unwrap(), nullptr);
-	} else if (auto it = m_attributes->map().find(name_str); it != m_attributes->map().end()) {
+	} else if (auto it = m_attributes->map().find(
+				   RtValue::from_ptr(PyString::create("__name__").unwrap()));
+		it != m_attributes->map().end()) {
 		auto module_name = PyObject::from(it->second);
 		ASSERT(module_name.is_ok());
 		if (auto name = as<PyString>(module_name.unwrap())) {
-			String spec_str{ "__spec__" };
-			if (auto it = m_attributes->map().find(spec_str); it != m_attributes->map().end()) {
+			if (auto it = m_attributes->map().find(
+					RtValue::from_ptr(PyString::create("__spec__").unwrap()));
+				it != m_attributes->map().end()) {
 				auto spec = PyObject::from(it->second);
 				ASSERT(spec.is_ok());
 				if (is_initializing(spec.unwrap())) {
@@ -213,8 +209,7 @@ PyResult<PyObject *> PyModule::find_symbol_cstr(const char *name) const
 	if (!m_attributes) {
 		return Err(nullptr);// 返回空错误，不分配异常对象
 	}
-	// 直接用 String 视图查找，避免 PyString 堆分配
-	auto it = m_attributes->map().find(String{ std::string(name) });
+	auto it = m_attributes->map().find(RtValue::from_ptr(PyString::create(name).unwrap()));
 	if (it != m_attributes->map().end()) { return PyObject::from(it->second); }
 	return Err(nullptr);// 没找到直接返回 Err，由调用者决定是否抛出 NameError
 }
