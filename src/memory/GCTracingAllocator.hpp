@@ -261,6 +261,13 @@ namespace gc {
 		};                                                 \
 	}
 
+#define PYLANG_GC_FORCE_NON_ATOMIC(Type)                    \
+	namespace py::gc {                                      \
+		template<> struct is_atomic<Type> : std::false_type \
+		{                                                   \
+		};                                                  \
+	}
+
 // ===================================================================================
 // Allocator 实现
 // ===================================================================================

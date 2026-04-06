@@ -1,0 +1,532 @@
+Running verify()...
+Sieve initialized with limit: 100
+Starting sieve calculation...
+Sieve loops finished, omitting squares...
+Searching for prefix: 2
+Total primes found: 25
+Base primes check for 100: True True True
+Generating trie for primes, list size: 25
+Trie generation complete.
+Navigating to prefix node...
+Link check for char: 2
+Prefix node found. Terminal state of prefix node: True
+Starting queue traversal. Initial queue size: 1
+Find completed. Results count: 3
+Verify results match: True
+Expected: [2, 23, 29]
+Actual: [2, 23, 29]
+
+--------------------------------------------------
+Starting Comprehensive Stress Test...
+Total Iterations: 3
+Bounds Array: [1000, 50000, 500000, 5000000]
+Prefixes Array: [3, 32, 323, 3233, 32338]
+--------------------------------------------------
+
+==================================================
+>>> ITERATION: 1 OF 3
+==================================================
+
+--- Phase 1: Range Testing ---
+Testing with upper bound: 1000
+Sieve initialized with limit: 1000
+Starting sieve calculation...
+Sieve loops finished, omitting squares...
+Searching for prefix: 3
+Total primes found: 168
+Generating trie for primes, list size: 168
+Trie generation complete.
+Navigating to prefix node...
+Link check for char: 3
+Prefix node found. Terminal state of prefix node: True
+Starting queue traversal. Initial queue size: 1
+Find completed. Results count: 19
+>> Range Test Output | Bound: 1000 | Prefix: 3 | Match Count: 19
+Testing with upper bound: 50000
+Sieve initialized with limit: 50000
+Starting sieve calculation...
+Sieve loops finished, omitting squares...
+Searching for prefix: 3
+Total primes found: 5133
+Generating trie for primes, list size: 5133
+Trie generation complete.
+Navigating to prefix node...
+Link check for char: 3
+Prefix node found. Terminal state of prefix node: True
+Starting queue traversal. Initial queue size: 1
+Find completed. Results count: 1097
+>> Range Test Output | Bound: 50000 | Prefix: 3 | Match Count: 1097
+Testing with upper bound: 500000
+Sieve initialized with limit: 500000
+Starting sieve calculation...
+Processing loop_x, x = 500
+Sieve loops finished, omitting squares...
+Searching for prefix: 3
+Total primes found: 41538
+Generating trie for primes, list size: 41538
+Trie generation complete.
+Navigating to prefix node...
+Link check for char: 3
+Prefix node found. Terminal state of prefix node: True
+Starting queue traversal. Initial queue size: 1
+Find completed. Results count: 8960
+>> Range Test Output | Bound: 500000 | Prefix: 3 | Match Count: 8960
+Testing with upper bound: 5000000
+Sieve initialized with limit: 5000000
+Starting sieve calculation...
+Processing loop_x, x = 500
+Processing loop_x, x = 1000
+Processing loop_x, x = 1500
+Processing loop_x, x = 2000
+Sieve loops finished, omitting squares...
+Searching for prefix: 3
+Total primes found: 348513
+Generating trie for primes, list size: 348513
+Trie generation complete.
+Navigating to prefix node...
+Link check for char: 3
+Prefix node found. Terminal state of prefix node: True
+Starting queue traversal. Initial queue size: 1
+Find completed. Results count: 75290
+>> Range Test Output | Bound: 5000000 | Prefix: 3 | Match Count: 75290
+
+--- Phase 2: Prefix Stress Testing (Max Bound) ---
+Testing with prefix: 3 at max bound: 5000000
+Sieve initialized with limit: 5000000
+Starting sieve calculation...
+Processing loop_x, x = 500
+Processing loop_x, x = 1000
+Processing loop_x, x = 1500
+Processing loop_x, x = 2000
+Sieve loops finished, omitting squares...
+Searching for prefix: 3
+Total primes found: 348513
+Generating trie for primes, list size: 348513
+Trie generation complete.
+Navigating to prefix node...
+Link check for char: 3
+Prefix node found. Terminal state of prefix node: True
+Starting queue traversal. Initial queue size: 1
+Find completed. Results count: 75290
+>> Stress Test Output | Bound: 5000000 | Prefix: 3 | Match Count: 75290
+Testing with prefix: 32 at max bound: 5000000
+Sieve initialized with limit: 5000000
+Starting sieve calculation...
+Processing loop_x, x = 500
+Processing loop_x, x = 1000
+Processing loop_x, x = 1500
+Processing loop_x, x = 2000
+Sieve loops finished, omitting squares...
+Searching for prefix: 32
+Total primes found: 348513
+Generating trie for primes, list size: 348513
+Trie generation complete.
+Navigating to prefix node...
+Link check for char: 3
+Link check for char: 2
+Prefix node found. Terminal state of prefix node: False
+Starting queue traversal. Initial queue size: 1
+Find completed. Results count: 7604
+>> Stress Test Output | Bound: 5000000 | Prefix: 32 | Match Count: 7604
+Testing with prefix: 323 at max bound: 5000000
+Sieve initialized with limit: 5000000
+Starting sieve calculation...
+Processing loop_x, x = 500
+Processing loop_x, x = 1000
+Processing loop_x, x = 1500
+Processing loop_x, x = 2000
+Sieve loops finished, omitting squares...
+Searching for prefix: 323
+Total primes found: 348513
+Generating trie for primes, list size: 348513
+Trie generation complete.
+Navigating to prefix node...
+Link check for char: 3
+Link check for char: 2
+Link check for char: 3
+Prefix node found. Terminal state of prefix node: False
+Starting queue traversal. Initial queue size: 1
+Find completed. Results count: 771
+>> Stress Test Output | Bound: 5000000 | Prefix: 323 | Match Count: 771
+Testing with prefix: 3233 at max bound: 5000000
+Sieve initialized with limit: 5000000
+Starting sieve calculation...
+Processing loop_x, x = 500
+Processing loop_x, x = 1000
+Processing loop_x, x = 1500
+Processing loop_x, x = 2000
+Sieve loops finished, omitting squares...
+Searching for prefix: 3233
+Total primes found: 348513
+Generating trie for primes, list size: 348513
+Trie generation complete.
+Navigating to prefix node...
+Link check for char: 3
+Link check for char: 2
+Link check for char: 3
+Link check for char: 3
+Prefix node found. Terminal state of prefix node: False
+Starting queue traversal. Initial queue size: 1
+Find completed. Results count: 80
+>> Stress Test Output | Bound: 5000000 | Prefix: 3233 | Match Count: 80
+Testing with prefix: 32338 at max bound: 5000000
+Sieve initialized with limit: 5000000
+Starting sieve calculation...
+Processing loop_x, x = 500
+Processing loop_x, x = 1000
+Processing loop_x, x = 1500
+Processing loop_x, x = 2000
+Sieve loops finished, omitting squares...
+Searching for prefix: 32338
+Total primes found: 348513
+Generating trie for primes, list size: 348513
+Trie generation complete.
+Navigating to prefix node...
+Link check for char: 3
+Link check for char: 2
+Link check for char: 3
+Link check for char: 3
+Link check for char: 8
+Prefix node found. Terminal state of prefix node: False
+Starting queue traversal. Initial queue size: 1
+Find completed. Results count: 9
+>> Stress Test Output | Bound: 5000000 | Prefix: 32338 | Match Count: 9
+>> Target Prefix Results Array: [323381, 323383, 3233803, 3233809, 3233851, 3233863, 3233873, 3233887, 3233897]
+==================================================
+>>> ITERATION: 2 OF 3
+==================================================
+
+--- Phase 1: Range Testing ---
+Testing with upper bound: 1000
+Sieve initialized with limit: 1000
+Starting sieve calculation...
+Sieve loops finished, omitting squares...
+Searching for prefix: 3
+Total primes found: 168
+Generating trie for primes, list size: 168
+Trie generation complete.
+Navigating to prefix node...
+Link check for char: 3
+Prefix node found. Terminal state of prefix node: True
+Starting queue traversal. Initial queue size: 1
+Find completed. Results count: 19
+>> Range Test Output | Bound: 1000 | Prefix: 3 | Match Count: 19
+Testing with upper bound: 50000
+Sieve initialized with limit: 50000
+Starting sieve calculation...
+Sieve loops finished, omitting squares...
+Searching for prefix: 3
+Total primes found: 5133
+Generating trie for primes, list size: 5133
+Trie generation complete.
+Navigating to prefix node...
+Link check for char: 3
+Prefix node found. Terminal state of prefix node: True
+Starting queue traversal. Initial queue size: 1
+Find completed. Results count: 1097
+>> Range Test Output | Bound: 50000 | Prefix: 3 | Match Count: 1097
+Testing with upper bound: 500000
+Sieve initialized with limit: 500000
+Starting sieve calculation...
+Processing loop_x, x = 500
+Sieve loops finished, omitting squares...
+Searching for prefix: 3
+Total primes found: 41538
+Generating trie for primes, list size: 41538
+Trie generation complete.
+Navigating to prefix node...
+Link check for char: 3
+Prefix node found. Terminal state of prefix node: True
+Starting queue traversal. Initial queue size: 1
+Find completed. Results count: 8960
+>> Range Test Output | Bound: 500000 | Prefix: 3 | Match Count: 8960
+Testing with upper bound: 5000000
+Sieve initialized with limit: 5000000
+Starting sieve calculation...
+Processing loop_x, x = 500
+Processing loop_x, x = 1000
+Processing loop_x, x = 1500
+Processing loop_x, x = 2000
+Sieve loops finished, omitting squares...
+Searching for prefix: 3
+Total primes found: 348513
+Generating trie for primes, list size: 348513
+Trie generation complete.
+Navigating to prefix node...
+Link check for char: 3
+Prefix node found. Terminal state of prefix node: True
+Starting queue traversal. Initial queue size: 1
+Find completed. Results count: 75290
+>> Range Test Output | Bound: 5000000 | Prefix: 3 | Match Count: 75290
+
+--- Phase 2: Prefix Stress Testing (Max Bound) ---
+Testing with prefix: 3 at max bound: 5000000
+Sieve initialized with limit: 5000000
+Starting sieve calculation...
+Processing loop_x, x = 500
+Processing loop_x, x = 1000
+Processing loop_x, x = 1500
+Processing loop_x, x = 2000
+Sieve loops finished, omitting squares...
+Searching for prefix: 3
+Total primes found: 348513
+Generating trie for primes, list size: 348513
+Trie generation complete.
+Navigating to prefix node...
+Link check for char: 3
+Prefix node found. Terminal state of prefix node: True
+Starting queue traversal. Initial queue size: 1
+Find completed. Results count: 75290
+>> Stress Test Output | Bound: 5000000 | Prefix: 3 | Match Count: 75290
+Testing with prefix: 32 at max bound: 5000000
+Sieve initialized with limit: 5000000
+Starting sieve calculation...
+Processing loop_x, x = 500
+Processing loop_x, x = 1000
+Processing loop_x, x = 1500
+Processing loop_x, x = 2000
+Sieve loops finished, omitting squares...
+Searching for prefix: 32
+Total primes found: 348513
+Generating trie for primes, list size: 348513
+Trie generation complete.
+Navigating to prefix node...
+Link check for char: 3
+Link check for char: 2
+Prefix node found. Terminal state of prefix node: False
+Starting queue traversal. Initial queue size: 1
+Find completed. Results count: 7604
+>> Stress Test Output | Bound: 5000000 | Prefix: 32 | Match Count: 7604
+Testing with prefix: 323 at max bound: 5000000
+Sieve initialized with limit: 5000000
+Starting sieve calculation...
+Processing loop_x, x = 500
+Processing loop_x, x = 1000
+Processing loop_x, x = 1500
+Processing loop_x, x = 2000
+Sieve loops finished, omitting squares...
+Searching for prefix: 323
+Total primes found: 348513
+Generating trie for primes, list size: 348513
+Trie generation complete.
+Navigating to prefix node...
+Link check for char: 3
+Link check for char: 2
+Link check for char: 3
+Prefix node found. Terminal state of prefix node: False
+Starting queue traversal. Initial queue size: 1
+Find completed. Results count: 771
+>> Stress Test Output | Bound: 5000000 | Prefix: 323 | Match Count: 771
+Testing with prefix: 3233 at max bound: 5000000
+Sieve initialized with limit: 5000000
+Starting sieve calculation...
+Processing loop_x, x = 500
+Processing loop_x, x = 1000
+Processing loop_x, x = 1500
+Processing loop_x, x = 2000
+Sieve loops finished, omitting squares...
+Searching for prefix: 3233
+Total primes found: 348513
+Generating trie for primes, list size: 348513
+Trie generation complete.
+Navigating to prefix node...
+Link check for char: 3
+Link check for char: 2
+Link check for char: 3
+Link check for char: 3
+Prefix node found. Terminal state of prefix node: False
+Starting queue traversal. Initial queue size: 1
+Find completed. Results count: 80
+>> Stress Test Output | Bound: 5000000 | Prefix: 3233 | Match Count: 80
+Testing with prefix: 32338 at max bound: 5000000
+Sieve initialized with limit: 5000000
+Starting sieve calculation...
+Processing loop_x, x = 500
+Processing loop_x, x = 1000
+Processing loop_x, x = 1500
+Processing loop_x, x = 2000
+Sieve loops finished, omitting squares...
+Searching for prefix: 32338
+Total primes found: 348513
+Generating trie for primes, list size: 348513
+Trie generation complete.
+Navigating to prefix node...
+Link check for char: 3
+Link check for char: 2
+Link check for char: 3
+Link check for char: 3
+Link check for char: 8
+Prefix node found. Terminal state of prefix node: False
+Starting queue traversal. Initial queue size: 1
+Find completed. Results count: 9
+>> Stress Test Output | Bound: 5000000 | Prefix: 32338 | Match Count: 9
+>> Target Prefix Results Array: [323381, 323383, 3233803, 3233809, 3233851, 3233863, 3233873, 3233887, 3233897]
+==================================================
+>>> ITERATION: 3 OF 3
+==================================================
+
+--- Phase 1: Range Testing ---
+Testing with upper bound: 1000
+Sieve initialized with limit: 1000
+Starting sieve calculation...
+Sieve loops finished, omitting squares...
+Searching for prefix: 3
+Total primes found: 168
+Generating trie for primes, list size: 168
+Trie generation complete.
+Navigating to prefix node...
+Link check for char: 3
+Prefix node found. Terminal state of prefix node: True
+Starting queue traversal. Initial queue size: 1
+Find completed. Results count: 19
+>> Range Test Output | Bound: 1000 | Prefix: 3 | Match Count: 19
+Testing with upper bound: 50000
+Sieve initialized with limit: 50000
+Starting sieve calculation...
+Sieve loops finished, omitting squares...
+Searching for prefix: 3
+Total primes found: 5133
+Generating trie for primes, list size: 5133
+Trie generation complete.
+Navigating to prefix node...
+Link check for char: 3
+Prefix node found. Terminal state of prefix node: True
+Starting queue traversal. Initial queue size: 1
+Find completed. Results count: 1097
+>> Range Test Output | Bound: 50000 | Prefix: 3 | Match Count: 1097
+Testing with upper bound: 500000
+Sieve initialized with limit: 500000
+Starting sieve calculation...
+Processing loop_x, x = 500
+Sieve loops finished, omitting squares...
+Searching for prefix: 3
+Total primes found: 41538
+Generating trie for primes, list size: 41538
+Trie generation complete.
+Navigating to prefix node...
+Link check for char: 3
+Prefix node found. Terminal state of prefix node: True
+Starting queue traversal. Initial queue size: 1
+Find completed. Results count: 8960
+>> Range Test Output | Bound: 500000 | Prefix: 3 | Match Count: 8960
+Testing with upper bound: 5000000
+Sieve initialized with limit: 5000000
+Starting sieve calculation...
+Processing loop_x, x = 500
+Processing loop_x, x = 1000
+Processing loop_x, x = 1500
+Processing loop_x, x = 2000
+Sieve loops finished, omitting squares...
+Searching for prefix: 3
+Total primes found: 348513
+Generating trie for primes, list size: 348513
+Trie generation complete.
+Navigating to prefix node...
+Link check for char: 3
+Prefix node found. Terminal state of prefix node: True
+Starting queue traversal. Initial queue size: 1
+Find completed. Results count: 75290
+>> Range Test Output | Bound: 5000000 | Prefix: 3 | Match Count: 75290
+
+--- Phase 2: Prefix Stress Testing (Max Bound) ---
+Testing with prefix: 3 at max bound: 5000000
+Sieve initialized with limit: 5000000
+Starting sieve calculation...
+Processing loop_x, x = 500
+Processing loop_x, x = 1000
+Processing loop_x, x = 1500
+Processing loop_x, x = 2000
+Sieve loops finished, omitting squares...
+Searching for prefix: 3
+Total primes found: 348513
+Generating trie for primes, list size: 348513
+Trie generation complete.
+Navigating to prefix node...
+Link check for char: 3
+Prefix node found. Terminal state of prefix node: True
+Starting queue traversal. Initial queue size: 1
+Find completed. Results count: 75290
+>> Stress Test Output | Bound: 5000000 | Prefix: 3 | Match Count: 75290
+Testing with prefix: 32 at max bound: 5000000
+Sieve initialized with limit: 5000000
+Starting sieve calculation...
+Processing loop_x, x = 500
+Processing loop_x, x = 1000
+Processing loop_x, x = 1500
+Processing loop_x, x = 2000
+Sieve loops finished, omitting squares...
+Searching for prefix: 32
+Total primes found: 348513
+Generating trie for primes, list size: 348513
+Trie generation complete.
+Navigating to prefix node...
+Link check for char: 3
+Link check for char: 2
+Prefix node found. Terminal state of prefix node: False
+Starting queue traversal. Initial queue size: 1
+Find completed. Results count: 7604
+>> Stress Test Output | Bound: 5000000 | Prefix: 32 | Match Count: 7604
+Testing with prefix: 323 at max bound: 5000000
+Sieve initialized with limit: 5000000
+Starting sieve calculation...
+Processing loop_x, x = 500
+Processing loop_x, x = 1000
+Processing loop_x, x = 1500
+Processing loop_x, x = 2000
+Sieve loops finished, omitting squares...
+Searching for prefix: 323
+Total primes found: 348513
+Generating trie for primes, list size: 348513
+Trie generation complete.
+Navigating to prefix node...
+Link check for char: 3
+Link check for char: 2
+Link check for char: 3
+Prefix node found. Terminal state of prefix node: False
+Starting queue traversal. Initial queue size: 1
+Find completed. Results count: 771
+>> Stress Test Output | Bound: 5000000 | Prefix: 323 | Match Count: 771
+Testing with prefix: 3233 at max bound: 5000000
+Sieve initialized with limit: 5000000
+Starting sieve calculation...
+Processing loop_x, x = 500
+Processing loop_x, x = 1000
+Processing loop_x, x = 1500
+Processing loop_x, x = 2000
+Sieve loops finished, omitting squares...
+Searching for prefix: 3233
+Total primes found: 348513
+Generating trie for primes, list size: 348513
+Trie generation complete.
+Navigating to prefix node...
+Link check for char: 3
+Link check for char: 2
+Link check for char: 3
+Link check for char: 3
+Prefix node found. Terminal state of prefix node: False
+Starting queue traversal. Initial queue size: 1
+Find completed. Results count: 80
+>> Stress Test Output | Bound: 5000000 | Prefix: 3233 | Match Count: 80
+Testing with prefix: 32338 at max bound: 5000000
+Sieve initialized with limit: 5000000
+Starting sieve calculation...
+Processing loop_x, x = 500
+Processing loop_x, x = 1000
+Processing loop_x, x = 1500
+Processing loop_x, x = 2000
+Sieve loops finished, omitting squares...
+Searching for prefix: 32338
+Total primes found: 348513
+Generating trie for primes, list size: 348513
+Trie generation complete.
+Navigating to prefix node...
+Link check for char: 3
+Link check for char: 2
+Link check for char: 3
+Link check for char: 3
+Link check for char: 8
+Prefix node found. Terminal state of prefix node: False
+Starting queue traversal. Initial queue size: 1
+Find completed. Results count: 9
+>> Stress Test Output | Bound: 5000000 | Prefix: 32338 | Match Count: 9
+>> Target Prefix Results Array: [323381, 323383, 3233803, 3233809, 3233851, 3233863, 3233873, 3233887, 3233897]

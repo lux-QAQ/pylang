@@ -18,6 +18,7 @@
 
 #ifdef PYLANG_USE_Boehm_GC
 #include "runtime/forward.hpp"
+#include "runtime/taggered_pointer/RtValue.hpp"
 #include <gc.h>
 #endif
 
@@ -71,6 +72,16 @@ struct TypePrototype;
 struct PyBuffer;
 
 }// namespace py
+
+// ===================================================================================
+// [核心修复] RtValue 内部用 uintptr_t 存储 PyObject* 指针（tagged pointer），
+// GC 类型推导系统会把 uintptr_t 判定为 arithmetic → atomic，导致
+// GCTracingAllocator 使用 GC_MALLOC_ATOMIC 分配存放 RtValue 的容器缓冲区。
+// Boehm GC 不会扫描 ATOMIC 内存中的指针，造成 PyDict 中所有对象引用对 GC 不可见，
+// 随机触发 use-after-free / segfault / "str object is not callable" 等错误。
+// 必须强制标记为 NON-ATOMIC，让 GC 扫描其中的指针！
+// ===================================================================================
+PYLANG_GC_FORCE_NON_ATOMIC(py::RtValue)
 
 // ===================================================================================
 // [核心豁免名单] 那些表面有 C++ non-trivial 析构，但背地里所有状态全被托管的对象。
