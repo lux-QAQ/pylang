@@ -125,9 +125,48 @@ class IREmitter
 	/// 如果迭代结束，has_value 设为 false，返回值为 nullptr
 	llvm::Value *call_iter_next(llvm::Value *iter, llvm::Value *has_value_out);
 
+
+	// ========== 融合运算 (Fused Operations) ==========
 	/// [性能优化] 融合 iter_next + unpack2：跳过中间 PyTuple 分配
 	/// 返回 i32 (1=有数据, 0=结束)
 	llvm::Value *call_iter_next_unpack2(llvm::Value *iter, llvm::Value *out_a, llvm::Value *out_b);
+
+	/// 融合 compare + is_true → 直接返回 i1
+	llvm::Value *call_compare_lt_bool(llvm::Value *lhs, llvm::Value *rhs);
+	llvm::Value *call_compare_le_bool(llvm::Value *lhs, llvm::Value *rhs);
+	llvm::Value *call_compare_gt_bool(llvm::Value *lhs, llvm::Value *rhs);
+	llvm::Value *call_compare_eq_bool(llvm::Value *lhs, llvm::Value *rhs);
+	llvm::Value *call_compare_ne_bool(llvm::Value *lhs, llvm::Value *rhs);
+	llvm::Value *call_compare_ge_bool(llvm::Value *lhs, llvm::Value *rhs);
+	llvm::Value *call_compare_not_in_bool(llvm::Value *key, llvm::Value *container);
+	llvm::Value *call_compare_in_bool(llvm::Value *key, llvm::Value *container);
+
+	/// 融合真值测试：直接返回 i1
+	llvm::Value *call_is_true_fast(llvm::Value *obj);
+
+	/// 融合 list[int_index] 的 get/set，跳过 type dispatch
+	llvm::Value *call_list_getitem_i64(llvm::Value *list, llvm::Value *index);
+	void call_list_setitem_i64(llvm::Value *list, llvm::Value *index, llvm::Value *value);
+
+	/// 融合 dict[key] 的 get/set，跳过 type dispatch
+	llvm::Value *call_dict_getitem(llvm::Value *dict, llvm::Value *key);
+	void call_dict_setitem(llvm::Value *dict, llvm::Value *key, llvm::Value *value);
+
+	/// 融合 dict contains 检查，直接返回 i1
+	llvm::Value *call_dict_contains_bool(llvm::Value *key, llvm::Value *container);
+
+	/// 融合 list.insert(0, (a, b))
+	void call_list_insert_0_tuple2(llvm::Value *list, llvm::Value *a, llvm::Value *b);
+
+	/// 融合 dict.get(key) 返回值或 None
+	llvm::Value *call_dict_get_or_null(llvm::Value *dict, llvm::Value *key);
+
+	/// 融合 list.pop() + unpack2 → 直接解包到两个输出指针
+	/// 返回 i1 (true=有数据)
+	llvm::Value *call_list_pop_unpack2(llvm::Value *list, llvm::Value *out_a, llvm::Value *out_b);
+
+	/// 融合 setitem 快速路径 (dict[key]=val / list[int]=val)
+	void call_setitem_fast(llvm::Value *obj, llvm::Value *key, llvm::Value *value);
 
 	// ========== Tier 3: 下标访问 ==========
 	llvm::Value *call_getitem(llvm::Value *obj, llvm::Value *key);

@@ -31,11 +31,14 @@ class PyTuple;
 class PyList;
 class PyListIterator;
 class PyTupleIterator;
+class PyStringIterator;
 class PyAsyncGenerator;
 class PyCell;
 class PyCode;
 class PyCoroutine;
 class PyDict;
+class PyDictItems;
+class PyDictItemsIterator;
 class PyFrozenSet;
 class PyFunction;
 class PyFrame;
@@ -115,12 +118,16 @@ PYLANG_GC_FORCE_TRIVIAL(py::PySetIterator)
 PYLANG_GC_FORCE_TRIVIAL(py::PyBytesIterator)
 PYLANG_GC_FORCE_TRIVIAL(py::PyByteArrayIterator)
 PYLANG_GC_FORCE_TRIVIAL(py::PyEnumerate)
+PYLANG_GC_FORCE_TRIVIAL(py::PyStringIterator)
+PYLANG_GC_FORCE_TRIVIAL(py::PyDictItemsIterator)
 PYLANG_GC_FORCE_TRIVIAL(py::PyType)
 
 // [绝杀优化]：第 6 梯队：完全 GC 托管的高阶容器 ──
 // 既然它们的底层是 GCTracingAllocator 的对象(GCVector/tsl::map等)，
 // 当容器身故，内部的指针自然就没有引用，GC 会无缝回收。跳过千万级析构绑定的开销！
+PYLANG_GC_FORCE_TRIVIAL(py::PyObject)
 PYLANG_GC_FORCE_TRIVIAL(py::PyDict)
+PYLANG_GC_FORCE_TRIVIAL(py::PyDictItems)
 PYLANG_GC_FORCE_TRIVIAL(py::PyList)
 PYLANG_GC_FORCE_TRIVIAL(py::PyTuple)
 

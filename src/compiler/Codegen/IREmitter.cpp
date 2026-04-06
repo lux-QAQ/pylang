@@ -372,6 +372,101 @@ llvm::Value *
 }
 
 // =============================================================================
+// 融合运算 (Fused Operations)
+// =============================================================================
+
+llvm::Value *IREmitter::call_compare_lt_bool(llvm::Value *lhs, llvm::Value *rhs)
+{
+	return emit_runtime_call("compare_lt_bool", { lhs, rhs });
+}
+
+llvm::Value *IREmitter::call_compare_le_bool(llvm::Value *lhs, llvm::Value *rhs)
+{
+	return emit_runtime_call("compare_le_bool", { lhs, rhs });
+}
+
+llvm::Value *IREmitter::call_compare_gt_bool(llvm::Value *lhs, llvm::Value *rhs)
+{
+	return emit_runtime_call("compare_gt_bool", { lhs, rhs });
+}
+
+llvm::Value *IREmitter::call_compare_eq_bool(llvm::Value *lhs, llvm::Value *rhs)
+{
+	return emit_runtime_call("compare_eq_bool", { lhs, rhs });
+}
+
+llvm::Value *IREmitter::call_compare_ne_bool(llvm::Value *lhs, llvm::Value *rhs)
+{
+	return emit_runtime_call("compare_ne_bool", { lhs, rhs });
+}
+
+llvm::Value *IREmitter::call_compare_ge_bool(llvm::Value *lhs, llvm::Value *rhs)
+{
+	return emit_runtime_call("compare_ge_bool", { lhs, rhs });
+}
+
+llvm::Value *IREmitter::call_compare_not_in_bool(llvm::Value *key, llvm::Value *container)
+{
+	return emit_runtime_call("compare_not_in_bool", { key, container });
+}
+
+llvm::Value *IREmitter::call_compare_in_bool(llvm::Value *key, llvm::Value *container)
+{
+	return emit_runtime_call("compare_in_bool", { key, container });
+}
+
+llvm::Value *IREmitter::call_is_true_fast(llvm::Value *obj)
+{
+	return emit_runtime_call("is_true_fast", { obj });
+}
+
+llvm::Value *IREmitter::call_list_getitem_i64(llvm::Value *list, llvm::Value *index)
+{
+	return emit_runtime_call("list_getitem_i64", { list, index });
+}
+
+void IREmitter::call_list_setitem_i64(llvm::Value *list, llvm::Value *index, llvm::Value *value)
+{
+	emit_runtime_call("list_setitem_i64", { list, index, value });
+}
+
+llvm::Value *IREmitter::call_dict_getitem(llvm::Value *dict, llvm::Value *key)
+{
+	return emit_runtime_call("dict_getitem", { dict, key });
+}
+
+void IREmitter::call_dict_setitem(llvm::Value *dict, llvm::Value *key, llvm::Value *value)
+{
+	emit_runtime_call("dict_setitem", { dict, key, value });
+}
+
+llvm::Value *IREmitter::call_dict_contains_bool(llvm::Value *key, llvm::Value *container)
+{
+	return emit_runtime_call("dict_contains_bool", { key, container });
+}
+
+void IREmitter::call_list_insert_0_tuple2(llvm::Value *list, llvm::Value *a, llvm::Value *b)
+{
+	emit_runtime_call("list_insert_0_tuple2", { list, a, b });
+}
+
+llvm::Value *IREmitter::call_dict_get_or_null(llvm::Value *dict, llvm::Value *key)
+{
+	return emit_runtime_call("dict_get_or_null", { dict, key });
+}
+
+llvm::Value *
+	IREmitter::call_list_pop_unpack2(llvm::Value *list, llvm::Value *out_a, llvm::Value *out_b)
+{
+	return emit_runtime_call("list_pop_unpack2", { list, out_a, out_b });
+}
+
+void IREmitter::call_setitem_fast(llvm::Value *obj, llvm::Value *key, llvm::Value *value)
+{
+	emit_runtime_call("setitem_fast", { obj, key, value });
+}
+
+// =============================================================================
 // Tier 3: 下标访问
 // =============================================================================
 llvm::Value *IREmitter::call_getitem(llvm::Value *obj, llvm::Value *key)

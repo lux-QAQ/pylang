@@ -116,6 +116,11 @@ class PylangCodegen : public ast::CodeGenerator
 	/// 对 AST 节点调用 codegen 并提取 llvm::Value*
 	llvm::Value *generate(const ast::ASTNode *node);
 
+	/// [性能优化] 将条件表达式直接生成为 i1 (bool)
+	/// 对于简单 Compare 节点使用融合的 compare_*_bool 函数
+	/// 其他情况回退到 generate + is_true_fast
+	llvm::Value *generate_condition_as_bool(const ast::ASTNode *test);
+
 	/// 编译语句体（多个节点）
 	void generate_body(const std::vector<std::shared_ptr<ast::ASTNode>> &body);
 

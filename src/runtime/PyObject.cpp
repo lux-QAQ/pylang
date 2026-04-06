@@ -1388,11 +1388,29 @@ PyResult<PyObject *> PyType::call_fast_ptrs(PyObject **args, size_t argc, PyDict
 // 高速 C ABI init
 PyResult<int32_t> PyObject::init_fast_ptrs(PyObject **args, size_t argc, PyDict *kwargs)
 {
-	auto *init_str = PyString::intern("__init__");
-	auto [res, found] = type()->lookup_attribute(init_str);
+	// [性能优化] 使用 PyType 上的 __init__ 缓存，避免每次构造对象都做 lookup_attribute
+	// 对于 Node() 这样的 heap type，__init__ 在类创建后不会改变
+	// 用 global_version 校验缓存有效性，确保在类被修改时自动失效
+	auto *t = type();
+	auto global_ver = PyType::global_version();
+	PyObject *init_method = nullptr;
 
-	if (found == LookupAttrResult::FOUND) {
-		auto *init_method = res.unwrap();
+	if (__builtin_expect(
+			t->m_cached_init != nullptr && t->m_cached_init_version == global_ver, 1)) {
+		init_method = t->m_cached_init;
+	} else {
+		auto *init_str = PyString::intern("__init__");
+		auto [res, found] = t->lookup_attribute(init_str);
+
+		if (found == LookupAttrResult::FOUND) {
+			init_method = res.unwrap();
+			// 缓存结果用于后续调用
+			t->m_cached_init = init_method;
+			t->m_cached_init_version = global_ver;
+		}
+	}
+
+	if (init_method) {
 		size_t total_argc = argc + 1;
 
 		PyObject *raw_args_array[16];

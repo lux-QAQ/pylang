@@ -167,6 +167,60 @@ void PylangCodegen::generate_body(const std::vector<std::shared_ptr<ast::ASTNode
 	}
 }
 
+// =============================================================================
+// [性能优化] 融合条件生成
+//
+// 对于 `if a < b:` / `while y*y < self.limit:` 等模式，
+// 传统路径: generate(compare) → call_is_true(result)
+//   = compare_lt(lhs, rhs) → PyObject*(PyBool) → is_true(PyBool*) → i1
+//
+// 融合路径: generate_condition_as_bool(compare)
+//   = compare_lt_bool(lhs, rhs) → i1
+//
+// 消除: PyBool 中间对象 + is_true 函数调用 + flatten 开销
+// =============================================================================
+
+llvm::Value *PylangCodegen::generate_condition_as_bool(const ast::ASTNode *test)
+{
+	// 检测: 单比较表达式 (a < b, a <= b, a > b, a == b, etc.)
+	if (test->node_type() == ast::ASTNodeType::Compare) {
+		auto *cmp = static_cast<const ast::Compare *>(test);
+		if (cmp->ops().size() == 1) {
+			auto *lhs = generate(cmp->lhs().get());
+			auto *rhs = generate(cmp->comparators()[0].get());
+			if (lhs && rhs) {
+				switch (cmp->ops()[0]) {
+				case ast::Compare::OpType::Lt:
+					return m_emitter.call_compare_lt_bool(lhs, rhs);
+				case ast::Compare::OpType::LtE:
+					return m_emitter.call_compare_le_bool(lhs, rhs);
+				case ast::Compare::OpType::Gt:
+					return m_emitter.call_compare_gt_bool(lhs, rhs);
+				case ast::Compare::OpType::GtE:
+					return m_emitter.call_compare_ge_bool(lhs, rhs);
+				case ast::Compare::OpType::Eq:
+					return m_emitter.call_compare_eq_bool(lhs, rhs);
+				case ast::Compare::OpType::NotEq:
+					return m_emitter.call_compare_ne_bool(lhs, rhs);
+				case ast::Compare::OpType::NotIn:
+					return m_emitter.call_compare_not_in_bool(lhs, rhs);
+				case ast::Compare::OpType::In:
+					return m_emitter.call_compare_in_bool(lhs, rhs);
+				case ast::Compare::OpType::Is:
+					// is: 指针比较, 不需要融合 → 回退到通用路径
+					break;
+				case ast::Compare::OpType::IsNot:
+					break;
+				}
+			}
+		}
+	}
+
+	// 回退: 通用路径，使用 is_true_fast
+	auto *test_val = generate(test);
+	return m_emitter.call_is_true_fast(test_val);
+}
+
 llvm::Function *PylangCodegen::create_module_init_function()
 {
 	auto *func_type = llvm::FunctionType::get(llvm::Type::getVoidTy(m_ctx), false);
@@ -463,7 +517,7 @@ void PylangCodegen::generate_store_target(const ast::ASTNode *target, llvm::Valu
 		if (std::holds_alternative<ast::Subscript::Index>(sub->slice())) {
 			auto &idx = std::get<ast::Subscript::Index>(sub->slice());
 			auto *key = generate(idx.value.get());
-			m_emitter.call_setitem(obj, key, value);
+			m_emitter.call_setitem_fast(obj, key, value);
 		}
 		break;
 	}
@@ -718,7 +772,7 @@ ast::Value *PylangCodegen::visit(const ast::Compare *node)
 
 		// 短路求值: 如果这个比较为 false，跳到结束
 		if (i < ops.size() - 1) {
-			auto *is_true = m_emitter.call_is_true(cmp_result);
+			auto *is_true = m_emitter.call_is_true_fast(cmp_result);
 			auto *next_bb = llvm::BasicBlock::Create(m_ctx, "cmp.next", func);
 
 			// 如果 false，存储 false 并跳到 merge
@@ -757,7 +811,7 @@ ast::Value *PylangCodegen::visit(const ast::BoolOp *node)
 		m_builder.CreateStore(val, result_alloca);
 
 		if (i < values.size() - 1) {
-			auto *is_true = m_emitter.call_is_true(val);
+			auto *is_true = m_emitter.call_is_true_fast(val);
 			auto *next_bb = llvm::BasicBlock::Create(m_ctx, "boolop.next", func);
 
 			if (node->op() == ast::BoolOp::OpType::And) {
@@ -984,6 +1038,43 @@ ast::Value *PylangCodegen::visit(const ast::Call *node)
 	}
 
 	// === 生成超高性能调用路径 ===
+
+	// === [性能优化] 方法调用模式检测: 避免打包+分发 ===
+	if (is_method && !has_starred && node->keywords().empty()) {
+		// 模式: x.insert(0, (a, b)) → rt_list_insert_0_tuple2(x, a, b)
+		// 消除: 1个 PyTuple 分配 + method ic dispatch + integer_from_i64(0)
+		if (method_name == "insert" && node->args().size() == 2) {
+			// 检测第一个参数是否为常量 0
+			auto *first_arg = node->args()[0].get();
+			bool first_is_zero = false;
+			if (first_arg->node_type() == ast::ASTNodeType::Constant) {
+				auto *c = static_cast<const ast::Constant *>(first_arg);
+				if (c->value()->type() == py::types::integer()) {
+					auto *i = py::as<py::PyInteger>(c->value());
+					if (i->as_big_int().fits_slong_p() && i->as_big_int().get_si() == 0) {
+						first_is_zero = true;
+					}
+				}
+			}
+			// 检测第二个参数是否为 2-元组字面量
+			auto *second_arg = node->args()[1].get();
+			if (first_is_zero && second_arg->node_type() == ast::ASTNodeType::Tuple) {
+				auto *tup = static_cast<const ast::Tuple *>(second_arg);
+				if (tup->elements().size() == 2) {
+					auto *elem_a = generate(tup->elements()[0].get());
+					auto *elem_b = generate(tup->elements()[1].get());
+					if (elem_a && elem_b) {
+						m_emitter.call_list_insert_0_tuple2(method_owner, elem_a, elem_b);
+						return make_value(m_emitter.get_none());
+					}
+				}
+			}
+		}
+
+		// 模式: x.pop() 后接 a, b = result 解包
+		// (此模式在 visit_Assign 中检测更合适, 暂不在此实现)
+	}
+
 	if (!has_starred) {
 		// 无 *args: 绝对零拷贝 (Zero-allocation)
 
@@ -1159,8 +1250,8 @@ ast::Value *PylangCodegen::visit(const ast::Subscript *node)
 ast::Value *PylangCodegen::visit(const ast::IfExpr *node)
 {
 	auto *func = m_codegen_ctx.current_function();
-	auto *test = generate(node->test().get());
-	auto *is_true = m_emitter.call_is_true(test);
+	// [性能优化] 使用融合条件生成
+	auto *is_true = generate_condition_as_bool(node->test().get());
 
 	auto *then_bb = llvm::BasicBlock::Create(m_ctx, "ifexpr.then", func);
 	auto *else_bb = llvm::BasicBlock::Create(m_ctx, "ifexpr.else", func);
@@ -1364,7 +1455,7 @@ ast::Value *PylangCodegen::visit(const ast::AugAssign *node)
 
 	} else if (subscr_obj && subscr_key) {
 		// 复用 subscr_obj 和 subscr_key，不重复求值
-		m_emitter.call_setitem(subscr_obj, subscr_key, result);
+		m_emitter.call_setitem_fast(subscr_obj, subscr_key, result);
 	}
 
 	return nullptr;
@@ -1428,8 +1519,8 @@ ast::Value *PylangCodegen::visit(const ast::Delete *node)
 ast::Value *PylangCodegen::visit(const ast::If *node)
 {
 	auto *func = m_codegen_ctx.current_function();
-	auto *test = generate(node->test().get());
-	auto *is_true = m_emitter.call_is_true(test);
+	// [性能优化] 使用融合条件生成，消除中间 PyBool 对象
+	auto *is_true = generate_condition_as_bool(node->test().get());
 
 	auto *then_bb = llvm::BasicBlock::Create(m_ctx, "if.then", func);
 	auto *else_bb =
@@ -1466,10 +1557,9 @@ ast::Value *PylangCodegen::visit(const ast::While *node)
 
 	m_builder.CreateBr(cond_bb);
 
-	// 条件检查
+	// [性能优化] 使用融合条件生成，消除中间 PyBool 对象
 	m_builder.SetInsertPoint(cond_bb);
-	auto *test = generate(node->test().get());
-	auto *is_true = m_emitter.call_is_true(test);
+	auto *is_true = generate_condition_as_bool(node->test().get());
 	m_builder.CreateCondBr(is_true, body_bb, else_bb ? else_bb : merge_bb);
 
 	// 循环体
@@ -2038,7 +2128,7 @@ ast::Value *PylangCodegen::visit(const ast::Assert *node)
 {
 	auto *func = m_codegen_ctx.current_function();
 	auto *test = generate(node->test().get());
-	auto *is_true = m_emitter.call_is_true(test);
+	auto *is_true = m_emitter.call_is_true_fast(test);
 
 	auto *fail_bb = llvm::BasicBlock::Create(m_ctx, "assert.fail", func);
 	auto *pass_bb = llvm::BasicBlock::Create(m_ctx, "assert.pass", func);
@@ -2820,7 +2910,7 @@ void PylangCodegen::store_to_target(const ast::ASTNode *target, llvm::Value *val
 			return;
 		}
 
-		if (key) { m_emitter.call_setitem(obj, key, value); }
+		if (key) { m_emitter.call_setitem_fast(obj, key, value); }
 
 	} else if (auto *tuple = dynamic_cast<const ast::Tuple *>(target)) {
 		// (a, b, *c, d) = value
@@ -2972,7 +3062,7 @@ ast::Value *PylangCodegen::visit(const ast::With *node)
 		auto *exit_args = m_emitter.create_tuple({ exc_type, py_exc, exc_tb });
 		auto *suppress = m_emitter.call_function(exit_fn, exit_args, nullptr);
 		// 如果 __exit__ 返回 truthy，抑制异常
-		auto *is_suppressed = m_emitter.call_is_true(suppress);
+		auto *is_suppressed = m_emitter.call_is_true_fast(suppress);
 
 		auto *reraise_bb = llvm::BasicBlock::Create(m_ctx, "with.reraise", func);
 		auto *suppressed_bb = llvm::BasicBlock::Create(m_ctx, "with.suppressed", func);
@@ -3129,7 +3219,7 @@ void PylangCodegen::emit_comprehension_loops(
 	llvm::BasicBlock *innermost_bb = loop_body;
 	for (const auto &if_clause : gen->ifs()) {
 		auto *cond = generate(if_clause.get());
-		auto *is_true = m_emitter.call_is_true(cond);
+		auto *is_true = m_emitter.call_is_true_fast(cond);
 
 		auto *if_true_bb = llvm::BasicBlock::Create(m_ctx, "comp.if_true", func);
 		auto *if_skip_bb = llvm::BasicBlock::Create(m_ctx, "comp.if_skip", func);
@@ -3343,7 +3433,7 @@ ast::Value *PylangCodegen::visit(const ast::DictComp *node)
 		[&](llvm::Value *container) {
 			auto *key = generate(node->key().get());
 			auto *val = generate(node->value().get());
-			if (key && val) m_emitter.call_setitem(container, key, val);
+			if (key && val) m_emitter.call_setitem_fast(container, key, val);
 		});
 	return make_value(res);
 }

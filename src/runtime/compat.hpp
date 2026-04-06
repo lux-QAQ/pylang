@@ -2,6 +2,12 @@
 
 #include "../utilities.hpp"
 
+#include <new>
+
+#if defined(PYLANG_USE_Boehm_GC)
+#include <gc.h>
+#endif
+
 #ifndef NDEBUG
 #include <atomic>
 #include <cpptrace/cpptrace.hpp>
@@ -84,6 +90,24 @@ inline void _pylang_debug_log_alloc(const char *type_name, std::atomic<size_t> &
 #define PYLANG_ALLOC_IMMORTAL(Type, ...) \
 	(PYLANG_DEBUG_LOG_ALLOC(Type), ::py::ArenaManager::program_arena().allocate<Type>(__VA_ARGS__))
 
+// 线程局部长期缓存对象：
+// - Boehm GC: 使用 GC_MALLOC_UNCOLLECTABLE，避免被错误回收。
+// - 非 Boehm Arena: 回退到 ProgramArena（进程级生命周期）。
+#if defined(PYLANG_USE_Boehm_GC)
+#define PYLANG_HAS_THREAD_LOCAL_IMMORTAL_ALLOC 1
+#define PYLANG_ALLOC_THREAD_LOCAL_IMMORTAL(Type, ...)       \
+	([&]() -> Type * {                                      \
+		PYLANG_DEBUG_LOG_ALLOC(Type);                       \
+		void *_mem = GC_MALLOC_UNCOLLECTABLE(sizeof(Type)); \
+		if (!_mem) { return nullptr; }                      \
+		return new (_mem) Type(__VA_ARGS__);                \
+	}())
+#else
+#define PYLANG_HAS_THREAD_LOCAL_IMMORTAL_ALLOC 1
+#define PYLANG_ALLOC_THREAD_LOCAL_IMMORTAL(Type, ...) \
+	(PYLANG_DEBUG_LOG_ALLOC(Type), ::py::ArenaManager::program_arena().allocate<Type>(__VA_ARGS__))
+#endif
+
 // 手动分配原子内存（GC 绝对不会扫描这块内存内部的指针）
 // 用于手动构造对象
 #define PYLANG_ALLOC_ATOMIC(Type, ...)                                                \
@@ -122,6 +146,24 @@ inline void _pylang_debug_log_alloc(const char *type_name, std::atomic<size_t> &
 	VirtualMachine::the().heap().get_weakrefs(std::bit_cast<uint8_t *>(ObjPtr))
 
 #define PYLANG_ALLOC_IMMORTAL(Type, ...) VirtualMachine::the().heap().allocate<Type>(__VA_ARGS__)
+
+// 线程局部长期缓存对象：
+// - Boehm GC: 使用 GC_MALLOC_UNCOLLECTABLE，避免被错误回收。
+// - 旧 MarkSweep: 仅保留兼容接口，不建议启用该类缓存优化。
+#if defined(PYLANG_USE_Boehm_GC)
+#define PYLANG_HAS_THREAD_LOCAL_IMMORTAL_ALLOC 1
+#define PYLANG_ALLOC_THREAD_LOCAL_IMMORTAL(Type, ...)       \
+	([&]() -> Type * {                                      \
+		PYLANG_DEBUG_LOG_ALLOC(Type);                       \
+		void *_mem = GC_MALLOC_UNCOLLECTABLE(sizeof(Type)); \
+		if (!_mem) { return nullptr; }                      \
+		return new (_mem) Type(__VA_ARGS__);                \
+	}())
+#else
+#define PYLANG_HAS_THREAD_LOCAL_IMMORTAL_ALLOC 0
+#define PYLANG_ALLOC_THREAD_LOCAL_IMMORTAL(Type, ...) \
+	(PYLANG_DEBUG_LOG_ALLOC(Type), VirtualMachine::the().heap().allocate<Type>(__VA_ARGS__))
+#endif
 
 #define PYLANG_ALLOC_ATOMIC(Type, ...) \
 	(PYLANG_DEBUG_LOG_ALLOC(Type), VirtualMachine::the().heap().allocate<Type>(__VA_ARGS__))

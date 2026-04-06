@@ -35,6 +35,10 @@ class PyType : public PyBaseObject
 	// [性能优化] 缓存实例 slot 数量，用于预分配 slot vector，避免 push_back 触发 realloc
 	mutable std::atomic<size_t> m_cached_slot_count{ 0 };
 
+	// [性能优化] 缓存 __init__ 方法，跳过每次 Node() 调用时的 lookup_attribute 遍历 (3.8s 热点)
+	mutable PyObject *m_cached_init{ nullptr };
+	mutable uint64_t m_cached_init_version{ 0 };
+
   public:
 	PyType(PyType *);
 

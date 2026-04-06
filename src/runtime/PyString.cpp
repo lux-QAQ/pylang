@@ -1438,9 +1438,30 @@ PyType *PyString::static_type() const { return types::str(); }
 
 PyResult<PyObject *> PyString::__iter__() const
 {
+	// [性能优化] 线程局部缓存 1 个字符串迭代器：
+	// - 空闲(已耗尽)时复用，避免热路径上反复分配。
+	// - 正在使用时回退到普通分配，避免并发迭代语义被破坏。
+#if PYLANG_HAS_THREAD_LOCAL_IMMORTAL_ALLOC
+	static thread_local PyStringIterator *s_cached_iter = nullptr;
+
+	if (!s_cached_iter) {
+		s_cached_iter = PYLANG_ALLOC_THREAD_LOCAL_IMMORTAL(PyStringIterator, *this);
+		if (!s_cached_iter) { return Err(memory_error(sizeof(PyStringIterator))); }
+		return Ok(static_cast<PyObject *>(s_cached_iter));
+	}
+
+	const bool cache_exhausted =
+		s_cached_iter->m_pystring_ptr
+		&& s_cached_iter->m_current_index >= s_cached_iter->m_pystring_ptr->value().size();
+	if (cache_exhausted) {
+		s_cached_iter->reset(*this);
+		return Ok(static_cast<PyObject *>(s_cached_iter));
+	}
+#endif
+
 	auto *it = PYLANG_ALLOC(PyStringIterator, *this);
 	if (!it) { return Err(memory_error(sizeof(PyStringIterator))); }
-	return Ok(it);
+	return Ok(static_cast<PyObject *>(it));
 }
 
 PyResult<PyObject *> PyString::__getitem__(PyObject *index)
