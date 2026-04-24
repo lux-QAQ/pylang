@@ -1,6 +1,7 @@
 #include "PylangCodegen.hpp"
 #include "compiler/Support/gtest_wrapper.hpp"
 #include "runtime/Value.hpp"
+#include "runtime/export/rt_lifecycle.cpp"
 #include "runtime/types/api.hpp"
 
 #include <llvm/IR/LLVMContext.h>
@@ -24,6 +25,7 @@ class PylangCodegenTest : public ::testing::Test
   protected:
 	static void SetUpTestSuite()
 	{
+		rt_init();
 		s_loader = std::make_unique<LLVMModuleLoader>(s_ctx);
 
 		const char *env_path = std::getenv("PYLANG_RUNTIME_BC");

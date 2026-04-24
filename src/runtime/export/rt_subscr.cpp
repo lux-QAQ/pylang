@@ -15,6 +15,12 @@
 
 
 #include "runtime/types/builtin.hpp"
+
+py::PyObject *rt_call_raw_ptrs(py::PyObject *callable,
+	py::PyObject **args,
+	int32_t argc,
+	py::PyObject *kwargs_dict);
+
 // =============================================================================
 // Tier 2: 迭代器
 // =============================================================================
@@ -369,4 +375,17 @@ py::PyObject *rt_dict_items(py::PyObject *dict)
 	auto *items = static_cast<py::PyDict *>(py::ensure_box(dict))->items();
 	if (!items) { rt_raise(py::memory_error(sizeof(py::PyDictItems))); }
 	return items;
+}
+
+PYLANG_EXPORT_SUBSCR("dict_items_iter_for_loop", "obj", "obj")
+py::PyObject *rt_dict_items_iter_for_loop(py::PyObject *owner)
+{
+	auto *obj = py::ensure_box(owner);
+	if (obj->type() == py::types::dict()) {
+		return rt_unwrap(py::PyDictItemsIterator::create_direct(*static_cast<py::PyDict *>(obj)));
+	}
+
+	auto *items_method = rt_unwrap(obj->getattribute(py::PyString::intern("items")));
+	auto *items = rt_call_raw_ptrs(items_method, nullptr, 0, nullptr);
+	return rt_get_iter(items);
 }

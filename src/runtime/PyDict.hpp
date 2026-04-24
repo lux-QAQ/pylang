@@ -205,12 +205,14 @@ class PyDictItemsIterator : public PyBaseObject
 	friend PyDictItems;
 
 	const std::optional<std::reference_wrapper<const PyDictItems>> m_pydictitems;
+	const std::optional<std::reference_wrapper<const PyDict>> m_direct_dict;
 	PyDict::MapType::const_iterator m_current_iterator;
 
 	PyDictItemsIterator(PyType *);
 
 	PyDictItemsIterator(const PyDictItems &pydict_items);
 	PyDictItemsIterator(const PyDictItems &pydict_items, size_t position);
+	PyDictItemsIterator(const PyDict &pydict);
 
   public:
 	using difference_type = PyDict::MapType::difference_type;
@@ -221,6 +223,7 @@ class PyDictItemsIterator : public PyBaseObject
 
 	static PyResult<PyDictItemsIterator *> create(const PyDictItems &pydict_items);
 	static PyResult<PyDictItemsIterator *> create(const PyDictItems &pydict_items, size_t position);
+	static PyResult<PyDictItemsIterator *> create_direct(const PyDict &pydict);
 
 	std::string to_string() const override;
 

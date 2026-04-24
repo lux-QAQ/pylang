@@ -461,6 +461,11 @@ llvm::Value *
 	return emit_runtime_call("list_pop_unpack2", { list, out_a, out_b });
 }
 
+llvm::Value *IREmitter::call_dict_items_iter_for_loop(llvm::Value *owner)
+{
+	return emit_runtime_call("dict_items_iter_for_loop", { owner });
+}
+
 void IREmitter::call_setitem_fast(llvm::Value *obj, llvm::Value *key, llvm::Value *value)
 {
 	emit_runtime_call("setitem_fast", { obj, key, value });

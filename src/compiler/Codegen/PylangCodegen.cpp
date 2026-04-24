@@ -1583,8 +1583,24 @@ ast::Value *PylangCodegen::visit(const ast::While *node)
 ast::Value *PylangCodegen::visit(const ast::For *node)
 {
 	auto *func = m_codegen_ctx.current_function();
-	auto *iter_obj = generate(node->iter().get());
-	auto *iterator = m_emitter.call_get_iter(iter_obj);
+	llvm::Value *iterator = nullptr;
+
+	// for a, b in obj.items(): exact dict can skip allocating the dict_items view.
+	// Non-dict owners fall back inside the runtime helper to normal items()+iter semantics.
+	if (auto *call = dynamic_cast<const ast::Call *>(node->iter().get())) {
+		if (call->args().empty() && call->keywords().empty()) {
+			if (auto *attr = dynamic_cast<const ast::Attribute *>(call->function().get());
+				attr && attr->attr() == "items") {
+				auto *owner = generate(attr->value().get());
+				if (owner) { iterator = m_emitter.call_dict_items_iter_for_loop(owner); }
+			}
+		}
+	}
+
+	if (!iterator) {
+		auto *iter_obj = generate(node->iter().get());
+		iterator = m_emitter.call_get_iter(iter_obj);
+	}
 
 	auto *cond_bb = llvm::BasicBlock::Create(m_ctx, "for.cond", func);
 	auto *body_bb = llvm::BasicBlock::Create(m_ctx, "for.body", func);

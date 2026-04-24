@@ -165,6 +165,9 @@ class IREmitter
 	/// 返回 i1 (true=有数据)
 	llvm::Value *call_list_pop_unpack2(llvm::Value *list, llvm::Value *out_a, llvm::Value *out_b);
 
+	/// for a, b in dict.items() 专用：exact dict 直接创建 itemiterator，跳过 items view
+	llvm::Value *call_dict_items_iter_for_loop(llvm::Value *owner);
+
 	/// 融合 setitem 快速路径 (dict[key]=val / list[int]=val)
 	void call_setitem_fast(llvm::Value *obj, llvm::Value *key, llvm::Value *value);
 

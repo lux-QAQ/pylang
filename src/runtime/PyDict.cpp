@@ -812,6 +812,11 @@ PyDictItemsIterator::PyDictItemsIterator(const PyDictItems &pydict_items, size_t
 	std::advance(m_current_iterator, position);
 }
 
+PyDictItemsIterator::PyDictItemsIterator(const PyDict &pydict)
+	: PyBaseObject(types::BuiltinTypes::the().dict_items_iterator()), m_direct_dict(pydict),
+	  m_current_iterator(m_direct_dict->get().map().begin())
+{}
+
 
 PyResult<PyDictItemsIterator *> PyDictItemsIterator::create(const PyDictItems &pydict_items)
 {
@@ -828,10 +833,18 @@ PyResult<PyDictItemsIterator *> PyDictItemsIterator::create(const PyDictItems &p
 	return Ok(result);
 }
 
+PyResult<PyDictItemsIterator *> PyDictItemsIterator::create_direct(const PyDict &pydict)
+{
+	auto *result = PYLANG_ALLOC(PyDictItemsIterator, pydict);
+	if (!result) { return Err(memory_error(sizeof(PyDictItemsIterator))); }
+	return Ok(result);
+}
+
 void PyDictItemsIterator::visit_graph(Visitor &visitor)
 {
 	PyObject::visit_graph(visitor);
-	if (m_current_iterator != m_pydictitems->get().m_pydict->get().map().end()) {
+	const auto &dict = m_pydictitems ? m_pydictitems->get().m_pydict->get() : m_direct_dict->get();
+	if (m_current_iterator != dict.map().end()) {
 		if (m_current_iterator->first.is_heap_object()) {
 			visitor.visit(*m_current_iterator->first.as_ptr());
 		}
@@ -839,7 +852,11 @@ void PyDictItemsIterator::visit_graph(Visitor &visitor)
 			visitor.visit(*m_current_iterator->second.as_ptr());
 		}
 	}
-	visitor.visit(const_cast<PyDictItems &>(m_pydictitems->get()));
+	if (m_pydictitems) {
+		visitor.visit(const_cast<PyDictItems &>(m_pydictitems->get()));
+	} else {
+		visitor.visit(const_cast<PyDict &>(m_direct_dict->get()));
+	}
 }
 
 std::string PyDictItemsIterator::to_string() const
@@ -851,7 +868,8 @@ PyResult<PyObject *> PyDictItemsIterator::__repr__() const { return PyString::cr
 
 PyResult<PyObject *> PyDictItemsIterator::__next__()
 {
-	if (m_current_iterator != m_pydictitems->get().m_pydict->get().map().end()) {
+	const auto &dict = m_pydictitems ? m_pydictitems->get().m_pydict->get() : m_direct_dict->get();
+	if (m_current_iterator != dict.map().end()) {
 		const auto &[key, value] = *m_current_iterator;
 		m_current_iterator++;
 		return PyTuple::create(key, value);
@@ -862,7 +880,8 @@ PyResult<PyObject *> PyDictItemsIterator::__next__()
 // [性能优化] 零分配 kv 直出
 bool PyDictItemsIterator::next_kv_raw(PyObject **out_key, PyObject **out_value)
 {
-	if (m_current_iterator != m_pydictitems->get().m_pydict->get().map().end()) {
+	const auto &dict = m_pydictitems ? m_pydictitems->get().m_pydict->get() : m_direct_dict->get();
+	if (m_current_iterator != dict.map().end()) {
 		const auto &[key, value] = *m_current_iterator;
 		m_current_iterator++;
 		*out_key = key.box();
@@ -874,9 +893,14 @@ bool PyDictItemsIterator::next_kv_raw(PyObject **out_key, PyObject **out_value)
 
 bool PyDictItemsIterator::operator==(const PyDictItemsIterator &other) const
 {
-	return m_pydictitems.has_value() && other.m_pydictitems.has_value()
-		   && &m_pydictitems->get() == &other.m_pydictitems->get()
-		   && m_current_iterator == other.m_current_iterator;
+	if (m_current_iterator != other.m_current_iterator) return false;
+	if (m_pydictitems && other.m_pydictitems) {
+		return &m_pydictitems->get() == &other.m_pydictitems->get();
+	}
+	if (m_direct_dict && other.m_direct_dict) {
+		return &m_direct_dict->get() == &other.m_direct_dict->get();
+	}
+	return false;
 }
 
 PyDictItemsIterator &PyDictItemsIterator::operator++()
