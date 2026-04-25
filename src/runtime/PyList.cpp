@@ -70,6 +70,75 @@ PyList::PyList(std::vector<Value> elements) : PyList()
 		std::make_move_iterator(elements.begin()), std::make_move_iterator(elements.end()));
 }
 
+void PyList::normalize_storage() const
+{
+	if (m_front_offset == 0) { return; }
+	if (m_front_offset >= m_elements.size()) {
+		m_elements.clear();
+		m_front_offset = 0;
+		return;
+	}
+	m_elements.erase(
+		m_elements.begin(), m_elements.begin() + static_cast<ptrdiff_t>(m_front_offset));
+	m_front_offset = 0;
+}
+
+void PyList::push_front_raw(Value value)
+{
+	if (m_front_offset > 0) {
+		m_elements[--m_front_offset] = value;
+		return;
+	}
+
+	const auto current_size = logical_size();
+	const auto slack = std::max<size_t>(16, current_size / 2 + 1);
+	GCVector<Value> new_elements;
+	new_elements.reserve(slack + current_size + 1);
+	new_elements.resize(slack, Value{ nullptr });
+	new_elements.push_back(value);
+	new_elements.insert(new_elements.end(),
+		m_elements.begin() + static_cast<ptrdiff_t>(m_front_offset),
+		m_elements.end());
+	m_elements = std::move(new_elements);
+	m_front_offset = slack;
+}
+
+void PyList::append_raw(Value value) { m_elements.push_back(value); }
+
+Value PyList::pop_back_raw()
+{
+	ASSERT(!empty());
+	auto value = m_elements.back();
+	m_elements.pop_back();
+	if (m_front_offset >= m_elements.size()) {
+		m_elements.clear();
+		m_front_offset = 0;
+	}
+	return value;
+}
+
+void PyList::insert_raw_clamped(int64_t index, Value value)
+{
+	auto size = static_cast<int64_t>(logical_size());
+	if (index < 0) {
+		index += size;
+		if (index < 0) { index = 0; }
+	}
+	if (index > size) { index = size; }
+
+	if (index == 0) {
+		push_front_raw(value);
+		return;
+	}
+	if (index == size) {
+		append_raw(value);
+		return;
+	}
+
+	normalize_storage();
+	m_elements.insert(m_elements.begin() + static_cast<ptrdiff_t>(index), value);
+}
+
 PyResult<PyList *> PyList::create(std::vector<Value> elements)
 {
 	auto *result = PYLANG_ALLOC(PyList, std::move(elements));
@@ -123,7 +192,7 @@ PyResult<PyObject *> PyList::__new__(const PyType *type, PyTuple *args, PyDict *
 
 	auto value = iterator->next();
 	while (value.is_ok()) {
-		els->elements().push_back(value.unwrap());
+		els->append_raw(value.unwrap());
 		value = iterator->next();
 	}
 
@@ -134,7 +203,7 @@ PyResult<PyObject *> PyList::__new__(const PyType *type, PyTuple *args, PyDict *
 
 PyResult<PyObject *> PyList::append(PyObject *element)
 {
-	m_elements.push_back(element);
+	append_raw(element);
 	return Ok(py_none());
 }
 
@@ -161,7 +230,7 @@ PyResult<PyObject *> PyList::extend(PyObject *iterable)
 
 PyResult<PyObject *> PyList::pop(PyObject *index)
 {
-	if (m_elements.empty()) { return Err(index_error("pop from empty list")); }
+	if (empty()) { return Err(index_error("pop from empty list")); }
 
 	if (index) {
 		if (!as<PyInteger>(index)) {
@@ -170,36 +239,37 @@ PyResult<PyObject *> PyList::pop(PyObject *index)
 		}
 		auto idx = [index, this]() -> PyResult<size_t> {
 			auto idx_value = as<PyInteger>(index)->as_i64();
-			size_t idx = m_elements.size();
+			const auto size = logical_size();
+			size_t idx = size;
 			if (idx_value < 0) {
-				if (static_cast<uint64_t>(std::abs(idx_value)) > m_elements.size()) {
-					return Err(index_error("pop index '{}' out of range for list of size '{}'",
-						idx,
-						m_elements.size()));
+				if (static_cast<uint64_t>(std::abs(idx_value)) > size) {
+					return Err(index_error(
+						"pop index '{}' out of range for list of size '{}'", idx, size));
 				}
 				idx += idx_value;
 			} else {
 				idx = static_cast<size_t>(idx_value);
 			}
-			if (idx >= m_elements.size()) {
-				return Err(index_error(
-					"pop index '{}' out of range for list of size '{}'", idx, m_elements.size()));
+			if (idx >= size) {
+				return Err(
+					index_error("pop index '{}' out of range for list of size '{}'", idx, size));
 			}
 			return Ok(idx);
 		}();
 		return idx.and_then([this](size_t idx) {
-			return PyObject::from(m_elements[idx]).and_then([this, idx](PyObject *el) {
-				if (idx == m_elements.size()) {
-					m_elements.pop_back();
+			return PyObject::from(unchecked_at(idx)).and_then([this, idx](PyObject *el) {
+				if (idx + 1 == logical_size()) {
+					pop_back_raw();
 				} else {
+					normalize_storage();
 					m_elements.erase(m_elements.begin() + idx);
 				}
 				return Ok(el);
 			});
 		});
 	} else {
-		return PyObject::from(m_elements.back()).and_then([this](PyObject *el) {
-			m_elements.pop_back();
+		return PyObject::from(unchecked_at(logical_size() - 1)).and_then([this](PyObject *el) {
+			pop_back_raw();
 			return Ok(el);
 		});
 	}
@@ -219,13 +289,22 @@ PyResult<PyObject *> PyList::insert(PyTuple *args, PyDict *kwargs)
 	auto [index_obj, object] = result.unwrap();
 
 	auto index = index_obj->as_big_int();
+	auto size = BigIntType{ logical_size() };
 	if (index < 0) {
-		index += m_elements.size();
+		index += size;
 		if (index < 0) { index = 0; }
 	}
-	if (index > m_elements.size()) { index = m_elements.size(); }
+	if (index > size) { index = size; }
 
-	m_elements.insert(m_elements.begin(), object);
+	if (index == 0) {
+		push_front_raw(object);
+	} else if (index == size) {
+		append_raw(object);
+	} else {
+		ASSERT(index.fits_ulong_p());
+		normalize_storage();
+		m_elements.insert(m_elements.begin() + static_cast<ptrdiff_t>(index.get_ui()), object);
+	}
 
 	return Ok(py_none());
 }
@@ -239,6 +318,7 @@ std::string PyList::to_string() const
 
 PyResult<PyObject *> PyList::__repr__() const
 {
+	const auto &elements = this->elements();
 	std::ostringstream os;
 
 	[[maybe_unused]] struct Cleanup
@@ -258,9 +338,9 @@ PyResult<PyObject *> PyList::__repr__() const
 
 	auto repr = [](const auto &el) -> PyResult<PyString *> { return el.box()->repr(); };
 	os << "[";
-	if (!m_elements.empty()) {
-		auto it = m_elements.begin();
-		while (std::next(it) != m_elements.end()) {
+	if (!elements.empty()) {
+		auto it = elements.begin();
+		while (std::next(it) != elements.end()) {
 			auto r = repr(*it);
 			if (r.is_err()) { return r; }
 			os << std::move(r.unwrap()->value()) << ", ";
@@ -285,31 +365,32 @@ PyResult<PyObject *> PyList::__iter__() const
 
 PyResult<PyObject *> PyList::__getitem__(int64_t index)
 {
+	const auto size = logical_size();
 	if (index < 0) {
-		if (static_cast<size_t>(std::abs(index)) > m_elements.size()) {
+		if (static_cast<size_t>(std::abs(index)) > size) {
 			return Err(index_error("list index out of range"));
 		}
-		index += m_elements.size();
+		index += size;
 	}
 	ASSERT(index >= 0);
-	if (static_cast<size_t>(index) >= m_elements.size()) {
-		return Err(index_error("list index out of range"));
-	}
-	return PyObject::from(m_elements[index]);
+	if (static_cast<size_t>(index) >= size) { return Err(index_error("list index out of range")); }
+	return PyObject::from(unchecked_at(static_cast<size_t>(index)));
 }
 
 PyResult<std::monostate> PyList::__setitem__(int64_t index, PyObject *value)
 {
-	if (index < 0) { index += m_elements.size(); }
-	if (static_cast<size_t>(index) >= m_elements.size()) {
+	const auto size = logical_size();
+	if (index < 0) { index += size; }
+	if (index < 0 || static_cast<size_t>(index) >= size) {
 		return Err(index_error("list index out of range"));
 	}
-	m_elements[index] = value;
+	unchecked_at(static_cast<size_t>(index)) = value;
 	return Ok(std::monostate{});
 }
 
 PyResult<std::monostate> PyList::__delitem__(PyObject *key)
 {
+	normalize_storage();
 	if (!key->type()->issubclass(types::integer()) && !key->type()->issubclass(types::slice())) {
 		return Err(type_error(
 			"list indices must be integers or slices, not {}", key->type()->to_string()));
@@ -393,24 +474,25 @@ PyResult<PyObject *> PyList::__getitem__(PyObject *index)
 		const auto i = index_int->as_i64();
 		return __getitem__(i);
 	} else if (auto slice = as<PySlice>(index)) {
+		const auto &elements = this->elements();
 		auto indices_ = slice->unpack();
 		if (indices_.is_err()) return Err(indices_.unwrap_err());
 		const auto [start_, end_, step] = indices_.unwrap();
 
 		const auto [start, end, slice_length] =
-			PySlice::adjust_indices(start_, end_, step, m_elements.size());
+			PySlice::adjust_indices(start_, end_, step, elements.size());
 
 		if (slice_length == 0) { return PyList::create(); }
-		if (start == 0 && end == static_cast<int64_t>(m_elements.size()) && step == 1) {
+		if (start == 0 && end == static_cast<int64_t>(elements.size()) && step == 1) {
 			// shallow copy of the list since we need all elements
-			return PyList::create(m_elements);
+			return PyList::create(elements);
 		}
 
 		auto new_list = PyList::create();
 		if (new_list.is_err()) return new_list;
 
 		for (int64_t idx = start, i = 0; i < slice_length; idx += step, ++i) {
-			new_list.unwrap()->elements().push_back(m_elements[idx]);
+			new_list.unwrap()->append_raw(elements[idx]);
 		}
 		return new_list;
 	} else {
@@ -425,6 +507,7 @@ PyResult<std::monostate> PyList::__setitem__(PyObject *index, PyObject *value)
 		const auto i = static_cast<const PyInteger &>(*index).as_i64();
 		return __setitem__(i, value);
 	} else if (index->type()->issubclass(types::slice())) {
+		normalize_storage();
 		auto value_iter = value->iter();
 		if (value_iter.is_err()) { return Err(type_error("can only assign an iterable")); }
 		auto validate_index = [this](BigIntType index_value) -> PyResult<size_t> {
@@ -519,7 +602,7 @@ PyResult<std::monostate> PyList::__setitem__(PyObject *index, PyObject *value)
 		type_error("list indices must be integers or slices, not {}", index->type()->name()));
 }
 
-PyResult<size_t> PyList::__len__() const { return Ok(m_elements.size()); }
+PyResult<size_t> PyList::__len__() const { return Ok(logical_size()); }
 
 PyResult<PyObject *> PyList::__add__(const PyObject *other) const
 {
@@ -528,12 +611,13 @@ PyResult<PyObject *> PyList::__add__(const PyObject *other) const
 			type_error("can only concatenate list (not \"{}\") to list", other->type()->name()));
 	}
 	const auto &other_list = static_cast<const PyList &>(*other);
-	auto result = PyList::create(this->elements());
+	const auto &lhs_elements = this->elements();
+	const auto &rhs_elements = other_list.elements();
+	auto result = PyList::create(lhs_elements);
 	if (result.is_err()) { return result; }
 
-	result.unwrap()->elements().insert(result.unwrap()->elements().end(),
-		other_list.elements().begin(),
-		other_list.elements().end());
+	result.unwrap()->elements().insert(
+		result.unwrap()->elements().end(), rhs_elements.begin(), rhs_elements.end());
 
 	return result;
 }
@@ -541,10 +625,11 @@ PyResult<PyObject *> PyList::__add__(const PyObject *other) const
 PyResult<PyObject *> PyList::__mul__(size_t count) const
 {
 	if (count <= 0) { return PyList::create(); }
+	const auto &elements = this->elements();
 	std::vector<Value> values;
-	values.reserve(count * m_elements.size());
+	values.reserve(count * elements.size());
 	for ([[maybe_unused]] auto _ : std::views::iota(size_t{ 0 }, count)) {
-		values.insert(values.end(), m_elements.begin(), m_elements.end());
+		values.insert(values.end(), elements.begin(), elements.end());
 	}
 
 	return PyList::create(std::move(values));
@@ -555,12 +640,14 @@ PyResult<PyObject *> PyList::__eq__(const PyObject *other) const
 	if (!as<PyList>(other)) { return Ok(py_false()); }
 
 	auto *other_list = as<PyList>(other);
-	if (m_elements.size() != other_list->elements().size()) { return Ok(py_false()); }
+	const auto &lhs_elements = this->elements();
+	const auto &rhs_elements = other_list->elements();
+	if (lhs_elements.size() != rhs_elements.size()) { return Ok(py_false()); }
 
 	// 新代码: 使用 RuntimeContext
-	const bool result = std::equal(m_elements.begin(),
-		m_elements.end(),
-		other_list->elements().begin(),
+	const bool result = std::equal(lhs_elements.begin(),
+		lhs_elements.end(),
+		rhs_elements.begin(),
 		[](const auto &lhs, const auto &rhs) -> bool {
 			if (RuntimeContext::has_current()) {
 				auto &ctx = RuntimeContext::current();
@@ -588,6 +675,7 @@ PyResult<PyObject *> PyList::__reversed__() const
 
 PyResult<PyObject *> PyList::sort(PyTuple *args, PyDict *kwargs)
 {
+	normalize_storage();
 	PyObject *key = nullptr;
 	bool reverse = false;
 	if (args && !args->elements().empty()) {
@@ -733,7 +821,8 @@ PyResult<PyObject *> PyList::sort(PyTuple *args, PyDict *kwargs)
 void PyList::visit_graph(Visitor &visitor)
 {
 	PyObject::visit_graph(visitor);
-	for (auto &el : m_elements) {
+	for (size_t idx = m_front_offset; idx < m_elements.size(); ++idx) {
+		auto &el = m_elements[idx];
 		if (el.is_heap_object()) {
 			if (el.as_ptr() != this) visitor.visit(*el.as_ptr());
 		}
@@ -813,8 +902,8 @@ PyResult<PyObject *> PyListIterator::__repr__() const { return PyString::create(
 
 PyResult<PyObject *> PyListIterator::__next__()
 {
-	if (m_current_index < m_pylist.elements().size())
-		return PyObject::from(m_pylist.elements()[m_current_index++]);
+	if (m_current_index < m_pylist.logical_size())
+		return PyObject::from(m_pylist.unchecked_at(m_current_index++));
 	return Err(stop_iteration());
 }
 
@@ -822,8 +911,8 @@ PyResult<PyObject *> PyListIterator::__next__()
 // 对 tagged int 使用 as_pyobject_raw() 避免装箱为 PyInteger。
 PyObject *PyListIterator::next_raw()
 {
-	if (m_current_index < m_pylist.elements().size()) {
-		const auto &val = m_pylist.elements()[m_current_index++];
+	if (m_current_index < m_pylist.logical_size()) {
+		const auto &val = m_pylist.unchecked_at(m_current_index++);
 		return val.as_pyobject_raw();
 	}
 	return nullptr;
@@ -861,7 +950,7 @@ PyListReverseIterator::PyListReverseIterator(PyList &pylist, size_t start_index)
 
 PyResult<PyListReverseIterator *> PyListReverseIterator::create(PyList &lst)
 {
-	auto list_size = lst.elements().size();
+	auto list_size = lst.logical_size();
 	auto *result = PYLANG_ALLOC(PyListReverseIterator, lst, list_size - 1);
 	if (!result) { return Err(memory_error(sizeof(PyListReverseIterator))); }
 	return Ok(result);
@@ -881,8 +970,8 @@ PyResult<PyObject *> PyListReverseIterator::__iter__() const
 PyResult<PyObject *> PyListReverseIterator::__next__()
 {
 	if (m_pylist.has_value()) {
-		if (m_current_index < m_pylist->get().elements().size())
-			return PyObject::from(m_pylist->get().elements()[m_current_index--]);
+		if (m_current_index < m_pylist->get().logical_size())
+			return PyObject::from(m_pylist->get().unchecked_at(m_current_index--));
 		m_pylist = std::nullopt;
 	}
 	return Err(stop_iteration());

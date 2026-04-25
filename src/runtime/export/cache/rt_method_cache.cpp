@@ -175,14 +175,7 @@ py::PyObject *rt_call_method_ic_ptrs(py::cache::MethodCache *cache,
 					index = idx_int->as_big_int().get_si();
 				}
 				{
-					auto &elems = list->elements();
-					long sz = static_cast<long>(elems.size());
-					if (index < 0) {
-						index += sz;
-						if (index < 0) index = 0;
-					}
-					if (index > sz) { index = sz; }
-					elems.insert(elems.begin() + index, value);
+					list->insert_raw_clamped(index, value);
 					return py::py_none();
 				}
 			skip_list_insert_ic:;

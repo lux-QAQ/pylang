@@ -14,7 +14,8 @@ class PyList
 #endif
 	friend class ::py::Arena;
 
-	py::GCVector<Value> m_elements;
+	mutable py::GCVector<Value> m_elements;
+	mutable size_t m_front_offset{ 0 };
 
 	PyList(PyType *);
 
@@ -41,8 +42,28 @@ class PyList
 	PyResult<PyObject *> __mul__(size_t count) const;
 	PyResult<PyObject *> __eq__(const PyObject *other) const;
 
-	const py::GCVector<Value> &elements() const { return m_elements; }
-	py::GCVector<Value> &elements() { return m_elements; }
+	size_t logical_size() const noexcept { return m_elements.size() - m_front_offset; }
+	bool empty() const noexcept { return logical_size() == 0; }
+
+	const Value &unchecked_at(size_t index) const { return m_elements[m_front_offset + index]; }
+	Value &unchecked_at(size_t index) { return m_elements[m_front_offset + index]; }
+
+	void normalize_storage() const;
+	void push_front_raw(Value value);
+	void append_raw(Value value);
+	Value pop_back_raw();
+	void insert_raw_clamped(int64_t index, Value value);
+
+	const py::GCVector<Value> &elements() const
+	{
+		normalize_storage();
+		return m_elements;
+	}
+	py::GCVector<Value> &elements()
+	{
+		normalize_storage();
+		return m_elements;
+	}
 
 	void visit_graph(Visitor &) override;
 

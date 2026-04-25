@@ -1,5 +1,6 @@
 #include "rt_common.hpp"
 
+#include "rt_tagged_ops.hpp"
 #include "runtime/PyBool.hpp"
 #include "runtime/PyDict.hpp"
 #include "runtime/PyList.hpp"
@@ -36,49 +37,41 @@
 PYLANG_EXPORT_CMP("compare_lt_bool", "i1", "obj,obj")
 bool rt_compare_lt_bool(py::PyObject *lhs, py::PyObject *rhs)
 {
-	if (py::RtValue::are_both_tagged_int(lhs, rhs)) {
-		return py::RtValue::raw_as_int(lhs) < py::RtValue::raw_as_int(rhs);
-	}
-	auto l = py::RtValue::flatten(lhs);
-	auto r = py::RtValue::flatten(rhs);
-	if (py::RtValue::are_both_tagged_int(l, r)) { return l.as_int() < r.as_int(); }
-	return py::RtValue::compare_lt(l, r).is_truthy();
+	return py::rt::compare_int_bool_or_slow(
+		lhs,
+		rhs,
+		[](int64_t l, int64_t r) { return l < r; },
+		[](py::RtValue l, py::RtValue r) { return py::RtValue::compare_lt(l, r); });
 }
 
 PYLANG_EXPORT_CMP("compare_le_bool", "i1", "obj,obj")
 bool rt_compare_le_bool(py::PyObject *lhs, py::PyObject *rhs)
 {
-	if (py::RtValue::are_both_tagged_int(lhs, rhs)) {
-		return py::RtValue::raw_as_int(lhs) <= py::RtValue::raw_as_int(rhs);
-	}
-	auto l = py::RtValue::flatten(lhs);
-	auto r = py::RtValue::flatten(rhs);
-	if (py::RtValue::are_both_tagged_int(l, r)) { return l.as_int() <= r.as_int(); }
-	return py::RtValue::compare_le(l, r).is_truthy();
+	return py::rt::compare_int_bool_or_slow(
+		lhs,
+		rhs,
+		[](int64_t l, int64_t r) { return l <= r; },
+		[](py::RtValue l, py::RtValue r) { return py::RtValue::compare_le(l, r); });
 }
 
 PYLANG_EXPORT_CMP("compare_gt_bool", "i1", "obj,obj")
 bool rt_compare_gt_bool(py::PyObject *lhs, py::PyObject *rhs)
 {
-	if (py::RtValue::are_both_tagged_int(lhs, rhs)) {
-		return py::RtValue::raw_as_int(lhs) > py::RtValue::raw_as_int(rhs);
-	}
-	auto l = py::RtValue::flatten(lhs);
-	auto r = py::RtValue::flatten(rhs);
-	if (py::RtValue::are_both_tagged_int(l, r)) { return l.as_int() > r.as_int(); }
-	return py::RtValue::compare_gt(l, r).is_truthy();
+	return py::rt::compare_int_bool_or_slow(
+		lhs,
+		rhs,
+		[](int64_t l, int64_t r) { return l > r; },
+		[](py::RtValue l, py::RtValue r) { return py::RtValue::compare_gt(l, r); });
 }
 
 PYLANG_EXPORT_CMP("compare_eq_bool", "i1", "obj,obj")
 bool rt_compare_eq_bool(py::PyObject *lhs, py::PyObject *rhs)
 {
-	if (py::RtValue::are_both_tagged_int(lhs, rhs)) {
-		return py::RtValue::raw_as_int(lhs) == py::RtValue::raw_as_int(rhs);
-	}
-	auto l = py::RtValue::flatten(lhs);
-	auto r = py::RtValue::flatten(rhs);
-	if (py::RtValue::are_both_tagged_int(l, r)) { return l.as_int() == r.as_int(); }
-	return py::RtValue::compare_eq(l, r).is_truthy();
+	return py::rt::compare_int_bool_or_slow(
+		lhs,
+		rhs,
+		[](int64_t l, int64_t r) { return l == r; },
+		[](py::RtValue l, py::RtValue r) { return py::RtValue::compare_eq(l, r); });
 }
 
 // =============================================================================
@@ -97,19 +90,7 @@ bool rt_compare_eq_bool(py::PyObject *lhs, py::PyObject *rhs)
 // =============================================================================
 
 PYLANG_EXPORT_CONVERT("is_true_fast", "i1", "obj")
-bool rt_is_true_fast(py::PyObject *obj)
-{
-	if (py::RtValue::raw_is_tagged_int(obj)) { return py::RtValue::raw_as_int(obj) != 0; }
-	auto v = py::RtValue::flatten(obj);
-	if (v.is_tagged_int()) { return v.as_int() != 0; }
-	// PyBool fast path
-	auto *b_obj = v.box();
-	if (b_obj->type() == py::types::bool_()) { return static_cast<py::PyBool *>(b_obj)->value(); }
-	// PyNone is always false
-	if (b_obj == py::py_none()) { return false; }
-	// Generic path
-	return rt_unwrap(b_obj->true_());
-}
+bool rt_is_true_fast(py::PyObject *obj) { return py::rt::truthy(obj); }
 
 // =============================================================================
 // 4. rt_list_getitem_i64 / rt_list_setitem_i64
@@ -122,58 +103,28 @@ bool rt_is_true_fast(py::PyObject *obj)
 PYLANG_EXPORT_SUBSCR("list_getitem_i64", "obj", "obj,obj")
 py::PyObject *rt_list_getitem_i64(py::PyObject *list, py::PyObject *index)
 {
-	auto *b_list = py::ensure_box(list);
+	py::PyObject *result = nullptr;
 
-	if (__builtin_expect(
-			b_list->type() == py::types::list() && py::RtValue::raw_is_tagged_int(index), 1)) {
-		auto *py_list = static_cast<py::PyList *>(b_list);
-		int64_t idx = py::RtValue::raw_as_int(index);
-		int64_t sz = static_cast<int64_t>(py_list->elements().size());
-		if (idx < 0) { idx += sz; }
-		if (__builtin_expect(idx >= 0 && idx < sz, 1)) {
-			return py_list->elements()[idx].as_pyobject_raw();
-		}
-	}
-	auto r_idx = py::RtValue::flatten(index);
-	if (b_list->type() == py::types::list() && r_idx.is_tagged_int()) {
-		auto *py_list = static_cast<py::PyList *>(b_list);
-		int64_t idx = r_idx.as_int();
-		int64_t sz = static_cast<int64_t>(py_list->elements().size());
-		if (idx < 0) { idx += sz; }
-		if (idx >= 0 && idx < sz) { return py_list->elements()[idx].as_pyobject_raw(); }
+	if (py::rt::exact_list_index(list, index, [&result](py::PyList *py_list, int64_t idx) {
+			result = py_list->unchecked_at(static_cast<size_t>(idx)).as_pyobject_raw();
+			return true;
+		})) {
+		return result;
 	}
 	// 回退到通用路径
-	return rt_unwrap(b_list->getitem(py::ensure_box(index)));
+	return rt_unwrap(py::ensure_box(list)->getitem(py::ensure_box(index)));
 }
 
 PYLANG_EXPORT_SUBSCR("list_setitem_i64", "void", "obj,obj,obj")
 void rt_list_setitem_i64(py::PyObject *list, py::PyObject *index, py::PyObject *value)
 {
-	auto *b_list = py::ensure_box(list);
-
-	if (__builtin_expect(
-			b_list->type() == py::types::list() && py::RtValue::raw_is_tagged_int(index), 1)) {
-		auto *py_list = static_cast<py::PyList *>(b_list);
-		int64_t idx = py::RtValue::raw_as_int(index);
-		int64_t sz = static_cast<int64_t>(py_list->elements().size());
-		if (idx < 0) { idx += sz; }
-		if (__builtin_expect(idx >= 0 && idx < sz, 1)) {
+	if (py::rt::exact_list_index(list, index, [value](py::PyList *py_list, int64_t idx) {
 			rt_unwrap_void(py_list->__setitem__(idx, py::ensure_box(value)));
-			return;
-		}
+			return true;
+		})) {
+		return;
 	}
-	auto r_idx = py::RtValue::flatten(index);
-	if (b_list->type() == py::types::list() && r_idx.is_tagged_int()) {
-		auto *py_list = static_cast<py::PyList *>(b_list);
-		int64_t idx = r_idx.as_int();
-		int64_t sz = static_cast<int64_t>(py_list->elements().size());
-		if (idx < 0) { idx += sz; }
-		if (idx >= 0 && idx < sz) {
-			rt_unwrap_void(py_list->__setitem__(idx, py::ensure_box(value)));
-			return;
-		}
-	}
-	rt_unwrap_void(b_list->setitem(py::ensure_box(index), py::ensure_box(value)));
+	rt_unwrap_void(py::ensure_box(list)->setitem(py::ensure_box(index), py::ensure_box(value)));
 }
 
 // =============================================================================
@@ -255,7 +206,7 @@ void rt_list_insert_0_tuple2(py::PyObject *list, py::PyObject *a, py::PyObject *
 	auto tuple = py::PyTuple::create(py::ensure_box(a), py::ensure_box(b));
 	if (tuple.is_err()) { rt_raise(tuple.unwrap_err()); }
 
-	py_list->elements().insert(py_list->elements().begin(), py::Value(tuple.unwrap()));
+	py_list->push_front_raw(py::Value(tuple.unwrap()));
 }
 
 // =============================================================================
@@ -298,12 +249,10 @@ PYLANG_EXPORT_SUBSCR("list_pop_unpack2", "i1", "obj,ptr,ptr")
 bool rt_list_pop_unpack2(py::PyObject *list, py::PyObject **out_a, py::PyObject **out_b)
 {
 	auto *py_list = static_cast<py::PyList *>(py::ensure_box(list));
-	auto &elems = py_list->elements();
-	if (elems.empty()) { return false; }
+	if (py_list->empty()) { return false; }
 
 	// Pop the last element
-	auto last = elems.back();
-	elems.pop_back();
+	auto last = py_list->pop_back_raw();
 
 	// Unpack as 2-tuple
 	auto *tuple = py::as<py::PyTuple>(last.as_pyobject_raw());
@@ -342,25 +291,21 @@ bool rt_list_pop_unpack2(py::PyObject *list, py::PyObject **out_a, py::PyObject 
 PYLANG_EXPORT_CMP("compare_ne_bool", "i1", "obj,obj")
 bool rt_compare_ne_bool(py::PyObject *lhs, py::PyObject *rhs)
 {
-	if (py::RtValue::are_both_tagged_int(lhs, rhs)) {
-		return py::RtValue::raw_as_int(lhs) != py::RtValue::raw_as_int(rhs);
-	}
-	auto l = py::RtValue::flatten(lhs);
-	auto r = py::RtValue::flatten(rhs);
-	if (py::RtValue::are_both_tagged_int(l, r)) { return l.as_int() != r.as_int(); }
-	return py::RtValue::compare_ne(l, r).is_truthy();
+	return py::rt::compare_int_bool_or_slow(
+		lhs,
+		rhs,
+		[](int64_t l, int64_t r) { return l != r; },
+		[](py::RtValue l, py::RtValue r) { return py::RtValue::compare_ne(l, r); });
 }
 
 PYLANG_EXPORT_CMP("compare_ge_bool", "i1", "obj,obj")
 bool rt_compare_ge_bool(py::PyObject *lhs, py::PyObject *rhs)
 {
-	if (py::RtValue::are_both_tagged_int(lhs, rhs)) {
-		return py::RtValue::raw_as_int(lhs) >= py::RtValue::raw_as_int(rhs);
-	}
-	auto l = py::RtValue::flatten(lhs);
-	auto r = py::RtValue::flatten(rhs);
-	if (py::RtValue::are_both_tagged_int(l, r)) { return l.as_int() >= r.as_int(); }
-	return py::RtValue::compare_ge(l, r).is_truthy();
+	return py::rt::compare_int_bool_or_slow(
+		lhs,
+		rhs,
+		[](int64_t l, int64_t r) { return l >= r; },
+		[](py::RtValue l, py::RtValue r) { return py::RtValue::compare_ge(l, r); });
 }
 
 // =============================================================================
@@ -464,7 +409,7 @@ void rt_setitem_fast(py::PyObject *obj, py::PyObject *key, py::PyObject *value)
 	if (py::RtValue::raw_is_tagged_int(key) && b_obj->type() == py::types::list()) {
 		auto *list = static_cast<py::PyList *>(b_obj);
 		int64_t idx = py::RtValue::raw_as_int(key);
-		int64_t sz = static_cast<int64_t>(list->elements().size());
+		int64_t sz = static_cast<int64_t>(list->logical_size());
 		if (idx < 0) idx += sz;
 		if (idx >= 0 && idx < sz) {
 			rt_unwrap_void(list->__setitem__(idx, py::ensure_box(value)));

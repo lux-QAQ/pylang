@@ -216,11 +216,11 @@ py::PyObject *rt_getitem(py::PyObject *obj, py::PyObject *key)
 		// }
 		else if (type == py::types::list()) {
 			auto *list = static_cast<py::PyList *>(b_obj);
-			int64_t sz = static_cast<int64_t>(list->elements().size());
+			int64_t sz = static_cast<int64_t>(list->logical_size());
 			if (index < 0) { index += sz; }
 			if (index >= 0 && index < sz) {
 				// [优化]：直接从 Value 恢复为 RtValue，避免 __getitem__ 的装箱
-				return list->elements()[index].as_pyobject_raw();
+				return list->unchecked_at(static_cast<size_t>(index)).as_pyobject_raw();
 			}
 		} else if (type == py::types::tuple()) {
 			auto *tuple = static_cast<py::PyTuple *>(b_obj);
@@ -243,7 +243,7 @@ void rt_setitem(py::PyObject *obj, py::PyObject *key, py::PyObject *value)
 
 		if (b_obj->type() == py::types::list()) {
 			auto *list = static_cast<py::PyList *>(b_obj);
-			int64_t sz = static_cast<int64_t>(list->elements().size());
+			int64_t sz = static_cast<int64_t>(list->logical_size());
 			if (index < 0) { index += sz; }
 			if (index >= 0 && index < sz) {
 				rt_unwrap_void(list->__setitem__(index, py::ensure_box(value)));
@@ -274,9 +274,9 @@ void rt_list_append(py::PyObject *list, py::PyObject *value)
 	if (rt_val.is_tagged_int()) {
 		// [核心修复]：如果是 Tagged Integer，转存为 Value 的 Number 分支
 		// 这样既消灭了 PyInteger 对象分配，又保证了 ValueEq 的类型安全
-		b_list->elements().push_back(py::Value(rt_val));
+		b_list->append_raw(py::Value(rt_val));
 	} else {
-		b_list->elements().push_back(py::Value(rt_val));
+		b_list->append_raw(py::Value(rt_val));
 	}
 }
 

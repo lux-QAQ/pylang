@@ -13,6 +13,7 @@
 #include "runtime/PyList.hpp"
 #include "runtime/PyModule.hpp"
 #include "runtime/PyNone.hpp"
+#include "runtime/PySlice.hpp"
 #include "runtime/PyString.hpp"
 #include "runtime/PyTuple.hpp"
 #include "runtime/RuntimeContext.hpp"
@@ -26,6 +27,9 @@
 #include <gtest/gtest.h>
 
 using namespace py;
+
+void rt_list_insert_0_tuple2(py::PyObject *list, py::PyObject *a, py::PyObject *b);
+bool rt_list_pop_unpack2(py::PyObject *list, py::PyObject **out_a, py::PyObject **out_b);
 
 // =============================================================================
 // Fixture: 模拟编译后程序的执行环境
@@ -105,6 +109,93 @@ TEST_F(RuntimeAPITest, ListOperations)
 	auto item = lst->__getitem__(PyInteger::create(0).unwrap());
 	ASSERT_TRUE(item.is_ok());
 	EXPECT_EQ(as<PyInteger>(item.unwrap())->as_i64(), 1);
+}
+
+TEST_F(RuntimeAPITest, ListFrontInsertAndPopPreservePythonSemantics)
+{
+	auto *lst = PyList::create().unwrap();
+	for (int i = 1; i <= 3; ++i) {
+		auto *args =
+			PyTuple::create(PyInteger::create(0).unwrap(), PyInteger::create(i).unwrap()).unwrap();
+		ASSERT_TRUE(lst->insert(args, nullptr).is_ok());
+	}
+
+	EXPECT_EQ(lst->__len__().unwrap(), 3u);
+	EXPECT_EQ(as<PyInteger>(lst->__getitem__(PyInteger::create(0).unwrap()).unwrap())->as_i64(), 3);
+	EXPECT_EQ(
+		as<PyInteger>(lst->__getitem__(PyInteger::create(-1).unwrap()).unwrap())->as_i64(), 1);
+
+	auto *front_args =
+		PyTuple::create(PyInteger::create(-999).unwrap(), PyInteger::create(9).unwrap()).unwrap();
+	ASSERT_TRUE(lst->insert(front_args, nullptr).is_ok());
+	EXPECT_EQ(as<PyInteger>(lst->__getitem__(PyInteger::create(0).unwrap()).unwrap())->as_i64(), 9);
+
+	auto *back_args =
+		PyTuple::create(PyInteger::create(999).unwrap(), PyInteger::create(8).unwrap()).unwrap();
+	ASSERT_TRUE(lst->insert(back_args, nullptr).is_ok());
+	EXPECT_EQ(
+		as<PyInteger>(lst->__getitem__(PyInteger::create(-1).unwrap()).unwrap())->as_i64(), 8);
+
+	auto *mid_args =
+		PyTuple::create(PyInteger::create(2).unwrap(), PyInteger::create(7).unwrap()).unwrap();
+	ASSERT_TRUE(lst->insert(mid_args, nullptr).is_ok());
+	EXPECT_EQ(as<PyInteger>(lst->__getitem__(PyInteger::create(2).unwrap()).unwrap())->as_i64(), 7);
+
+	ASSERT_TRUE(lst->__setitem__(-1, PyInteger::create(6).unwrap()).is_ok());
+	EXPECT_EQ(as<PyInteger>(lst->pop(nullptr).unwrap())->as_i64(), 6);
+}
+
+TEST_F(RuntimeAPITest, ListFrontSlackNormalizesForReprSliceSort)
+{
+	auto *lst = PyList::create().unwrap();
+	for (int i : { 3, 1, 2 }) {
+		auto *args =
+			PyTuple::create(PyInteger::create(0).unwrap(), PyInteger::create(i).unwrap()).unwrap();
+		ASSERT_TRUE(lst->insert(args, nullptr).is_ok());
+	}
+
+	auto repr = lst->__repr__();
+	ASSERT_TRUE(repr.is_ok());
+	EXPECT_EQ(as<PyString>(repr.unwrap())->value(), "[2, 1, 3]");
+
+	auto slice = lst->__getitem__(
+		PySlice::create(PyInteger::create(0).unwrap(), PyInteger::create(2).unwrap(), py_none())
+			.unwrap());
+	ASSERT_TRUE(slice.is_ok());
+	auto *slice_list = as<PyList>(slice.unwrap());
+	ASSERT_NE(slice_list, nullptr);
+	EXPECT_EQ(
+		as<PyInteger>(slice_list->__getitem__(PyInteger::create(0).unwrap()).unwrap())->as_i64(),
+		2);
+	EXPECT_EQ(
+		as<PyInteger>(slice_list->__getitem__(PyInteger::create(1).unwrap()).unwrap())->as_i64(),
+		1);
+
+	ASSERT_TRUE(lst->sort(nullptr, nullptr).is_ok());
+	EXPECT_EQ(as<PyInteger>(lst->__getitem__(PyInteger::create(0).unwrap()).unwrap())->as_i64(), 1);
+	EXPECT_EQ(as<PyInteger>(lst->__getitem__(PyInteger::create(1).unwrap()).unwrap())->as_i64(), 2);
+	EXPECT_EQ(as<PyInteger>(lst->__getitem__(PyInteger::create(2).unwrap()).unwrap())->as_i64(), 3);
+}
+
+TEST_F(RuntimeAPITest, FusedListQueueInsertPopUnpackPreservesOrder)
+{
+	auto *queue = PyList::create().unwrap();
+	for (int i = 0; i < 4; ++i) {
+		rt_list_insert_0_tuple2(
+			queue, PyInteger::create(i).unwrap(), PyInteger::create(i + 10).unwrap());
+	}
+
+	for (int i = 0; i < 4; ++i) {
+		PyObject *a = nullptr;
+		PyObject *b = nullptr;
+		ASSERT_TRUE(rt_list_pop_unpack2(queue, &a, &b));
+		EXPECT_EQ(as<PyInteger>(a)->as_i64(), i);
+		EXPECT_EQ(as<PyInteger>(b)->as_i64(), i + 10);
+	}
+
+	PyObject *a = nullptr;
+	PyObject *b = nullptr;
+	EXPECT_FALSE(rt_list_pop_unpack2(queue, &a, &b));
 }
 
 TEST_F(RuntimeAPITest, DictOperations)
