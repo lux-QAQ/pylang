@@ -1216,7 +1216,7 @@ ast::Value *PylangCodegen::visit(const ast::Subscript *node)
 
 		switch (node->context()) {
 		case ast::ContextType::LOAD:
-			return make_value(m_emitter.call_getitem(obj, key));
+			return make_value(m_emitter.call_list_getitem_i64(obj, key));
 		case ast::ContextType::DELETE:
 			m_emitter.call_delitem(obj, key);
 			return nullptr;
@@ -1376,9 +1376,11 @@ ast::Value *PylangCodegen::visit(const ast::AugAssign *node)
 		subscr_obj = generate(subscr_node->value().get());
 		if (!subscr_obj) { return nullptr; }
 
+		bool subscript_is_index = false;
 		if (std::holds_alternative<ast::Subscript::Index>(subscr_node->slice())) {
 			auto &idx = std::get<ast::Subscript::Index>(subscr_node->slice());
 			subscr_key = generate(idx.value.get());
+			subscript_is_index = true;
 		} else if (std::holds_alternative<ast::Subscript::Slice>(subscr_node->slice())) {
 			auto &sl = std::get<ast::Subscript::Slice>(subscr_node->slice());
 			auto *start = sl.lower ? generate(sl.lower.get()) : m_emitter.get_none();
@@ -1390,7 +1392,11 @@ ast::Value *PylangCodegen::visit(const ast::AugAssign *node)
 			return nullptr;
 		}
 		if (!subscr_key) { return nullptr; }
-		current_val = m_emitter.call_getitem(subscr_obj, subscr_key);
+		if (subscript_is_index) {
+			current_val = m_emitter.call_list_getitem_i64(subscr_obj, subscr_key);
+		} else {
+			current_val = m_emitter.call_getitem(subscr_obj, subscr_key);
+		}
 
 	} else {
 		log::codegen()->error("AugAssign: unsupported target type");

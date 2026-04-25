@@ -1,128 +1,208 @@
-当前 12s 的主因不是算法本身，而是“生成出来的程序仍在大量执行 Python 运行时语义”，尤其是对象创建、属性访问、方法调用、`Value`/`PyObject` 来回转换和字典哈希比较。`vtune` 里的热点和代码能对得很齐。
+Top Hotspots
+    Function	Module	CPU Time	% of CPU Time
+    py::RtValue::flatten	test	6.181s	12.4%
+    __memmove_avx_unaligned_erms	libc.so.6	4.059s	8.1%
+    rt_list_getitem_i64	test	3.281s	6.6%
+    rt_call_method_ic_ptrs	test	3.022s	6.0%
+    rt_binary_mul	test	1.919s	3.8%
+    [Others]	N/A*	31.555s	63.1%
 
-**核心结论**
 
-1. 筛法内层循环没有被编译成原生数值循环，仍然在做动态方法调用。
-在 [test.ll](/home/lux/code/language/python-cpp/test.ll#L802) 到 [test.ll](/home/lux/code/language/python-cpp/test.ll#L842) 里，`loop_y` 每轮都在调用三次 `rt_call_method_raw_ptrs(self, "step1/2/3", ...)`，而不是直接内联 `step1/2/3`。`loop_x` 也一样调用 `self.loop_y(x)`，见 [test.ll](/home/lux/code/language/python-cpp/test.ll#L865) 到 [test.ll](/home/lux/code/language/python-cpp/test.ll#L909)。这意味着每次迭代都要走：
-`descriptor lookup -> instance dict 检查 -> Value 数组构造 -> call_raw -> 参数解包`
-对应运行时实现在 [rt_func.cpp](/home/lux/code/language/python-cpp/src/runtime/export/rt_func.cpp#L244) 到 [rt_func.cpp](/home/lux/code/language/python-cpp/src/runtime/export/rt_func.cpp#L324)。这类成本在 Atkin sieve 这种几百万次迭代里是致命的。
+Function / Call Stack	CPU Time	Module	Function (Full)	Source File	Start Address
+py::RtValue::flatten	6.181s	test	py::RtValue::flatten(py::PyObject*)	RtValue.cpp	0x56c40
+  rt_binary_mul	2.026s	test	rt_binary_mul(py::PyObject*, py::PyObject*)	rt_op.cpp	0x4e4b0
+    ↖ test.<module>.0:0.Sieve.8:0.step2.38:4 ← rt_call_method_ic_ptrs ← test.<module>.0:0.Sieve.8:0.loop_y.48:4 ← rt_call_method_ic_ptrs ← test.<module>.0:0.Sieve.8:0.loop_x.56:4 ← rt_call_method_ic_ptrs ← test.<module>.0:0.Sieve.8:0.calc.64:4 ← rt_call_method_ic_ptrs ← test.<module>.0:0.find.84:0 ← py::PyNativeFunction::call_fast_ptrs ← rt_call_raw_ptrs ← test.<module>.0:0.run_stress_test.141:0 ← py::PyNativeFunction::call_fast_ptrs ← rt_call_raw_ptrs ← PyInit_test ← main ← __libc_start_main_impl ← _start	0.679s	test	test.<module>.0:0.Sieve.8:0.step2.38:4	[Unknown]	0x3e720
+    ↖ test.<module>.0:0.Sieve.8:0.step1.33:4 ← rt_call_method_ic_ptrs ← test.<module>.0:0.Sieve.8:0.loop_y.48:4 ← rt_call_method_ic_ptrs ← test.<module>.0:0.Sieve.8:0.loop_x.56:4 ← rt_call_method_ic_ptrs ← test.<module>.0:0.Sieve.8:0.calc.64:4 ← rt_call_method_ic_ptrs ← test.<module>.0:0.find.84:0 ← py::PyNativeFunction::call_fast_ptrs ← rt_call_raw_ptrs ← test.<module>.0:0.run_stress_test.141:0 ← py::PyNativeFunction::call_fast_ptrs ← rt_call_raw_ptrs ← PyInit_test ← main ← __libc_start_main_impl ← _start	0.604s	test	test.<module>.0:0.Sieve.8:0.step1.33:4	[Unknown]	0x3e4f0
+    ↖ test.<module>.0:0.Sieve.8:0.step3.43:4 ← rt_call_method_ic_ptrs ← test.<module>.0:0.Sieve.8:0.loop_y.48:4 ← rt_call_method_ic_ptrs ← test.<module>.0:0.Sieve.8:0.loop_x.56:4 ← rt_call_method_ic_ptrs ← test.<module>.0:0.Sieve.8:0.calc.64:4 ← rt_call_method_ic_ptrs ← test.<module>.0:0.find.84:0 ← py::PyNativeFunction::call_fast_ptrs ← rt_call_raw_ptrs ← test.<module>.0:0.run_stress_test.141:0 ← py::PyNativeFunction::call_fast_ptrs ← rt_call_raw_ptrs ← PyInit_test ← main ← __libc_start_main_impl ← _start	0.486s	test	test.<module>.0:0.Sieve.8:0.step3.43:4	[Unknown]	0x3e8e0
+    ↖ test.<module>.0:0.Sieve.8:0.loop_y.48:4 ← rt_call_method_ic_ptrs ← test.<module>.0:0.Sieve.8:0.loop_x.56:4 ← rt_call_method_ic_ptrs ← test.<module>.0:0.Sieve.8:0.calc.64:4 ← rt_call_method_ic_ptrs ← test.<module>.0:0.find.84:0 ← py::PyNativeFunction::call_fast_ptrs ← rt_call_raw_ptrs ← test.<module>.0:0.run_stress_test.141:0 ← py::PyNativeFunction::call_fast_ptrs ← rt_call_raw_ptrs ← PyInit_test ← main ← __libc_start_main_impl ← _start	0.238s	test	test.<module>.0:0.Sieve.8:0.loop_y.48:4	[Unknown]	0x3ead0
+    ↖ test.<module>.0:0.Sieve.8:0.loop_x.56:4 ← rt_call_method_ic_ptrs ← test.<module>.0:0.Sieve.8:0.calc.64:4 ← rt_call_method_ic_ptrs ← test.<module>.0:0.find.84:0 ← py::PyNativeFunction::call_fast_ptrs ← rt_call_raw_ptrs ← test.<module>.0:0.run_stress_test.141:0 ← py::PyNativeFunction::call_fast_ptrs ← rt_call_raw_ptrs ← PyInit_test ← main ← __libc_start_main_impl ← _start	0.011s	test	test.<module>.0:0.Sieve.8:0.loop_x.56:4	[Unknown]	0x3ec60
+    ↖ test.<module>.0:0.Sieve.8:0.omit_squares.22:4 ← rt_call_method_ic_ptrs ← test.<module>.0:0.Sieve.8:0.calc.64:4 ← rt_call_method_ic_ptrs ← test.<module>.0:0.find.84:0 ← py::PyNativeFunction::call_fast_ptrs ← rt_call_raw_ptrs ← test.<module>.0:0.run_stress_test.141:0 ← py::PyNativeFunction::call_fast_ptrs ← rt_call_raw_ptrs ← PyInit_test ← main ← __libc_start_main_impl ← _start	0.008s	test	test.<module>.0:0.Sieve.8:0.omit_squares.22:4	[Unknown]	0x3e350
+  rt_is_true_fast	1.497s	test	rt_is_true_fast(py::PyObject*)	rt_fused.cpp	0x48230
+    ↖ test.<module>.0:0.Sieve.8:0.step1.33:4 ← rt_call_method_ic_ptrs ← test.<module>.0:0.Sieve.8:0.loop_y.48:4 ← rt_call_method_ic_ptrs ← test.<module>.0:0.Sieve.8:0.loop_x.56:4 ← rt_call_method_ic_ptrs ← test.<module>.0:0.Sieve.8:0.calc.64:4 ← rt_call_method_ic_ptrs ← test.<module>.0:0.find.84:0 ← py::PyNativeFunction::call_fast_ptrs ← rt_call_raw_ptrs ← test.<module>.0:0.run_stress_test.141:0 ← py::PyNativeFunction::call_fast_ptrs ← rt_call_raw_ptrs ← PyInit_test ← main ← __libc_start_main_impl ← _start	0.458s	test	test.<module>.0:0.Sieve.8:0.step1.33:4	[Unknown]	0x3e4f0
+    ↖ test.<module>.0:0.Sieve.8:0.step3.43:4 ← rt_call_method_ic_ptrs ← test.<module>.0:0.Sieve.8:0.loop_y.48:4 ← rt_call_method_ic_ptrs ← test.<module>.0:0.Sieve.8:0.loop_x.56:4 ← rt_call_method_ic_ptrs ← test.<module>.0:0.Sieve.8:0.calc.64:4 ← rt_call_method_ic_ptrs ← test.<module>.0:0.find.84:0 ← py::PyNativeFunction::call_fast_ptrs ← rt_call_raw_ptrs ← test.<module>.0:0.run_stress_test.141:0 ← py::PyNativeFunction::call_fast_ptrs ← rt_call_raw_ptrs ← PyInit_test ← main ← __libc_start_main_impl ← _start	0.452s	test	test.<module>.0:0.Sieve.8:0.step3.43:4	[Unknown]	0x3e8e0
+    ↖ test.<module>.0:0.Sieve.8:0.step2.38:4 ← rt_call_method_ic_ptrs ← test.<module>.0:0.Sieve.8:0.loop_y.48:4 ← rt_call_method_ic_ptrs ← test.<module>.0:0.Sieve.8:0.loop_x.56:4 ← rt_call_method_ic_ptrs ← test.<module>.0:0.Sieve.8:0.calc.64:4 ← rt_call_method_ic_ptrs ← test.<module>.0:0.find.84:0 ← py::PyNativeFunction::call_fast_ptrs ← rt_call_raw_ptrs ← test.<module>.0:0.run_stress_test.141:0 ← py::PyNativeFunction::call_fast_ptrs ← rt_call_raw_ptrs ← PyInit_test ← main ← __libc_start_main_impl ← _start	0.403s	test	test.<module>.0:0.Sieve.8:0.step2.38:4	[Unknown]	0x3e720
+    ↖ test.<module>.0:0.Sieve.8:0.to_list.14:4 ← rt_call_method_ic_ptrs ← test.<module>.0:0.find.84:0 ← py::PyNativeFunction::call_fast_ptrs ← rt_call_raw_ptrs ← test.<module>.0:0.run_stress_test.141:0 ← py::PyNativeFunction::call_fast_ptrs ← rt_call_raw_ptrs ← PyInit_test ← main ← __libc_start_main_impl ← _start	0.172s	test	test.<module>.0:0.Sieve.8:0.to_list.14:4	[Unknown]	0x3e0e0
+    ↖ test.<module>.0:0.find.84:0 ← py::PyNativeFunction::call_fast_ptrs ← rt_call_raw_ptrs ← test.<module>.0:0.run_stress_test.141:0 ← py::PyNativeFunction::call_fast_ptrs ← rt_call_raw_ptrs ← PyInit_test ← main ← __libc_start_main_impl ← _start	0.011s	test	test.<module>.0:0.find.84:0	[Unknown]	0x3f220
+  rt_compare_le	0.653s	test	rt_compare_le(py::PyObject*, py::PyObject*)	rt_cmp.cpp	0x41e10
+    ↖ test.<module>.0:0.Sieve.8:0.step1.33:4 ← rt_call_method_ic_ptrs ← test.<module>.0:0.Sieve.8:0.loop_y.48:4 ← rt_call_method_ic_ptrs ← test.<module>.0:0.Sieve.8:0.loop_x.56:4 ← rt_call_method_ic_ptrs ← test.<module>.0:0.Sieve.8:0.calc.64:4 ← rt_call_method_ic_ptrs ← test.<module>.0:0.find.84:0 ← py::PyNativeFunction::call_fast_ptrs ← rt_call_raw_ptrs ← test.<module>.0:0.run_stress_test.141:0 ← py::PyNativeFunction::call_fast_ptrs ← rt_call_raw_ptrs ← PyInit_test ← main ← __libc_start_main_impl ← _start	0.247s	test	test.<module>.0:0.Sieve.8:0.step1.33:4	[Unknown]	0x3e4f0
+    ↖ test.<module>.0:0.Sieve.8:0.step2.38:4 ← rt_call_method_ic_ptrs ← test.<module>.0:0.Sieve.8:0.loop_y.48:4 ← rt_call_method_ic_ptrs ← test.<module>.0:0.Sieve.8:0.loop_x.56:4 ← rt_call_method_ic_ptrs ← test.<module>.0:0.Sieve.8:0.calc.64:4 ← rt_call_method_ic_ptrs ← test.<module>.0:0.find.84:0 ← py::PyNativeFunction::call_fast_ptrs ← rt_call_raw_ptrs ← test.<module>.0:0.run_stress_test.141:0 ← py::PyNativeFunction::call_fast_ptrs ← rt_call_raw_ptrs ← PyInit_test ← main ← __libc_start_main_impl ← _start	0.228s	test	test.<module>.0:0.Sieve.8:0.step2.38:4	[Unknown]	0x3e720
+    ↖ test.<module>.0:0.Sieve.8:0.step3.43:4 ← rt_call_method_ic_ptrs ← test.<module>.0:0.Sieve.8:0.loop_y.48:4 ← rt_call_method_ic_ptrs ← test.<module>.0:0.Sieve.8:0.loop_x.56:4 ← rt_call_method_ic_ptrs ← test.<module>.0:0.Sieve.8:0.calc.64:4 ← rt_call_method_ic_ptrs ← test.<module>.0:0.find.84:0 ← py::PyNativeFunction::call_fast_ptrs ← rt_call_raw_ptrs ← test.<module>.0:0.run_stress_test.141:0 ← py::PyNativeFunction::call_fast_ptrs ← rt_call_raw_ptrs ← PyInit_test ← main ← __libc_start_main_impl ← _start	0.178s	test	test.<module>.0:0.Sieve.8:0.step3.43:4	[Unknown]	0x3e8e0
+  rt_binary_mod	0.365s	test	rt_binary_mod(py::PyObject*, py::PyObject*)	rt_op.cpp	0x4e950
+    ↖ test.<module>.0:0.Sieve.8:0.step1.33:4 ← rt_call_method_ic_ptrs ← test.<module>.0:0.Sieve.8:0.loop_y.48:4 ← rt_call_method_ic_ptrs ← test.<module>.0:0.Sieve.8:0.loop_x.56:4 ← rt_call_method_ic_ptrs ← test.<module>.0:0.Sieve.8:0.calc.64:4 ← rt_call_method_ic_ptrs ← test.<module>.0:0.find.84:0 ← py::PyNativeFunction::call_fast_ptrs ← rt_call_raw_ptrs ← test.<module>.0:0.run_stress_test.141:0 ← py::PyNativeFunction::call_fast_ptrs ← rt_call_raw_ptrs ← PyInit_test ← main ← __libc_start_main_impl ← _start	0.206s	test	test.<module>.0:0.Sieve.8:0.step1.33:4	[Unknown]	0x3e4f0
+    ↖ test.<module>.0:0.Sieve.8:0.step2.38:4 ← rt_call_method_ic_ptrs ← test.<module>.0:0.Sieve.8:0.loop_y.48:4 ← rt_call_method_ic_ptrs ← test.<module>.0:0.Sieve.8:0.loop_x.56:4 ← rt_call_method_ic_ptrs ← test.<module>.0:0.Sieve.8:0.calc.64:4 ← rt_call_method_ic_ptrs ← test.<module>.0:0.find.84:0 ← py::PyNativeFunction::call_fast_ptrs ← rt_call_raw_ptrs ← test.<module>.0:0.run_stress_test.141:0 ← py::PyNativeFunction::call_fast_ptrs ← rt_call_raw_ptrs ← PyInit_test ← main ← __libc_start_main_impl ← _start	0.136s	test	test.<module>.0:0.Sieve.8:0.step2.38:4	[Unknown]	0x3e720
+    ↖ test.<module>.0:0.Sieve.8:0.step3.43:4 ← rt_call_method_ic_ptrs ← test.<module>.0:0.Sieve.8:0.loop_y.48:4 ← rt_call_method_ic_ptrs ← test.<module>.0:0.Sieve.8:0.loop_x.56:4 ← rt_call_method_ic_ptrs ← test.<module>.0:0.Sieve.8:0.calc.64:4 ← rt_call_method_ic_ptrs ← test.<module>.0:0.find.84:0 ← py::PyNativeFunction::call_fast_ptrs ← rt_call_raw_ptrs ← test.<module>.0:0.run_stress_test.141:0 ← py::PyNativeFunction::call_fast_ptrs ← rt_call_raw_ptrs ← PyInit_test ← main ← __libc_start_main_impl ← _start	0.023s	test	test.<module>.0:0.Sieve.8:0.step3.43:4	[Unknown]	0x3e8e0
+  rt_compare_lt_bool	0.326s	test	rt_compare_lt_bool(py::PyObject*, py::PyObject*)	rt_fused.cpp	0x48030
+    ↖ test.<module>.0:0.Sieve.8:0.loop_y.48:4 ← rt_call_method_ic_ptrs ← test.<module>.0:0.Sieve.8:0.loop_x.56:4 ← rt_call_method_ic_ptrs ← test.<module>.0:0.Sieve.8:0.calc.64:4 ← rt_call_method_ic_ptrs ← test.<module>.0:0.find.84:0 ← py::PyNativeFunction::call_fast_ptrs ← rt_call_raw_ptrs ← test.<module>.0:0.run_stress_test.141:0 ← py::PyNativeFunction::call_fast_ptrs ← rt_call_raw_ptrs ← PyInit_test ← main ← __libc_start_main_impl ← _start	0.306s	test	test.<module>.0:0.Sieve.8:0.loop_y.48:4	[Unknown]	0x3ead0
+    ↖ test.<module>.0:0.Sieve.8:0.omit_squares.22:4 ← rt_call_method_ic_ptrs ← test.<module>.0:0.Sieve.8:0.calc.64:4 ← rt_call_method_ic_ptrs ← test.<module>.0:0.find.84:0 ← py::PyNativeFunction::call_fast_ptrs ← rt_call_raw_ptrs ← test.<module>.0:0.run_stress_test.141:0 ← py::PyNativeFunction::call_fast_ptrs ← rt_call_raw_ptrs ← PyInit_test ← main ← __libc_start_main_impl ← _start	0.019s	test	test.<module>.0:0.Sieve.8:0.omit_squares.22:4	[Unknown]	0x3e350
+  ↖ rt_compare_gt ← test.<module>.0:0.Sieve.8:0.step3.43:4 ← rt_call_method_ic_ptrs ← test.<module>.0:0.Sieve.8:0.loop_y.48:4 ← rt_call_method_ic_ptrs ← test.<module>.0:0.Sieve.8:0.loop_x.56:4 ← rt_call_method_ic_ptrs ← test.<module>.0:0.Sieve.8:0.calc.64:4 ← rt_call_method_ic_ptrs ← test.<module>.0:0.find.84:0 ← py::PyNativeFunction::call_fast_ptrs ← rt_call_raw_ptrs ← test.<module>.0:0.run_stress_test.141:0 ← py::PyNativeFunction::call_fast_ptrs ← rt_call_raw_ptrs ← PyInit_test ← main ← __libc_start_main_impl ← _start	0.272s	test	rt_compare_gt(py::PyObject*, py::PyObject*)	rt_cmp.cpp	0x41e40
+  ↖ rt_binary_sub ← test.<module>.0:0.Sieve.8:0.step3.43:4 ← rt_call_method_ic_ptrs ← test.<module>.0:0.Sieve.8:0.loop_y.48:4 ← rt_call_method_ic_ptrs ← test.<module>.0:0.Sieve.8:0.loop_x.56:4 ← rt_call_method_ic_ptrs ← test.<module>.0:0.Sieve.8:0.calc.64:4 ← rt_call_method_ic_ptrs ← test.<module>.0:0.find.84:0 ← py::PyNativeFunction::call_fast_ptrs ← rt_call_raw_ptrs ← test.<module>.0:0.run_stress_test.141:0 ← py::PyNativeFunction::call_fast_ptrs ← rt_call_raw_ptrs ← PyInit_test ← main ← __libc_start_main_impl ← _start	0.260s	test	rt_binary_sub(py::PyObject*, py::PyObject*)	rt_op.cpp	0x4e320
+  rt_list_getitem_i64	0.206s	test	rt_list_getitem_i64(py::PyObject*, py::PyObject*)	rt_fused.cpp	0x483a0
+  ↖ rt_inplace_add ← test.<module>.0:0.Sieve.8:0.loop_y.48:4 ← rt_call_method_ic_ptrs ← test.<module>.0:0.Sieve.8:0.loop_x.56:4 ← rt_call_method_ic_ptrs ← test.<module>.0:0.Sieve.8:0.calc.64:4 ← rt_call_method_ic_ptrs ← test.<module>.0:0.find.84:0 ← py::PyNativeFunction::call_fast_ptrs ← rt_call_raw_ptrs ← test.<module>.0:0.run_stress_test.141:0 ← py::PyNativeFunction::call_fast_ptrs ← rt_call_raw_ptrs ← PyInit_test ← main ← __libc_start_main_impl ← _start	0.205s	test	rt_inplace_add(py::PyObject*, py::PyObject*)	rt_op.cpp	0x4f780
+  rt_binary_add	0.199s	test	rt_binary_add(py::PyObject*, py::PyObject*)	rt_op.cpp	0x4e190
+  rt_compare_eq	0.121s	test	rt_compare_eq(py::PyObject*, py::PyObject*)	rt_cmp.cpp	0x41d80
+  rt_unary_not	0.039s	test	rt_unary_not(py::PyObject*)	rt_op.cpp	0x4f740
+  ↖ rt_setitem_fast ← test.<module>.0:0.Sieve.8:0.omit_squares.22:4 ← rt_call_method_ic_ptrs ← test.<module>.0:0.Sieve.8:0.calc.64:4 ← rt_call_method_ic_ptrs ← test.<module>.0:0.find.84:0 ← py::PyNativeFunction::call_fast_ptrs ← rt_call_raw_ptrs ← test.<module>.0:0.run_stress_test.141:0 ← py::PyNativeFunction::call_fast_ptrs ← rt_call_raw_ptrs ← PyInit_test ← main ← __libc_start_main_impl ← _start	0.012s	test	rt_setitem_fast(py::PyObject*, py::PyObject*, py::PyObject*)	rt_fused.cpp	0x4aa00
+__memmove_avx_unaligned_erms	4.059s	libc.so.6	__memmove_avx_unaligned_erms	memmove-vec-unaligned-erms.S	0x188a80
+  ↖ rt_list_insert_0_tuple2 ← test.<module>.0:0.find.84:0 ← py::PyNativeFunction::call_fast_ptrs ← rt_call_raw_ptrs ← test.<module>.0:0.run_stress_test.141:0 ← py::PyNativeFunction::call_fast_ptrs ← rt_call_raw_ptrs ← PyInit_test ← main ← __libc_start_main_impl ← _start	3.908s	test	rt_list_insert_0_tuple2(py::PyObject*, py::PyObject*, py::PyObject*)	rt_fused.cpp	0x49290
+  ↖ rt_call_method_ic_ptrs ← test.<module>.0:0.Sieve.8:0.loop_y.48:4 ← rt_call_method_ic_ptrs ← test.<module>.0:0.Sieve.8:0.loop_x.56:4 ← rt_call_method_ic_ptrs ← test.<module>.0:0.Sieve.8:0.calc.64:4 ← rt_call_method_ic_ptrs ← test.<module>.0:0.find.84:0 ← py::PyNativeFunction::call_fast_ptrs ← rt_call_raw_ptrs ← test.<module>.0:0.run_stress_test.141:0 ← py::PyNativeFunction::call_fast_ptrs ← rt_call_raw_ptrs ← PyInit_test ← main ← __libc_start_main_impl ← _start	0.132s	test	rt_call_method_ic_ptrs(py::cache::MethodCache*, py::PyObject*, char const*, py::PyObject**, int, py::PyObject*)	rt_method_cache.cpp	0x55780
+  ↖ py::PyObject::init_fast_ptrs ← py::PyType::call_fast_ptrs ← rt_call_raw_ptrs ← test.<module>.0:0.find.84:0 ← py::PyNativeFunction::call_fast_ptrs ← rt_call_raw_ptrs ← test.<module>.0:0.run_stress_test.141:0 ← py::PyNativeFunction::call_fast_ptrs ← rt_call_raw_ptrs ← PyInit_test ← main ← __libc_start_main_impl ← _start	0.011s	test	py::PyObject::init_fast_ptrs(py::PyObject**, unsigned long, py::PyDict*)	PyObject.cpp	0x195b10
+  ↖ _dwarf_memcpy_noswap_bytes ← _dwarf_extract_address_from_debug_addr ← _dwarf_look_in_local_and_tied_by_index ← build_array_of_rle ← _dwarf_fill_in_rle_head ← dwarf_rnglists_get_rle_head ← _ZNK8cpptrace6detail8libdwarf10die_object4wrapIJP17Dwarf_Attribute_styPP21Dwarf_Rnglists_Head_sPyS9_PP13Dwarf_Error_sEJRS5_RtRyS8_S9_S9_ETnNSt9enable_ifIXsr3std7is_sameIDTcvvclclsr3stdE7declvalIFiDpT_EEEspclsr3stdE7forwardIT0_Eclsr3stdE7declvalISK_EEELDnEEEvEE5valueEiE4typeELi0EEEiPSJ_DpOSK_ ← cpptrace::detail::libdwarf::die_object::dwarf5_ranges<cpptrace::detail::libdwarf::die_object::pc_in_die(cpptrace::detail::libdwarf::die_object const&, int, unsigned long long) constconst::{lambda(unsigned long longunsigned long long)#1}> ← cpptrace::detail::libdwarf::die_object::dwarf_ranges<cpptrace::detail::libdwarf::die_object::pc_in_die(cpptrace::detail::libdwarf::die_object const&, int, unsigned long long) constconst::{lambda(unsigned long longunsigned long long)#1}> ← cpptrace::detail::libdwarf::die_object::pc_in_die ...	0.008s	test	_dwarf_memcpy_noswap_bytes	dwarf_memcpy_swap.c	0x54bff0
+rt_list_getitem_i64	3.281s	test	rt_list_getitem_i64(py::PyObject*, py::PyObject*)	rt_fused.cpp	0x483a0
+  ↖ test.<module>.0:0.Sieve.8:0.step1.33:4 ← rt_call_method_ic_ptrs ← test.<module>.0:0.Sieve.8:0.loop_y.48:4 ← rt_call_method_ic_ptrs ← test.<module>.0:0.Sieve.8:0.loop_x.56:4 ← rt_call_method_ic_ptrs ← test.<module>.0:0.Sieve.8:0.calc.64:4 ← rt_call_method_ic_ptrs ← test.<module>.0:0.find.84:0 ← py::PyNativeFunction::call_fast_ptrs ← rt_call_raw_ptrs ← test.<module>.0:0.run_stress_test.141:0 ← py::PyNativeFunction::call_fast_ptrs ← rt_call_raw_ptrs ← PyInit_test ← main ← __libc_start_main_impl ← _start	1.708s	test	test.<module>.0:0.Sieve.8:0.step1.33:4	[Unknown]	0x3e4f0
+  ↖ test.<module>.0:0.Sieve.8:0.step2.38:4 ← rt_call_method_ic_ptrs ← test.<module>.0:0.Sieve.8:0.loop_y.48:4 ← rt_call_method_ic_ptrs ← test.<module>.0:0.Sieve.8:0.loop_x.56:4 ← rt_call_method_ic_ptrs ← test.<module>.0:0.Sieve.8:0.calc.64:4 ← rt_call_method_ic_ptrs ← test.<module>.0:0.find.84:0 ← py::PyNativeFunction::call_fast_ptrs ← rt_call_raw_ptrs ← test.<module>.0:0.run_stress_test.141:0 ← py::PyNativeFunction::call_fast_ptrs ← rt_call_raw_ptrs ← PyInit_test ← main ← __libc_start_main_impl ← _start	0.676s	test	test.<module>.0:0.Sieve.8:0.step2.38:4	[Unknown]	0x3e720
+  ↖ test.<module>.0:0.Sieve.8:0.step3.43:4 ← rt_call_method_ic_ptrs ← test.<module>.0:0.Sieve.8:0.loop_y.48:4 ← rt_call_method_ic_ptrs ← test.<module>.0:0.Sieve.8:0.loop_x.56:4 ← rt_call_method_ic_ptrs ← test.<module>.0:0.Sieve.8:0.calc.64:4 ← rt_call_method_ic_ptrs ← test.<module>.0:0.find.84:0 ← py::PyNativeFunction::call_fast_ptrs ← rt_call_raw_ptrs ← test.<module>.0:0.run_stress_test.141:0 ← py::PyNativeFunction::call_fast_ptrs ← rt_call_raw_ptrs ← PyInit_test ← main ← __libc_start_main_impl ← _start	0.420s	test	test.<module>.0:0.Sieve.8:0.step3.43:4	[Unknown]	0x3e8e0
+  ↖ test.<module>.0:0.Sieve.8:0.to_list.14:4 ← rt_call_method_ic_ptrs ← test.<module>.0:0.find.84:0 ← py::PyNativeFunction::call_fast_ptrs ← rt_call_raw_ptrs ← test.<module>.0:0.run_stress_test.141:0 ← py::PyNativeFunction::call_fast_ptrs ← rt_call_raw_ptrs ← PyInit_test ← main ← __libc_start_main_impl ← _start	0.334s	test	test.<module>.0:0.Sieve.8:0.to_list.14:4	[Unknown]	0x3e0e0
+  ↖ test.<module>.0:0.generate_trie.70:0 ← py::PyNativeFunction::call_fast_ptrs ← rt_call_raw_ptrs ← test.<module>.0:0.find.84:0 ← py::PyNativeFunction::call_fast_ptrs ← rt_call_raw_ptrs ← test.<module>.0:0.run_stress_test.141:0 ← py::PyNativeFunction::call_fast_ptrs ← rt_call_raw_ptrs ← PyInit_test ← main ← __libc_start_main_impl ← _start	0.144s	test	test.<module>.0:0.generate_trie.70:0	[Unknown]	0x3eed0
+rt_call_method_ic_ptrs	3.022s	test	rt_call_method_ic_ptrs(py::cache::MethodCache*, py::PyObject*, char const*, py::PyObject**, int, py::PyObject*)	rt_method_cache.cpp	0x55780
+  ↖ test.<module>.0:0.Sieve.8:0.loop_y.48:4 ← rt_call_method_ic_ptrs ← test.<module>.0:0.Sieve.8:0.loop_x.56:4 ← rt_call_method_ic_ptrs ← test.<module>.0:0.Sieve.8:0.calc.64:4 ← rt_call_method_ic_ptrs ← test.<module>.0:0.find.84:0 ← py::PyNativeFunction::call_fast_ptrs ← rt_call_raw_ptrs ← test.<module>.0:0.run_stress_test.141:0 ← py::PyNativeFunction::call_fast_ptrs ← rt_call_raw_ptrs ← PyInit_test ← main ← __libc_start_main_impl ← _start	2.932s	test	test.<module>.0:0.Sieve.8:0.loop_y.48:4	[Unknown]	0x3ead0
+  ↖ test.<module>.0:0.Sieve.8:0.to_list.14:4 ← rt_call_method_ic_ptrs ← test.<module>.0:0.find.84:0 ← py::PyNativeFunction::call_fast_ptrs ← rt_call_raw_ptrs ← test.<module>.0:0.run_stress_test.141:0 ← py::PyNativeFunction::call_fast_ptrs ← rt_call_raw_ptrs ← PyInit_test ← main ← __libc_start_main_impl ← _start	0.058s	test	test.<module>.0:0.Sieve.8:0.to_list.14:4	[Unknown]	0x3e0e0
+  ↖ test.<module>.0:0.find.84:0 ← py::PyNativeFunction::call_fast_ptrs ← rt_call_raw_ptrs ← test.<module>.0:0.run_stress_test.141:0 ← py::PyNativeFunction::call_fast_ptrs ← rt_call_raw_ptrs ← PyInit_test ← main ← __libc_start_main_impl ← _start	0.031s	test	test.<module>.0:0.find.84:0	[Unknown]	0x3f220
 
-2. `RtValue` 的 tagged int 优化只优化了“算术结果”，没有优化“程序结构”。
-`rt_binary_mul/mod/add/...` 最终会进 `RtValue` 快路径，见 [RtValue.cpp](/home/lux/code/language/python-cpp/src/runtime/taggered_pointer/RtValue.cpp#L110) 起；但每轮循环前后仍然要频繁 `flatten` / `box` / `PyObject* -> Value -> PyObject*`。`vtune` 第一热点就是 `py::RtValue::flatten`，这和 [RtValue.cpp](/home/lux/code/language/python-cpp/src/runtime/taggered_pointer/RtValue.cpp#L75) 完全一致。说明你现在是在“用很快的整数实现，支撑一个仍然很慢的对象执行模型”。
 
-3. `Value` 的哈希和相等比较非常重，直接拖慢 `dict`/`children` 访问。
-`vtune` 里有 `ValueEq::operator()`, `ValueHash::operator()`, `ordered_hash`, `PyObject::hash`, `PyObject::richcompare`。对应代码在 [PyObject.cpp](/home/lux/code/language/python-cpp/src/runtime/PyObject.cpp#L83) 到 [PyObject.cpp](/home/lux/code/language/python-cpp/src/runtime/PyObject.cpp#L125) 和 [PyObject.cpp](/home/lux/code/language/python-cpp/src/runtime/PyObject.cpp#L554) 到 [PyObject.cpp](/home/lux/code/language/python-cpp/src/runtime/PyObject.cpp#L712)。  
-问题本质是：`head.children[ch]` 这种本该是“单字符 key 的简单 map 访问”，现在要走 variant 访问、对象 hash、对象 richcompare、truthy 判断，成本远超 CPython 对 unicode/int 的高度专门化实现。
-
-4. `generate_trie()` 阶段存在海量对象分配，而且每个 `Node` 都触发完整的 Python 对象初始化链。
-`Node.__init__` 在 [test.py](/home/lux/code/language/python-cpp/test.py#L4) 到 [test.py](/home/lux/code/language/python-cpp/test.py#L7)，而 `generate_trie` 在 [test.py](/home/lux/code/language/python-cpp/test.py#L72) 到 [test.py](/home/lux/code/language/python-cpp/test.py#L84)。  
-日志直接证明了这里在狂分配：
-`PyDict`, `PyTuple`, `Type`, `PyString`, `PyInteger` 持续暴涨，且堆栈都指向 `generate_trie -> Node() -> __init__ -> __setattribute__`。  
-对应慢路径在 [PyType::call_raw](/home/lux/code/language/python-cpp/src/runtime/PyObject.cpp#L1293)、[PyObject::init_raw](/home/lux/code/language/python-cpp/src/runtime/PyObject.cpp#L1358)、[PyObject::__setattribute__](/home/lux/code/language/python-cpp/src/runtime/PyObject.cpp#L1636)。  
-尤其是第一次给实例赋属性时会分配 `m_attributes` 字典，见 [PyObject.cpp](/home/lux/code/language/python-cpp/src/runtime/PyObject.cpp#L1660) 到 [PyObject.cpp](/home/lux/code/language/python-cpp/src/runtime/PyObject.cpp#L1674)。  
-这会让每个 `Node` 至少带来：
-实例对象 + `__dict__` + 类型相关对象访问 + 两次属性写入。  
-你这里 trie 节点数很可能是几十万量级，所以这一块单独就足以吃掉数秒。
-
-5. 生成的 IR 在 trie 遍历阶段仍然充满容器对象构造。
-在 [test.ll](/home/lux/code/language/python-cpp/test.ll#L1240) 到 [test.ll](/home/lux/code/language/python-cpp/test.ll#L1264)，初始化 `queue, result = [(head, str_prefix)], []` 被编译成 `build_tuple + build_list + build_list + build_tuple + unpack_sequence`。  
-在 [test.ll](/home/lux/code/language/python-cpp/test.ll#L1417) 到 [test.ll](/home/lux/code/language/python-cpp/test.ll#L1451)，`queue.insert(0, (v, new_prefix))` 每次都在构造新 tuple。  
-这不是“小损耗”，而是把 Python 容器协议原封不动搬进了热路径。
-
-6. 你的测试环境本身也很可能放大了慢速。
-[compat.hpp](/home/lux/code/language/python-cpp/src/runtime/compat.hpp#L8) 到 [compat.hpp](/home/lux/code/language/python-cpp/src/runtime/compat.hpp#L54) 表明当前不是 `NDEBUG` 构建时会启用分配日志和堆栈追踪；`log.log` 里也确实出现了大量 `[DEBUG_ALLOC_TRACE]`。如果 12s 是在这个配置下测得，那这个数字本身就被“调试日志 + cpptrace”严重污染，不能和 release CPython 2s 公平比较。
-
-**为什么 CPython 反而更快**
-
-不是因为 CPython 算法更好，而是因为它对这些热点有专门优化，而你当前 AOT 输出没有真正“脱 Python”：
-
-- CPython 对 `int`、`str`、`dict`、`list`、方法绑定、属性访问都有高度专门化实现。
-- 你的 AOT 程序虽然是 native binary，但逻辑层面仍在频繁调用通用 runtime API。
-- 结果就是“编译成了 ELF，但执行模型还是解释器式对象机”。
-
-**怎么才能真正做到 2s 甚至更少**
-
-先说结论：只修补 `RtValue`、再加几个 fast path，不够。想稳定打到 2s，必须做“编译器级去动态化”。
-
-1. 先把性能测试改成干净基线。
-必须用 `-DNDEBUG`、关闭 `PYLANG_ALLOC_LOG_FREQ/PYLANG_ALLOC_TRACE_FREQ`、关闭测试里的 `print`。不然你测到的是“调试运行时性能”，不是 AOT 性能。
-
-2. 对 `Sieve` 做方法内联和对象字段去虚拟化。
-`self.step1/2/3`、`self.loop_y`、`self.limit`、`self.prime` 都是静态可知的。
-理想输出应把 [test.py](/home/lux/code/language/python-cpp/test.py#L49) 到 [test.py](/home/lux/code/language/python-cpp/test.py#L69) 直接降成一个原生循环：
-- `x`, `y`, `n`, `limit` 变成裸 `i64`
-- `prime` 变成裸数组/bitset 指针
-- 不再出现 `rt_call_method_raw_ptrs`
-- 不再出现 `rt_getattr_fast(self, "limit"/"prime")`
-
-这是最重要的一步，单这一项就可能带来数量级收益。
-
-3. 给 `list[bool]` 或筛法布尔数组专门表示。
-现在 `self.prime = [False] * (limit + 1)` 仍然是 Python list 语义。  
-如果编译器能证明这个 list 只用于整数下标读写布尔值，就应降成：
-- `uint8_t*`
-- 或 bitset
-- 或 `std::vector<uint8_t>`
-这样 `self.prime[n] = not self.prime[n]` 就是一次 load/xor/store，而不是 Python 下标协议。
-
-4. 不要构建 `Node` Python 对象 trie，改成专门前缀过滤算法。
-这段 workload 的目标只是找以 `32338` 开头的素数，根本不需要建整棵 trie。  
-最直接的高性能方案：
-- 在 `to_list()` 或筛结果遍历时，直接判断十进制前缀
-- 或维护 `[prefix*10^k, (prefix+1)*10^k)` 区间
-- 或把 prime 转字符串前先做数值过滤
-
-如果保留 trie，也必须把 `Node` 降成原生 struct：
-- `bool terminal`
-- 固定 10-way child 索引数组，或紧凑 `small_vector<pair<char,node_id>>`
-- 不要 `children = {}` 的 Python dict
-- 不要实例 `__dict__`
-- 不要 `Node()` 走 `PyType::call_raw`
-
-这一项对当前测试的收益会非常大，因为现在日志已经显示 `generate_trie` 是对象分配地狱。
-
-5. 给 AOT 类实例提供“静态字段布局”，禁用通用 `__dict__`。
-像 `Node.children`, `Node.terminal`, `Sieve.limit`, `Sieve.prime` 这些字段在编译期已知。  
-应当给 AOT class 生成固定 layout，而不是在 [PyObject::__setattribute__](/home/lux/code/language/python-cpp/src/runtime/PyObject.cpp#L1636) 里通过 `m_attributes` 字典存。  
-也就是：
-- 读取字段直接偏移 load
-- 写字段直接偏移 store
-- 无需 `type()->lookup(attribute)`
-- 无需 `PyDict::create()`
-- 无需 `ValueHash/ValueEq`
-
-这是你运行时当前最大的结构性浪费之一。
-
-6. 给单字符字符串和小整数 key 做专门 dict fast path。
-如果短期内还不能把 trie 改写成原生结构，至少要把 `children[ch]` 优化掉：
-- intern 后的单字符字符串可用 pointer identity 比较
-- hash 可缓存
-- `ValueEq` 不要回到 `richcompare`
-- `dict[str->PyObject*]` 单独走专门模板，不走通用 `Value`
-
-否则 `ValueHash/ValueEq/richcompare` 会一直是热点。
-
-7. 消灭 `rt_value_array_get -> PyObject::from(Value)` 这类参数装箱往返。
-[rt_value_array_get](/home/lux/code/language/python-cpp/src/runtime/export/rt_func.cpp#L106) 每次取参数都会把 `Value` 再转成 `PyObject*`。  
-如果函数已知参数是整数/对象，应直接按 lowering 后的原生 ABI 传参，不该再走 `Value` 容器。
-
-**优先级建议**
-
-如果你想最快接近 CPython 2s，我建议按这个顺序做：
-
-1. `release` 测试，去掉调试日志和打印。
-2. 编译器把 `Sieve.loop_x/loop_y/step1/2/3/omit_squares` 全部内联成原生循环。
-3. `prime` 降成裸布尔数组/bitset。
-4. 不再构建 Python `Node` trie，直接做前缀筛选。
-5. 若必须保留 trie，再做 AOT struct + 静态字段布局。
-6. 最后才是继续抠 `RtValue`、`ValueHash`、`call_raw` 这类运行时微优化。
-
-**一句话判断**
-
-你现在慢，不是因为少了几个 fast path；而是因为 AOT 编译器还没有把这个程序从“Python 对象程序”降成“原生数据程序”。  
-只要 `test.ll` 里还到处是 `rt_call_method_raw_ptrs`、`rt_getattr_fast`、`rt_build_tuple/list`、`rt_value_array_get`，就很难打过 CPython。想进 2s，必须让热路径里这些调用基本消失。
-
-如果你愿意，我下一步可以继续直接帮你做两件事中的一个：
-
-1. 先只做“分析落地版”，列出你编译器需要新增的 lowering/inlining/speculation 规则。
-2. 直接在当前代码库里挑一个收益最大的点开改，比如“AOT 类静态字段布局”或“筛法循环原生化”。
+Function Stack	CPU Time: Total	CPU Time: Self	Module	Function (Full)	Source File	Start Address
+main	98.6%	0s	test	main	[Unknown]	0x40cd0
+  PyInit_test	96.8%	0s	test	PyInit_test	[Unknown]	0x3d9d0
+    rt_call_raw_ptrs	96.8%	0s	test	rt_call_raw_ptrs(py::PyObject*, py::PyObject**, int, py::PyObject*)	rt_func.cpp	0x467a0
+      py::PyNativeFunction::call_fast_ptrs	96.8%	0s	test	py::PyNativeFunction::call_fast_ptrs(py::PyObject**, unsigned long, py::PyDict*)	PyFunction.cpp	0x141560
+        test.<module>.0:0.run_stress_test.141:0	96.8%	0s	test	test.<module>.0:0.run_stress_test.141:0	[Unknown]	0x3fe90
+          rt_call_raw_ptrs	96.8%	0s	test	rt_call_raw_ptrs(py::PyObject*, py::PyObject**, int, py::PyObject*)	rt_func.cpp	0x467a0
+            py::PyNativeFunction::call_fast_ptrs	96.8%	0s	test	py::PyNativeFunction::call_fast_ptrs(py::PyObject**, unsigned long, py::PyDict*)	PyFunction.cpp	0x141560
+              test.<module>.0:0.find.84:0	96.8%	0s	test	test.<module>.0:0.find.84:0	[Unknown]	0x3f220
+                rt_call_method_ic_ptrs	55.8%	0.031s	test	rt_call_method_ic_ptrs(py::cache::MethodCache*, py::PyObject*, char const*, py::PyObject**, int, py::PyObject*)	rt_method_cache.cpp	0x55780
+                  test.<module>.0:0.Sieve.8:0.calc.64:4	50.0%	0s	test	test.<module>.0:0.Sieve.8:0.calc.64:4	[Unknown]	0x3edd0
+                    rt_call_method_ic_ptrs	50.0%	0s	test	rt_call_method_ic_ptrs(py::cache::MethodCache*, py::PyObject*, char const*, py::PyObject**, int, py::PyObject*)	rt_method_cache.cpp	0x55780
+                      test.<module>.0:0.Sieve.8:0.loop_x.56:4	49.3%	0s	test	test.<module>.0:0.Sieve.8:0.loop_x.56:4	[Unknown]	0x3ec60
+                        rt_call_method_ic_ptrs	49.1%	0s	test	rt_call_method_ic_ptrs(py::cache::MethodCache*, py::PyObject*, char const*, py::PyObject**, int, py::PyObject*)	rt_method_cache.cpp	0x55780
+                          test.<module>.0:0.Sieve.8:0.loop_y.48:4	49.1%	0.139s	test	test.<module>.0:0.Sieve.8:0.loop_y.48:4	[Unknown]	0x3ead0
+                            rt_call_method_ic_ptrs	44.4%	2.932s	test	rt_call_method_ic_ptrs(py::cache::MethodCache*, py::PyObject*, char const*, py::PyObject**, int, py::PyObject*)	rt_method_cache.cpp	0x55780
+                              test.<module>.0:0.Sieve.8:0.step1.33:4	15.3%	0.236s	test	test.<module>.0:0.Sieve.8:0.step1.33:4	[Unknown]	0x3e4f0
+                                rt_list_getitem_i64	3.5%	1.708s	test	rt_list_getitem_i64(py::PyObject*, py::PyObject*)	rt_fused.cpp	0x483a0
+                                rt_is_true_fast	2.6%	0.287s	test	rt_is_true_fast(py::PyObject*)	rt_fused.cpp	0x48230
+                                rt_binary_mul	2.3%	0.539s	test	rt_binary_mul(py::PyObject*, py::PyObject*)	rt_op.cpp	0x4e4b0
+                                rt_binary_mod	1.4%	0.470s	test	rt_binary_mod(py::PyObject*, py::PyObject*)	rt_op.cpp	0x4e950
+                                rt_getattr_ic	1.0%	0.298s	test	rt_getattr_ic(py::cache::AttrCache*, py::PyObject*, py::PyObject*)	rt_attr_cache.cpp	0x53ab0
+                                rt_compare_le	1.0%	0.023s	test	rt_compare_le(py::PyObject*, py::PyObject*)	rt_cmp.cpp	0x41e10
+                                rt_binary_add	0.7%	0.280s	test	rt_binary_add(py::PyObject*, py::PyObject*)	rt_op.cpp	0x4e190
+                                py::RtValue::from_int_or_box	0.7%	0.338s	test	py::RtValue::from_int_or_box(long)	RtValue.cpp	0x56d50
+                                py::RtValue::compare_le	0.4%	0.136s	test	py::RtValue::compare_le(py::RtValue, py::RtValue)	RtValue.cpp	0x58e30
+                                rt_setitem_fast	0.3%	0.066s	test	rt_setitem_fast(py::PyObject*, py::PyObject*, py::PyObject*)	rt_fused.cpp	0x4aa00
+                                py::RtValue::compare_eq	0.2%	0.074s	test	py::RtValue::compare_eq(py::RtValue, py::RtValue)	RtValue.cpp	0x585d0
+                                rt_unary_not	0.2%	0.031s	test	rt_unary_not(py::PyObject*)	rt_op.cpp	0x4f740
+                                rt_value_array_get	0.2%	0.096s	test	rt_value_array_get(py::PyObject**, int)	rt_func.cpp	0x45fe0
+                                rt_compare_eq	0.2%	0.035s	test	rt_compare_eq(py::PyObject*, py::PyObject*)	rt_cmp.cpp	0x41d80
+                                rt_none	0.1%	0.062s	test	rt_none(void)	rt_singleton.cpp	0x51180
+                                rt_integer_from_i64	0.1%	0.032s	test	rt_integer_from_i64(long)	rt_create.cpp	0x43740
+                              test.<module>.0:0.Sieve.8:0.step2.38:4	10.8%	0.152s	test	test.<module>.0:0.Sieve.8:0.step2.38:4	[Unknown]	0x3e720
+                                rt_binary_mul	2.6%	0.635s	test	rt_binary_mul(py::PyObject*, py::PyObject*)	rt_op.cpp	0x4e4b0
+                                  py::RtValue::flatten	1.4%	0.679s	test	py::RtValue::flatten(py::PyObject*)	RtValue.cpp	0x56c40
+                                rt_is_true_fast	1.9%	0.164s	test	rt_is_true_fast(py::PyObject*)	rt_fused.cpp	0x48230
+                                  py::RtValue::flatten	1.5%	0.403s	test	py::RtValue::flatten(py::PyObject*)	RtValue.cpp	0x56c40
+                                    py::types::integer	0.3%	0.155s	test	py::types::integer(void)	builtin.cpp	0xdab60
+                                    py::types::bool_	0.3%	0.151s	test	py::types::bool_(void)	builtin.cpp	0xd85b0
+                                    py::PyBool::value	0.1%	0.062s	test	py::PyBool::value(void) const	gmpxx.h	0x105410
+                                rt_list_getitem_i64	1.4%	0.676s	test	rt_list_getitem_i64(py::PyObject*, py::PyObject*)	rt_fused.cpp	0x483a0
+                                rt_binary_mod	1.0%	0.343s	test	rt_binary_mod(py::PyObject*, py::PyObject*)	rt_op.cpp	0x4e950
+                                rt_compare_le	0.8%	0.031s	test	rt_compare_le(py::PyObject*, py::PyObject*)	rt_cmp.cpp	0x41e10
+                                rt_binary_add	0.8%	0.267s	test	rt_binary_add(py::PyObject*, py::PyObject*)	rt_op.cpp	0x4e190
+                                rt_getattr_ic	0.6%	0.225s	test	rt_getattr_ic(py::cache::AttrCache*, py::PyObject*, py::PyObject*)	rt_attr_cache.cpp	0x53ab0
+                                py::RtValue::from_int_or_box	0.5%	0.247s	test	py::RtValue::from_int_or_box(long)	RtValue.cpp	0x56d50
+                                py::RtValue::compare_le	0.3%	0.089s	test	py::RtValue::compare_le(py::RtValue, py::RtValue)	RtValue.cpp	0x58e30
+                                rt_compare_eq	0.2%	0.024s	test	rt_compare_eq(py::PyObject*, py::PyObject*)	rt_cmp.cpp	0x41d80
+                                rt_value_array_get	0.2%	0.085s	test	rt_value_array_get(py::PyObject**, int)	rt_func.cpp	0x45fe0
+                                py::RtValue::compare_eq	0.1%	0.027s	test	py::RtValue::compare_eq(py::RtValue, py::RtValue)	RtValue.cpp	0x585d0
+                                rt_none	0.1%	0.047s	test	rt_none(void)	rt_singleton.cpp	0x51180
+                                rt_unary_not	0.1%	0.012s	test	rt_unary_not(py::PyObject*)	rt_op.cpp	0x4f740
+                                rt_integer_from_i64	0.1%	0.027s	test	rt_integer_from_i64(long)	rt_create.cpp	0x43740
+                                rt_setitem_fast	0.0%	0s	test	rt_setitem_fast(py::PyObject*, py::PyObject*, py::PyObject*)	rt_fused.cpp	0x4aa00
+                              test.<module>.0:0.Sieve.8:0.step3.43:4	10.6%	0.185s	test	test.<module>.0:0.Sieve.8:0.step3.43:4	[Unknown]	0x3e8e0
+                                rt_is_true_fast	2.6%	0.310s	test	rt_is_true_fast(py::PyObject*)	rt_fused.cpp	0x48230
+                                  py::RtValue::flatten	2.0%	0.452s	test	py::RtValue::flatten(py::PyObject*)	RtValue.cpp	0x56c40
+                                rt_binary_mul	1.9%	0.461s	test	rt_binary_mul(py::PyObject*, py::PyObject*)	rt_op.cpp	0x4e4b0
+                                rt_list_getitem_i64	0.9%	0.420s	test	rt_list_getitem_i64(py::PyObject*, py::PyObject*)	rt_fused.cpp	0x483a0
+                                rt_binary_sub	0.8%	0.151s	test	rt_binary_sub(py::PyObject*, py::PyObject*)	rt_op.cpp	0x4e320
+                                rt_compare_gt	0.7%	0.074s	test	rt_compare_gt(py::PyObject*, py::PyObject*)	rt_cmp.cpp	0x41e40
+                                rt_getattr_ic	0.7%	0.225s	test	rt_getattr_ic(py::cache::AttrCache*, py::PyObject*, py::PyObject*)	rt_attr_cache.cpp	0x53ab0
+                                rt_compare_le	0.6%	0.008s	test	rt_compare_le(py::PyObject*, py::PyObject*)	rt_cmp.cpp	0x41e10
+                                py::RtValue::compare_gt	0.5%	0.198s	test	py::RtValue::compare_gt(py::RtValue, py::RtValue)	RtValue.cpp	0x59070
+                                py::RtValue::from_int_or_box	0.4%	0.202s	test	py::RtValue::from_int_or_box(long)	RtValue.cpp	0x56d50
+                                py::RtValue::compare_le	0.2%	0.073s	test	py::RtValue::compare_le(py::RtValue, py::RtValue)	RtValue.cpp	0x58e30
+                                rt_binary_mod	0.2%	0.073s	test	rt_binary_mod(py::PyObject*, py::PyObject*)	rt_op.cpp	0x4e950
+                                rt_integer_from_i64	0.2%	0.090s	test	rt_integer_from_i64(long)	rt_create.cpp	0x43740
+                                rt_value_array_get	0.2%	0.082s	test	rt_value_array_get(py::PyObject**, int)	rt_func.cpp	0x45fe0
+                                rt_unary_not	0.1%	0.012s	test	rt_unary_not(py::PyObject*)	rt_op.cpp	0x4f740
+                                rt_setitem_fast	0.1%	0.008s	test	rt_setitem_fast(py::PyObject*, py::PyObject*, py::PyObject*)	rt_fused.cpp	0x4aa00
+                                py::RtValue::compare_eq	0.1%	0.035s	test	py::RtValue::compare_eq(py::RtValue, py::RtValue)	RtValue.cpp	0x585d0
+                                py::py_none	0.1%	0.027s	test	py::py_none(void)	PyNone.cpp	0x186d50
+                                rt_none	0.1%	0.027s	test	rt_none(void)	rt_singleton.cpp	0x51180
+                                rt_compare_eq	0.0%	0.012s	test	rt_compare_eq(py::PyObject*, py::PyObject*)	rt_cmp.cpp	0x41d80
+                              py::types::list	0.4%	0.221s	test	py::types::list(void)	builtin.cpp	0xde600
+                              py::types::dict	0.4%	0.213s	test	py::types::dict(void)	builtin.cpp	0xdc480
+                              py::RtValue::box	0.4%	0.190s	test	py::RtValue::box(void) const	RtValue.cpp	0x56b60
+                              __memmove_avx_unaligned_erms	0.3%	0.132s	libc.so.6	__memmove_avx_unaligned_erms	memmove-vec-unaligned-erms.S	0x188a80
+                              py::PyType::global_version	0.2%	0.089s	test	py::PyType::global_version(void)	atomic_base.h	0x20ba30
+                              func@0x39130	0.1%	0.066s	test	func@0x39130	[Unknown]	0x39130
+                              py::types::native_function	0.1%	0.043s	test	py::types::native_function(void)	builtin.cpp	0xe2d30
+                            rt_compare_lt_bool	1.5%	0.144s	test	rt_compare_lt_bool(py::PyObject*, py::PyObject*)	rt_fused.cpp	0x48030
+                            rt_inplace_add	1.0%	0.093s	test	rt_inplace_add(py::PyObject*, py::PyObject*)	rt_op.cpp	0x4f780
+                            rt_binary_mul	1.0%	0.260s	test	rt_binary_mul(py::PyObject*, py::PyObject*)	rt_op.cpp	0x4e4b0
+                            rt_getattr_ic	0.7%	0.299s	test	rt_getattr_ic(py::cache::AttrCache*, py::PyObject*, py::PyObject*)	rt_attr_cache.cpp	0x53ab0
+                            py::RtValue::from_int_or_box	0.2%	0.105s	test	py::RtValue::from_int_or_box(long)	RtValue.cpp	0x56d50
+                            rt_integer_from_i64	0.1%	0.031s	test	rt_integer_from_i64(long)	rt_create.cpp	0x43740
+                        rt_call_raw_ptrs	0.2%	0s	test	rt_call_raw_ptrs(py::PyObject*, py::PyObject**, int, py::PyObject*)	rt_func.cpp	0x467a0
+                        rt_binary_mul	0.0%	0s	test	rt_binary_mul(py::PyObject*, py::PyObject*)	rt_op.cpp	0x4e4b0
+                        rt_binary_mod	0.0%	0.011s	test	rt_binary_mod(py::PyObject*, py::PyObject*)	rt_op.cpp	0x4e950
+                      test.<module>.0:0.Sieve.8:0.omit_squares.22:4	0.7%	0s	test	test.<module>.0:0.Sieve.8:0.omit_squares.22:4	[Unknown]	0x3e350
+                  test.<module>.0:0.Sieve.8:0.to_list.14:4	5.7%	0.151s	test	test.<module>.0:0.Sieve.8:0.to_list.14:4	[Unknown]	0x3e0e0
+                    rt_iter_next	2.6%	0.167s	test	rt_iter_next(py::PyObject*, bool*)	rt_subscr.cpp	0x512b0
+                      py::PyRangeIterator::next_fast	1.8%	0.222s	test	py::PyRangeIterator::next_fast(void)	PyRange.cpp	0x1c1340
+                      py::RtValue::box	0.3%	0.159s	test	py::RtValue::box(void) const	RtValue.cpp	0x56b60
+                      py::RtValue::from_int_or_box	0.1%	0.042s	test	py::RtValue::from_int_or_box(long)	RtValue.cpp	0x56d50
+                      py::types::range_iterator	0.0%	0.023s	test	py::types::range_iterator(void)	builtin.cpp	0xe0bb0
+                    rt_list_getitem_i64	1.1%	0.334s	test	rt_list_getitem_i64(py::PyObject*, py::PyObject*)	rt_fused.cpp	0x483a0
+                    rt_getattr_ic	0.7%	0.233s	test	rt_getattr_ic(py::cache::AttrCache*, py::PyObject*, py::PyObject*)	rt_attr_cache.cpp	0x53ab0
+                    rt_is_true_fast	0.7%	0.117s	test	rt_is_true_fast(py::PyObject*)	rt_fused.cpp	0x48230
+                    rt_call_method_ic_ptrs	0.2%	0.058s	test	rt_call_method_ic_ptrs(py::cache::MethodCache*, py::PyObject*, char const*, py::PyObject**, int, py::PyObject*)	rt_method_cache.cpp	0x55780
+                  py::PyList::sort	0.0%	0s	test	py::PyList::sort(py::PyTuple*, py::PyDict*)	PyList.cpp	0x15cd40
+                rt_call_raw_ptrs	30.7%	0s	test	rt_call_raw_ptrs(py::PyObject*, py::PyObject**, int, py::PyObject*)	rt_func.cpp	0x467a0
+                  py::PyNativeFunction::call_fast_ptrs	27.7%	0s	test	py::PyNativeFunction::call_fast_ptrs(py::PyObject**, unsigned long, py::PyDict*)	PyFunction.cpp	0x141560
+                    test.<module>.0:0.generate_trie.70:0	27.7%	0.066s	test	test.<module>.0:0.generate_trie.70:0	[Unknown]	0x3eed0
+                      rt_call_raw_ptrs	11.0%	0.054s	test	rt_call_raw_ptrs(py::PyObject*, py::PyObject**, int, py::PyObject*)	rt_func.cpp	0x467a0
+                        py::PyType::call_fast_ptrs	10.6%	0.547s	test	py::PyType::call_fast_ptrs(py::PyObject**, unsigned long, py::PyDict*)	PyObject.cpp	0x192ab0
+                          py::PyObject::init_fast_ptrs	4.7%	0.078s	test	py::PyObject::init_fast_ptrs(py::PyObject**, unsigned long, py::PyDict*)	PyObject.cpp	0x195b10
+                            py::PyNativeFunction::call_fast_ptrs	4.6%	0.042s	test	py::PyNativeFunction::call_fast_ptrs(py::PyObject**, unsigned long, py::PyDict*)	PyFunction.cpp	0x141560
+                              test.<module>.0:0.Node.3:0.__init__.4:4	4.5%	0.031s	test	test.<module>.0:0.Node.3:0.__init__.4:4	[Unknown]	0x3dce0
+                                rt_build_dict	3.3%	0.059s	test	rt_build_dict(int, py::PyObject**, py::PyObject**)	rt_create.cpp	0x44420
+                                  py::PyDict::create	3.1%	0.012s	test	py::PyDict::create(void)	PyDict.cpp	0x126df0
+                                  _ZNR2py8PyResultIPNS_6PyDictEE6unwrapEv	0.1%	0.039s	test	_ZNR2py8PyResultIPNS_6PyDictEE6unwrapEv	Value.hpp	0x26c870
+                                rt_setattr_ic	1.1%	0.339s	test	rt_setattr_ic(py::cache::AttrCache*, py::PyObject*, py::PyObject*, py::PyObject*)	rt_attr_cache.cpp	0x54b00
+                                py::py_none	0.0%	0.019s	test	py::py_none(void)	PyNone.cpp	0x186d50
+                                rt_value_array_get	0.0%	0.012s	test	rt_value_array_get(py::PyObject**, int)	rt_func.cpp	0x45fe0
+                            py::PyType::global_version	0.0%	0.008s	test	py::PyType::global_version(void)	atomic_base.h	0x20ba30
+                          py::PyString::create_raw	2.6%	0.012s	test	py::PyString::create_raw(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char>>&&)	PyString.cpp	0x1d4950
+                          py::PyType::heap_object_allocation	1.4%	0.031s	test	py::PyType::heap_object_allocation(py::PyType*)	PyType.cpp	0x24aaf0
+                          std::vector<py::PyObject*, py::GCTracingAllocator<py::PyObject*>>::reserve	0.5%	0.039s	test	std::vector<py::PyObject*, py::GCTracingAllocator<py::PyObject*>>::reserve(unsigned long)	vector.tcc	0x3fd0b0
+                          _ZNR2py8PyResultIPNS_8PyObjectEE6unwrapEv	0.2%	0.083s	test	_ZNR2py8PyResultIPNS_8PyObjectEE6unwrapEv	Value.hpp	0x2647d0
+                          py::PyResult<py::PyObject*>::PyResult<py::PyString*>	0.0%	0.012s	test	py::PyResult<py::PyObject*>::PyResult<py::PyString*>(py::PyResult<py::PyString*> const&)	Value.hpp	0x27a760
+                          py::types::str	0.0%	0.012s	test	py::types::str(void)	builtin.cpp	0xd9ed0
+                          std::_Function_handler<py::PyResult<py::PyObject*> (py::PyType*), py::PyResult<py::PyObject*> (py::PyType*)*>::_M_invoke	0.0%	0.012s	test	std::_Function_handler<py::PyResult<py::PyObject*> (py::PyType*), py::PyResult<py::PyObject*> (py::PyType*)*>::_M_invoke(std::_Any_data const&, py::PyType*&&)	invoke.h	0x49ebc0
+                          py::types::type	0.0%	0.008s	test	py::types::type(void)	builtin.cpp	0xd7d50
+                        _ZNR2py8PyResultIPNS_8PyObjectEE6unwrapEv	0.3%	0.136s	test	_ZNR2py8PyResultIPNS_8PyObjectEE6unwrapEv	Value.hpp	0x2647d0
+                        py::RtValue::box	0.0%	0.016s	test	py::RtValue::box(void) const	RtValue.cpp	0x56b60
+                      rt_load_global	4.1%	0.330s	test	rt_load_global(py::PyObject*, char const*)	rt_attr.cpp	0x40d70
+                      rt_list_getitem_i64	4.0%	0.144s	test	rt_list_getitem_i64(py::PyObject*, py::PyObject*)	rt_fused.cpp	0x483a0
+                      rt_setitem_fast	3.1%	0.031s	test	rt_setitem_fast(py::PyObject*, py::PyObject*, py::PyObject*)	rt_fused.cpp	0x4aa00
+                      rt_iter_next	2.4%	0.194s	test	rt_iter_next(py::PyObject*, bool*)	rt_subscr.cpp	0x512b0
+                      rt_compare_not_in_bool	1.6%	0.726s	test	rt_compare_not_in_bool(py::PyObject*, py::PyObject*)	rt_fused.cpp	0x49bd0
+                      rt_getattr_ic	0.8%	0.341s	test	rt_getattr_ic(py::cache::AttrCache*, py::PyObject*, py::PyObject*)	rt_attr_cache.cpp	0x53ab0
+                      rt_get_iter	0.3%	0s	test	rt_get_iter(py::PyObject*)	rt_subscr.cpp	0x511d0
+                      rt_setattr_ic	0.2%	0.074s	test	rt_setattr_ic(py::cache::AttrCache*, py::PyObject*, py::PyObject*, py::PyObject*)	rt_attr_cache.cpp	0x54b00
+                  py::PyType::call_fast_ptrs	3.0%	0.028s	test	py::PyType::call_fast_ptrs(py::PyObject**, unsigned long, py::PyDict*)	PyObject.cpp	0x192ab0
+                rt_list_insert_0_tuple2	8.5%	0.020s	test	rt_list_insert_0_tuple2(py::PyObject*, py::PyObject*, py::PyObject*)	rt_fused.cpp	0x49290
+                rt_binary_add	1.0%	0s	test	rt_binary_add(py::PyObject*, py::PyObject*)	rt_op.cpp	0x4e190
+                rt_dict_items_iter_for_loop	0.3%	0.055s	test	rt_dict_items_iter_for_loop(py::PyObject*)	rt_subscr.cpp	0x53720
+                rt_is_true_fast	0.2%	0s	test	rt_is_true_fast(py::PyObject*)	rt_fused.cpp	0x48230
+                rt_getattr_ic	0.1%	0.074s	test	rt_getattr_ic(py::cache::AttrCache*, py::PyObject*, py::PyObject*)	rt_attr_cache.cpp	0x53ab0
+                rt_load_global	0.1%	0.012s	test	rt_load_global(py::PyObject*, char const*)	rt_attr.cpp	0x40d70
+                rt_unpack_sequence	0.1%	0s	test	rt_unpack_sequence(py::PyObject*, int, py::PyObject**)	rt_subscr.cpp	0x51830
+                rt_iter_next_unpack2	0.0%	0.011s	test	rt_iter_next_unpack2(py::PyObject*, py::PyObject**, py::PyObject**)	rt_subscr.cpp	0x51920
+                py::py_none	0.0%	0.012s	test	py::py_none(void)	PyNone.cpp	0x186d50

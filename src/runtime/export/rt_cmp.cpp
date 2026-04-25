@@ -14,6 +14,10 @@
 PYLANG_EXPORT_CMP("compare_eq", "obj", "obj,obj")
 py::PyObject *rt_compare_eq(py::PyObject *lhs, py::PyObject *rhs)
 {
+	if (py::RtValue::are_both_tagged_int(lhs, rhs)) {
+		return py::RtValue::raw_as_int(lhs) == py::RtValue::raw_as_int(rhs) ? py::py_true()
+																			: py::py_false();
+	}
 	return py::RtValue::compare_eq(py::RtValue::flatten(lhs), py::RtValue::flatten(rhs))
 		.as_pyobject_raw();
 }
@@ -21,6 +25,10 @@ py::PyObject *rt_compare_eq(py::PyObject *lhs, py::PyObject *rhs)
 PYLANG_EXPORT_CMP("compare_ne", "obj", "obj,obj")
 py::PyObject *rt_compare_ne(py::PyObject *lhs, py::PyObject *rhs)
 {
+	if (py::RtValue::are_both_tagged_int(lhs, rhs)) {
+		return py::RtValue::raw_as_int(lhs) != py::RtValue::raw_as_int(rhs) ? py::py_true()
+																			: py::py_false();
+	}
 	return py::RtValue::compare_ne(py::RtValue::flatten(lhs), py::RtValue::flatten(rhs))
 		.as_pyobject_raw();
 }
@@ -28,6 +36,10 @@ py::PyObject *rt_compare_ne(py::PyObject *lhs, py::PyObject *rhs)
 PYLANG_EXPORT_CMP("compare_lt", "obj", "obj,obj")
 py::PyObject *rt_compare_lt(py::PyObject *lhs, py::PyObject *rhs)
 {
+	if (py::RtValue::are_both_tagged_int(lhs, rhs)) {
+		return py::RtValue::raw_as_int(lhs) < py::RtValue::raw_as_int(rhs) ? py::py_true()
+																		   : py::py_false();
+	}
 	return py::RtValue::compare_lt(py::RtValue::flatten(lhs), py::RtValue::flatten(rhs))
 		.as_pyobject_raw();
 }
@@ -35,6 +47,10 @@ py::PyObject *rt_compare_lt(py::PyObject *lhs, py::PyObject *rhs)
 PYLANG_EXPORT_CMP("compare_le", "obj", "obj,obj")
 py::PyObject *rt_compare_le(py::PyObject *lhs, py::PyObject *rhs)
 {
+	if (py::RtValue::are_both_tagged_int(lhs, rhs)) {
+		return py::RtValue::raw_as_int(lhs) <= py::RtValue::raw_as_int(rhs) ? py::py_true()
+																			: py::py_false();
+	}
 	return py::RtValue::compare_le(py::RtValue::flatten(lhs), py::RtValue::flatten(rhs))
 		.as_pyobject_raw();
 }
@@ -42,6 +58,10 @@ py::PyObject *rt_compare_le(py::PyObject *lhs, py::PyObject *rhs)
 PYLANG_EXPORT_CMP("compare_gt", "obj", "obj,obj")
 py::PyObject *rt_compare_gt(py::PyObject *lhs, py::PyObject *rhs)
 {
+	if (py::RtValue::are_both_tagged_int(lhs, rhs)) {
+		return py::RtValue::raw_as_int(lhs) > py::RtValue::raw_as_int(rhs) ? py::py_true()
+																		   : py::py_false();
+	}
 	return py::RtValue::compare_gt(py::RtValue::flatten(lhs), py::RtValue::flatten(rhs))
 		.as_pyobject_raw();
 }
@@ -49,6 +69,10 @@ py::PyObject *rt_compare_gt(py::PyObject *lhs, py::PyObject *rhs)
 PYLANG_EXPORT_CMP("compare_ge", "obj", "obj,obj")
 py::PyObject *rt_compare_ge(py::PyObject *lhs, py::PyObject *rhs)
 {
+	if (py::RtValue::are_both_tagged_int(lhs, rhs)) {
+		return py::RtValue::raw_as_int(lhs) >= py::RtValue::raw_as_int(rhs) ? py::py_true()
+																			: py::py_false();
+	}
 	return py::RtValue::compare_ge(py::RtValue::flatten(lhs), py::RtValue::flatten(rhs))
 		.as_pyobject_raw();
 }

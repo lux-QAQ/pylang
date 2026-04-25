@@ -83,6 +83,22 @@ class RtValue
 		return (reinterpret_cast<uintptr_t>(a) & reinterpret_cast<uintptr_t>(b) & kIntTag);
 	}
 
+	[[nodiscard]] static constexpr bool raw_is_tagged_int(const PyObject *ptr) noexcept
+	{
+		return (reinterpret_cast<uintptr_t>(ptr) & kTagMask) == kIntTag;
+	}
+
+	[[nodiscard]] static constexpr bool raw_is_heap_object(const PyObject *ptr) noexcept
+	{
+		auto bits = reinterpret_cast<uintptr_t>(ptr);
+		return (bits & kTagMask) == 0 && bits != 0;
+	}
+
+	[[nodiscard]] static constexpr int64_t raw_as_int(const PyObject *ptr) noexcept
+	{
+		return static_cast<int64_t>(reinterpret_cast<uintptr_t>(ptr)) >> kTagShift;
+	}
+
 	/// [新增]：重载版本，用于直接检查 RtValue 包装对象，避免在 RtValue.cpp 中调用 as_ptr()
 	[[nodiscard]] static inline bool are_both_tagged_int(RtValue a, RtValue b) noexcept
 	{
@@ -174,6 +190,10 @@ class MethodCache
 // 用法:
 //   PyObject* real_ptr = ensure_box(raw_ptr);
 // =============================================================================
-[[nodiscard]] inline PyObject *ensure_box(PyObject *ptr) { return RtValue::from_ptr(ptr).box(); }
+[[nodiscard]] inline PyObject *ensure_box(PyObject *ptr)
+{
+	if (!RtValue::raw_is_tagged_int(ptr)) { return ptr; }
+	return RtValue::from_ptr(ptr).box();
+}
 
 }// namespace py

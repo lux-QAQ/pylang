@@ -113,19 +113,6 @@ py::PyObject *rt_call_method_ic_ptrs(py::cache::MethodCache *cache,
 {
 	auto *b_owner = py::ensure_box(owner);
 
-	// [性能优化] 检测自定义 __getattribute__
-	// 旧方法用 get_address (std::function::target<>()) 比较函数指针地址，
-	// 但这在跨翻译单元时不可靠 (模板内 +[] lambda 在不同 TU 中可能获得不同地址)。
-	// 新方法：只有 PyObject* variant (Python 层 def __getattribute__) 或 type 元类才视为自定义。
-	{
-		const auto &ga = b_owner->type()->underlying_type().__getattribute__;
-		if (ga.has_value()) {
-			if (std::holds_alternative<py::PyObject *>(*ga)
-				|| b_owner->type() == py::types::type()) {
-				return rt_call_method_raw_ptrs(owner, method_name, args, argc, kwargs_dict);
-			}
-		}
-	}
 	// ==== 内置方法 Intrinsic fast path ====
 	if (!kwargs_dict || kwargs_dict == py::py_none()) {
 		if (argc == 1) {
@@ -204,6 +191,8 @@ py::PyObject *rt_call_method_ic_ptrs(py::cache::MethodCache *cache,
 	}
 
 	auto *actual_type = b_owner->type();
+	auto *actual_shape = b_owner->shape();
+	const auto actual_type_version = py::PyType::global_version();
 
 	// ==== 1. 读取且比对缓存 (乐观锁加载, PIC) ====
 	for (int i = 0; i < PYLANG_METHOD_CACHE_SLOTS; ++i) {
@@ -211,13 +200,13 @@ py::PyObject *rt_call_method_ic_ptrs(py::cache::MethodCache *cache,
 		uint8_t tag = slot.tag.load(std::memory_order_acquire);
 
 		if (tag != 0) {
-			auto *expected_type = slot.expected_type.load(std::memory_order_acquire);
-			auto *expected_shape = slot.expected_shape.load(std::memory_order_acquire);
-			auto type_version = slot.type_version.load(std::memory_order_acquire);
+			auto *expected_type = slot.expected_type.load(std::memory_order_relaxed);
+			auto *expected_shape = slot.expected_shape.load(std::memory_order_relaxed);
+			auto type_version = slot.type_version.load(std::memory_order_relaxed);
 
 			// 类型以及全局类成员没有变动
-			if (expected_type == actual_type && expected_shape == b_owner->shape()
-				&& type_version == py::PyType::global_version()) {
+			if (expected_type == actual_type && expected_shape == actual_shape
+				&& type_version == actual_type_version) {
 				// 缓存命中! 提取已经解析的 callable
 
 				py::PyDict *kwargs = nullptr;
@@ -241,7 +230,7 @@ py::PyObject *rt_call_method_ic_ptrs(py::cache::MethodCache *cache,
 					for (int j = 0; j < argc; ++j) { final_args[j + 1] = args[j]; }
 				}
 
-				auto *resolved_func = slot.resolved_func.load(std::memory_order_acquire);
+				auto *resolved_func = slot.resolved_func.load(std::memory_order_relaxed);
 
 				// [性能优化] AOT 直接分发: 从 resolved_func 提取 AOT 指针
 				// 不改变结构体大小，避免 LLVM IR 内存布局不匹配
@@ -269,7 +258,17 @@ py::PyObject *rt_call_method_ic_ptrs(py::cache::MethodCache *cache,
 				return rt_unwrap(result);
 			}
 		}
-	NEXT_SLOT:;
+	}
+
+	// [性能优化] 检测自定义 __getattribute__
+	// 缓存命中已由 type_version/shape 守卫保护；只有 miss 时才需要检查完整语义边界。
+	{
+		const auto &ga = actual_type->underlying_type().__getattribute__;
+		if (ga.has_value()) {
+			if (std::holds_alternative<py::PyObject *>(*ga) || actual_type == py::types::type()) {
+				return rt_call_method_raw_ptrs(owner, method_name, args, argc, kwargs_dict);
+			}
+		}
 	}
 
 	// ==== 2. 未命中或缓存失效：调用维护逻辑 ====

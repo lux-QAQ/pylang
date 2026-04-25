@@ -97,22 +97,28 @@ py::PyObject *rt_getattr_ic(py::cache::AttrCache *cache, py::PyObject *obj, py::
 {
 	auto *b_obj = py::ensure_box(obj);
 	auto *name = static_cast<py::PyString *>(name_obj);
+	auto *actual_type = b_obj->type();
+	auto *actual_shape = b_obj->shape();
+	const auto type_version = py::PyType::global_version();
 
-	if (!uses_default_getattribute(b_obj)) { return rt_unwrap(b_obj->getattribute(name)); }
-
+	// Hot path: this cache state is only installed after resolving through the default
+	// getattribute path. A later class mutation must bump the global type version, so a
+	// matching version/shape/type guard is enough to reuse the slot directly.
 	if (cache) {
 		if (cache->kind.load(std::memory_order_acquire) == 1) {
-			auto *expected_type = cache->expected_type.load(std::memory_order_acquire);
-			auto *expected_shape = cache->expected_shape.load(std::memory_order_acquire);
-			auto type_version = cache->type_version.load(std::memory_order_acquire);
-			if (expected_type == b_obj->type() && expected_shape == b_obj->shape()
-				&& type_version == py::PyType::global_version()) {
-				auto offset = cache->slot_offset.load(std::memory_order_acquire);
+			auto *expected_type = cache->expected_type.load(std::memory_order_relaxed);
+			auto *expected_shape = cache->expected_shape.load(std::memory_order_relaxed);
+			auto cached_type_version = cache->type_version.load(std::memory_order_relaxed);
+			if (expected_type == actual_type && expected_shape == actual_shape
+				&& cached_type_version == type_version) {
+				auto offset = cache->slot_offset.load(std::memory_order_relaxed);
 				return b_obj->slots()[offset];
 			}
 		}
 		cache->kind.store(0, std::memory_order_release);
 	}
+
+	if (!uses_default_getattribute(b_obj)) { return rt_unwrap(b_obj->getattribute(name)); }
 
 	return resolve_default_getattr(b_obj, name, cache);
 }

@@ -127,6 +127,12 @@ PyResult<PyObject *> PyModule::__getattribute__(PyObject *attribute) const
 	auto attr = PyObject::__getattribute__(attribute);
 	if (attr.is_ok() || attr.unwrap_err()->type() != AttributeError::class_type()) { return attr; }
 
+	if (m_dict) {
+		if (auto it = m_dict->map().find(RtValue::from_ptr(attribute)); it != m_dict->map().end()) {
+			return PyObject::from(it->second);
+		}
+	}
+
 	if (auto it = m_dict->map().find(RtValue::from_ptr(PyString::create("__getattr__").unwrap()));
 		it != m_dict->map().end()) {
 		auto getattr = PyObject::from(it->second);

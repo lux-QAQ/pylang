@@ -67,23 +67,21 @@ RtValue RtValue::flatten(PyObject *ptr)
 	RtValue rt = from_ptr(ptr);
 	if (rt.is_tagged_int() || rt.is_null()) { return rt; }
 
+	// bool 在 Python 中只有两个单例。先用指针比较，避免热路径反复查询 bool 类型对象。
+	if (ptr == py_true()) { return from_int(1); }
+	if (ptr == py_false()) { return from_int(0); }
+
 	auto *type = ptr->type();
+	static PyType *s_integer_type = types::integer();
 
 	// [优化] 使用明确的纯指针比对替换巨慢的 py::as<T> RTTI 检查
-	if (type == types::integer()) {
+	if (type == s_integer_type) {
 		auto *pyint = static_cast<PyInteger *>(ptr);
 		const auto &gmp_val = pyint->as_big_int();
 		if (gmp_val.fits_slong_p()) {
 			long raw_val = gmp_val.get_si();
 			if (fits_tagged_int(raw_val)) { return from_int(raw_val); }
 		}
-	}
-
-	// [优化] Python 3.9 语义：bool 无缝参与算术等效于 0 或 1。
-	// 如果由于某种原因被强行送进运算的 ptr 实质是个真/假的 bool Heap对象。我们也直接短路。
-	if (type == types::bool_()) {
-		auto *pybool = static_cast<PyBool *>(ptr);
-		return from_int(pybool->value() ? 1 : 0);
 	}
 
 	return rt;

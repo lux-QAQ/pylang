@@ -158,31 +158,28 @@ PYLANG_EXPORT_SUBSCR("getitem", "obj", "obj,obj")
 py::PyObject *rt_getitem(py::PyObject *obj, py::PyObject *key)
 {
 	auto *b_obj = py::ensure_box(obj);
-	// auto *b_type = b_obj->type();// [修复]：定义 b_type
-	py::RtValue r_key = py::RtValue::flatten(key);
+	auto *type = b_obj->type();
 
-
-	// if (b_type == py::types::dict()) {
-	// 	auto *dict = static_cast<py::PyDict *>(b_obj);
-	// 	// 直接在底层 std::unordered_map 中查找，绕过 getitem 虚函数和 MRO
-	// 	auto it = dict->map().find(r_key);
-	// 	if (it != dict->map().end()) {
-	// 		return it->second.as_pyobject_raw();
-	// 	}
-	// }
-	if (b_obj->type() == py::types::dict()) {
+	if (type == py::types::dict()) {
 		auto *dict = static_cast<py::PyDict *>(b_obj);
-		// 如果 key 已经是 PyString*，直接用指针参与哈希比较，跳过 variant 转换
-		if (py::ensure_box(key)->type() == py::types::str()) {
-			auto it = dict->map().find(py::Value(static_cast<py::PyString *>(key)));
+		if (!py::RtValue::raw_is_tagged_int(key)) {
+			auto *b_key = key;
+			if (b_key->type() == py::types::str()) {
+				auto it = dict->map().find(py::Value(static_cast<py::PyString *>(b_key)));
+				if (it != dict->map().end()) return it->second.as_pyobject_raw();
+			}
+		}
+		if (py::RtValue::raw_is_tagged_int(key)) {
+			auto it = dict->map().find(py::RtValue::from_ptr(key));
 			if (it != dict->map().end()) return it->second.as_pyobject_raw();
 		}
 	}
 
+	py::RtValue r_key = py::RtValue::raw_is_tagged_int(key) ? py::RtValue::from_ptr(key)
+															: py::RtValue::flatten(key);
 
 	if (r_key.is_tagged_int()) {
 		int64_t index = r_key.as_int();
-		auto type = b_obj->type();
 
 		// bytes 索引访问 -> 返回 Tagged Integer
 		if (type == py::types::bytes()) {
@@ -225,7 +222,7 @@ py::PyObject *rt_getitem(py::PyObject *obj, py::PyObject *key)
 				// [优化]：直接从 Value 恢复为 RtValue，避免 __getitem__ 的装箱
 				return list->elements()[index].as_pyobject_raw();
 			}
-		} else if (b_obj->type() == py::types::tuple()) {
+		} else if (type == py::types::tuple()) {
 			auto *tuple = static_cast<py::PyTuple *>(b_obj);
 			int64_t sz = static_cast<int64_t>(tuple->size());
 			if (index < 0) { index += sz; }

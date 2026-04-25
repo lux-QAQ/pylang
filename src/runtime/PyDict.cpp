@@ -27,6 +27,33 @@ static std::unordered_set<PyObject *> &visited_dict_values_set()
 	static std::unordered_set<PyObject *> s;
 	return s;
 }
+
+static bool dict_key_equal(const Value &stored_key, PyObject *lookup_key)
+{
+	if (stored_key.as_pyobject_raw() == lookup_key) { return true; }
+
+	auto *lhs = stored_key.box();
+	auto *rhs = ensure_box(lookup_key);
+	auto eq = lhs->richcompare(rhs, RichCompare::Py_EQ);
+	return eq.is_ok() && eq.unwrap() == py_true();
+}
+
+static PyDict::MapType::iterator find_dict_key(PyDict::MapType &map, PyObject *key)
+{
+	if (auto it = map.find(key); it != map.end()) { return it; }
+	return std::find_if(map.begin(), map.end(), [key](const auto &entry) {
+		return dict_key_equal(entry.first, key);
+	});
+}
+
+static PyDict::MapType::const_iterator find_dict_key(const PyDict::MapType &map, PyObject *key)
+{
+	if (auto it = map.find(key); it != map.end()) { return it; }
+	return std::find_if(map.begin(), map.end(), [key](const auto &entry) {
+		return dict_key_equal(entry.first, key);
+	});
+}
+
 template<> PyDict *as(PyObject *obj)
 {
 	if (obj->type() == types::dict()) { return static_cast<PyDict *>(obj); }
@@ -127,7 +154,9 @@ PyResult<PyObject *> PyDict::__iter__() const
 
 PyResult<PyObject *> PyDict::__getitem__(PyObject *key)
 {
-	if (auto it = m_map.find(key); it != m_map.end()) { return PyObject::from(it->second); }
+	if (auto it = find_dict_key(m_map, key); it != m_map.end()) {
+		return PyObject::from(it->second);
+	}
 	if (type() != types::dict()) {
 		auto missing = lookup_attribute(PyString::create("__missing__").unwrap());
 		if (std::get<1>(missing) == LookupAttrResult::FOUND) {
@@ -149,7 +178,7 @@ PyResult<std::monostate> PyDict::__setitem__(PyObject *key, PyObject *value)
 
 PyResult<std::monostate> PyDict::__delitem__(PyObject *key)
 {
-	if (auto it = m_map.find(key); it != m_map.end()) {
+	if (auto it = find_dict_key(m_map, key); it != m_map.end()) {
 		m_map.erase(it);
 		m_version.fetch_add(1, std::memory_order_release);// 原子递增
 		return Ok(std::monostate{});
@@ -230,7 +259,7 @@ PyType *PyDict::static_type() const { return types::dict(); }
 
 PyResult<PyObject *> PyDict::get(PyObject *key, PyObject *default_value) const
 {
-	if (auto it = m_map.find(key); it != m_map.end()) {
+	if (auto it = find_dict_key(m_map, key); it != m_map.end()) {
 		return PyObject::from(it->second);
 	} else if (default_value) {
 		return Ok(default_value);
@@ -240,7 +269,7 @@ PyResult<PyObject *> PyDict::get(PyObject *key, PyObject *default_value) const
 
 PyResult<PyObject *> PyDict::pop(PyObject *key, PyObject *default_value)
 {
-	if (auto it = m_map.find(key); it != m_map.end()) {
+	if (auto it = find_dict_key(m_map, key); it != m_map.end()) {
 		auto result = it->second;
 		m_map.erase(it);
 		return PyObject::from(result);

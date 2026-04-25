@@ -30,11 +30,14 @@ void compare_constant(const std::shared_ptr<ASTNode> &result,
 	if (result_value->type() != expected_value->type()) { FAIL() << "Type mismatch in constants"; }
 
 	if (result_value->type() == py::types::integer()) {
-		EXPECT_EQ(as<py::PyInteger>(result_value)->as_i64(), 20);
+		EXPECT_EQ(as<py::PyInteger>(result_value)->as_big_int(),
+			as<py::PyInteger>(expected_value)->as_big_int());
 	} else if (result_value->type() == py::types::float_()) {
-		EXPECT_EQ(as<py::PyFloat>(result_value)->as_f64(), 20.0);
+		EXPECT_DOUBLE_EQ(
+			as<py::PyFloat>(result_value)->as_f64(), as<py::PyFloat>(expected_value)->as_f64());
 	} else if (result_value->type() == py::types::str()) {
-		EXPECT_EQ(as<py::PyString>(result_value)->value(), "20");
+		EXPECT_EQ(
+			as<py::PyString>(result_value)->value(), as<py::PyString>(expected_value)->value());
 	} else {
 		ASSERT_EQ(result_value, expected_value);
 	}
