@@ -129,6 +129,42 @@ template<typename Fast, typename Slow>
 	return rt_unwrap(boxed->true_());
 }
 
+[[nodiscard]] inline bool truthy_value(RtValue value)
+{
+	if (value.is_tagged_int()) { return value.as_int() != 0; }
+	if (value.is_null()) { return false; }
+
+	auto *boxed = value.as_ptr();
+	if (boxed == py_true()) { return true; }
+	if (boxed == py_false() || boxed == py_none()) { return false; }
+	if (boxed->type() == types::bool_()) { return static_cast<PyBool *>(boxed)->value(); }
+	return rt_unwrap(boxed->true_());
+}
+
+template<typename Hit>
+[[nodiscard]] inline bool exact_list_index_hit(PyObject *list, PyObject *index, Hit &&hit)
+{
+	static_assert(std::is_invocable_r_v<void, Hit, PyList *, int64_t>);
+
+	if (__builtin_expect(
+			!RtValue::raw_is_tagged_int(list) && RtValue::raw_is_tagged_int(index), 1)) {
+		static PyType *s_list_type = types::list();
+		auto *boxed_list = list;
+		if (__builtin_expect(boxed_list->type() == s_list_type, 1)) {
+			auto *py_list = static_cast<PyList *>(boxed_list);
+			auto idx = RtValue::raw_as_int(index);
+			auto sz = static_cast<int64_t>(py_list->logical_size());
+			if (idx < 0) { idx += sz; }
+			if (__builtin_expect(idx >= 0 && idx < sz, 1)) {
+				hit(py_list, idx);
+				return true;
+			}
+		}
+	}
+
+	return false;
+}
+
 template<typename Hit>
 [[nodiscard]] inline bool exact_list_index(PyObject *list, PyObject *index, Hit &&hit)
 {

@@ -105,6 +105,12 @@ py::PyObject *rt_list_getitem_i64(py::PyObject *list, py::PyObject *index)
 {
 	py::PyObject *result = nullptr;
 
+	if (py::rt::exact_list_index_hit(list, index, [&result](py::PyList *py_list, int64_t idx) {
+			result = py_list->unchecked_at(static_cast<size_t>(idx)).as_pyobject_raw();
+		})) {
+		return result;
+	}
+
 	if (py::rt::exact_list_index(list, index, [&result](py::PyList *py_list, int64_t idx) {
 			result = py_list->unchecked_at(static_cast<size_t>(idx)).as_pyobject_raw();
 			return true;
@@ -113,6 +119,19 @@ py::PyObject *rt_list_getitem_i64(py::PyObject *list, py::PyObject *index)
 	}
 	// 回退到通用路径
 	return rt_unwrap(py::ensure_box(list)->getitem(py::ensure_box(index)));
+}
+
+PYLANG_EXPORT_SUBSCR("list_getitem_i64_truthy", "i1", "obj,obj")
+bool rt_list_getitem_i64_truthy(py::PyObject *list, py::PyObject *index)
+{
+	bool result = false;
+	if (py::rt::exact_list_index_hit(list, index, [&result](py::PyList *py_list, int64_t idx) {
+			result = py::rt::truthy_value(py_list->unchecked_at(static_cast<size_t>(idx)));
+		})) {
+		return result;
+	}
+
+	return py::rt::truthy(rt_unwrap(py::ensure_box(list)->getitem(py::ensure_box(index))));
 }
 
 PYLANG_EXPORT_SUBSCR("list_setitem_i64", "void", "obj,obj,obj")

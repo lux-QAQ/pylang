@@ -182,6 +182,24 @@ void PylangCodegen::generate_body(const std::vector<std::shared_ptr<ast::ASTNode
 
 llvm::Value *PylangCodegen::generate_condition_as_bool(const ast::ASTNode *test)
 {
+	if (test->node_type() == ast::ASTNodeType::UnaryExpr) {
+		auto *unary = static_cast<const ast::UnaryExpr *>(test);
+		if (unary->op_type() == ast::UnaryOpType::NOT) {
+			auto *operand_truth = generate_condition_as_bool(unary->operand().get());
+			return operand_truth ? m_builder.CreateNot(operand_truth, "notcond") : nullptr;
+		}
+	}
+
+	if (test->node_type() == ast::ASTNodeType::Subscript) {
+		auto *subscript = static_cast<const ast::Subscript *>(test);
+		if (std::holds_alternative<ast::Subscript::Index>(subscript->slice())) {
+			auto &idx = std::get<ast::Subscript::Index>(subscript->slice());
+			auto *obj = generate(subscript->value().get());
+			auto *key = generate(idx.value.get());
+			if (obj && key) { return m_emitter.call_list_getitem_i64_truthy(obj, key); }
+		}
+	}
+
 	// 检测: 单比较表达式 (a < b, a <= b, a > b, a == b, etc.)
 	if (test->node_type() == ast::ASTNodeType::Compare) {
 		auto *cmp = static_cast<const ast::Compare *>(test);
