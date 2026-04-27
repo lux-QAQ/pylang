@@ -442,21 +442,28 @@ if(LLVM_FOUND)
   separate_arguments(_pylang_support_llvm_defs NATIVE_COMMAND ${LLVM_DEFINITIONS})
   target_compile_definitions(pylang-support INTERFACE ${_pylang_support_llvm_defs})
 
-  # 新增 linker 组件（用于 llvm::Linker）
-  llvm_map_components_to_libnames(_pylang_support_llvm_libs
-    core
-    linker
-    irreader
-    bitreader
-    bitwriter
-    support
-    transformutils # CloneModule
-    linker # llvm::Linker
-    native
-    nativecodegen
-    target
-  )
-  target_link_libraries(pylang-support INTERFACE ${_pylang_support_llvm_libs})
+  # LLVM 20 on this system is configured for shared-library use.  Linking both
+  # the component archives and libLLVM into pyc duplicates LLVM global state and
+  # can make in-process optimization hang in passes such as InstCombine.  Prefer
+  # the monolithic shared target when LLVM exports it, and keep the component
+  # archive fallback for static LLVM installations.
+  if(TARGET LLVM)
+    target_link_libraries(pylang-support INTERFACE LLVM)
+  else()
+    llvm_map_components_to_libnames(_pylang_support_llvm_libs
+      core
+      linker
+      irreader
+      bitreader
+      bitwriter
+      support
+      transformutils # CloneModule
+      native
+      nativecodegen
+      target
+    )
+    target_link_libraries(pylang-support INTERFACE ${_pylang_support_llvm_libs})
+  endif()
 endif()
 
 target_link_libraries(pylang-support INTERFACE cpptrace::cpptrace spdlog)
@@ -661,6 +668,7 @@ if(LLVM_FOUND)
 
   target_include_directories(pyc PRIVATE ${LLVM_INCLUDE_DIRS})
   target_compile_definitions(pyc PRIVATE PYLANG_RUNTIME_BC_DEFAULT="${RUNTIME_BC_FILE}")
+  target_compile_definitions(pyc PRIVATE PYLANG_RUNTIME_NODEBUG_BC_DEFAULT="${CMAKE_BINARY_DIR}/runtime.nodebug.bc")
 
   if(PYLANG_HAS_LLD)
     target_compile_definitions(pyc PRIVATE PYLANG_HAS_LLD=1)

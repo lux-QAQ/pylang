@@ -5,6 +5,7 @@
 # 1. 查找依赖工具 (替换 wllvm 为 clang++)
 find_program(CLANG_CXX NAMES clang++-20 clang++)
 find_program(LLVM_LINK_EXEC NAMES llvm-link-20 llvm-link)
+find_program(LLVM_OPT_EXEC NAMES opt-20 opt)
 find_program(CCACHE_PROGRAM ccache) # 查找 ccache
 
 if(NOT CLANG_CXX OR NOT LLVM_LINK_EXEC)
@@ -14,6 +15,11 @@ endif()
 
 message(STATUS "clang++    = ${CLANG_CXX}")
 message(STATUS "llvm-link  = ${LLVM_LINK_EXEC}")
+if(LLVM_OPT_EXEC)
+  message(STATUS "opt        = ${LLVM_OPT_EXEC}")
+else()
+  message(STATUS "opt        = Not found (runtime.nodebug.bc disabled)")
+endif()
 if(CCACHE_PROGRAM)
   message(STATUS "ccache     = ${CCACHE_PROGRAM} (Enabled for Bitcode generation)")
 else()
@@ -170,6 +176,7 @@ endforeach()
 # llvm-link 合并为 runtime.bc
 # ---------------------------------------------------------------------------
 set(RUNTIME_BC "${CMAKE_BINARY_DIR}/runtime.bc")
+set(RUNTIME_NODEBUG_BC "${CMAKE_BINARY_DIR}/runtime.nodebug.bc")
 
 add_custom_command(
   OUTPUT "${RUNTIME_BC}"
@@ -181,5 +188,21 @@ add_custom_command(
 
 add_custom_target(runtime_bitcode ALL DEPENDS "${RUNTIME_BC}")
 
+if(LLVM_OPT_EXEC)
+  add_custom_command(
+    OUTPUT "${RUNTIME_NODEBUG_BC}"
+    COMMAND ${LLVM_OPT_EXEC} --strip-debug -o "${RUNTIME_NODEBUG_BC}" "${RUNTIME_BC}"
+    DEPENDS "${RUNTIME_BC}"
+    COMMENT "Stripping debug metadata → runtime.nodebug.bc"
+    VERBATIM
+  )
+
+  add_custom_target(runtime_nodebug_bitcode ALL DEPENDS "${RUNTIME_NODEBUG_BC}")
+endif()
+
 set(PYLANG_RUNTIME_BC "${RUNTIME_BC}" CACHE FILEPATH "Path to runtime.bc" FORCE)
 message(STATUS "runtime.bc → ${RUNTIME_BC}")
+if(LLVM_OPT_EXEC)
+  set(PYLANG_RUNTIME_NODEBUG_BC "${RUNTIME_NODEBUG_BC}" CACHE FILEPATH "Path to runtime.nodebug.bc" FORCE)
+  message(STATUS "runtime.nodebug.bc → ${RUNTIME_NODEBUG_BC}")
+endif()

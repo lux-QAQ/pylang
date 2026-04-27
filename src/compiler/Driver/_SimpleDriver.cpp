@@ -3,10 +3,15 @@
 #include "compiler/Support/ScopeTimer.hpp"
 
 #include <llvm/Analysis/CGSCCPassManager.h>
+#include <llvm/Analysis/LazyCallGraph.h>
 #include <llvm/Analysis/LoopAnalysisManager.h>
+#include <llvm/Analysis/LoopInfo.h>
 #include <llvm/Bitcode/BitcodeReader.h>// [New] needed for precompile
 #include <llvm/Bitcode/BitcodeWriter.h>
+#include <llvm/IR/BasicBlock.h>
+#include <llvm/IR/Function.h>
 #include <llvm/IR/LegacyPassManager.h>
+#include <llvm/IR/PassInstrumentation.h>
 #include <llvm/IR/Verifier.h>
 #include <llvm/MC/TargetRegistry.h>
 #include <llvm/Passes/PassBuilder.h>
@@ -16,11 +21,40 @@
 #include <llvm/Target/TargetOptions.h>
 #include <llvm/TargetParser/Host.h>
 
+#include <chrono>
 #include <cstdlib>
 #include <format>
 #include <mutex>
+#include <vector>
 
 namespace pylang {
+
+namespace {
+
+	std::string describe_pass_ir_unit(llvm::Any ir)
+	{
+		if (const auto **module = llvm::any_cast<const llvm::Module *>(&ir)) {
+			return "module=" + (*module)->getName().str();
+		}
+		if (const auto **function = llvm::any_cast<const llvm::Function *>(&ir)) {
+			return "function=" + (*function)->getName().str();
+		}
+		if (const auto **loop = llvm::any_cast<const llvm::Loop *>(&ir)) {
+			if (auto *header = (*loop)->getHeader()) {
+				if (auto *parent = header->getParent()) {
+					return "loop=" + parent->getName().str() + ":" + header->getName().str();
+				}
+				return "loop=<unknown-function>:" + header->getName().str();
+			}
+			return "loop=<unknown>";
+		}
+		if (const auto **scc = llvm::any_cast<const llvm::LazyCallGraph::SCC *>(&ir)) {
+			return "cgscc_nodes=" + std::to_string((*scc)->size());
+		}
+		return "unit=<unknown>";
+	}
+
+}// namespace
 
 // =============================================================================
 // 静态初始化
@@ -243,13 +277,70 @@ VoidResult SimpleDriver::stage_optimize(llvm::Module &module)
 		return {};
 	}
 
-	// 新 PassManager 管道
-	llvm::PassBuilder pb(m_target_machine.get());
+	if (m_opts.trace_optimizer_passes) {
+		auto dump_path = std::filesystem::temp_directory_path()
+						 / ("pylang-preopt-" + module.getName().str() + ".bc");
+		std::error_code ec;
+		llvm::raw_fd_ostream dest(dump_path.string(), ec, llvm::sys::fs::OF_None);
+		if (ec) {
+			log::opt()->warn("Failed to dump pre-optimization bitcode '{}': {}",
+				dump_path.string(),
+				ec.message());
+		} else {
+			llvm::WriteBitcodeToFile(module, dest);
+			dest.flush();
+			log::opt()->warn("Dumped pre-optimization bitcode: {}", dump_path.string());
+		}
+	}
 
 	llvm::LoopAnalysisManager lam;
 	llvm::FunctionAnalysisManager fam;
 	llvm::CGSCCAnalysisManager cgam;
 	llvm::ModuleAnalysisManager mam;
+
+	llvm::PassInstrumentationCallbacks pic;
+	using Clock = std::chrono::steady_clock;
+	std::vector<std::pair<std::string, Clock::time_point>> pass_stack;
+
+	if (m_opts.trace_optimizer_passes) {
+		pic.registerBeforeNonSkippedPassCallback([&](llvm::StringRef pass_name, llvm::Any ir) {
+			pass_stack.emplace_back(pass_name.str(), Clock::now());
+			log::opt()->warn("[opt-pass] BEGIN depth={} pass={} {}",
+				pass_stack.size(),
+				pass_name.str(),
+				describe_pass_ir_unit(ir));
+		});
+
+		auto finish_pass = [&](llvm::StringRef pass_name, bool invalidated) {
+			auto now = Clock::now();
+			double ms = 0.0;
+			if (!pass_stack.empty()) {
+				ms = std::chrono::duration<double, std::milli>(now - pass_stack.back().second)
+						 .count();
+				pass_stack.pop_back();
+			}
+			log::opt()->warn("[opt-pass] END{} depth={} pass={} elapsed_ms={:.3f}",
+				invalidated ? "_INVALIDATED" : "",
+				pass_stack.size(),
+				pass_name.str(),
+				ms);
+		};
+
+		pic.registerAfterPassCallback(
+			[&](llvm::StringRef pass_name, llvm::Any, const llvm::PreservedAnalyses &) {
+				finish_pass(pass_name, false);
+			});
+		pic.registerAfterPassInvalidatedCallback(
+			[&](llvm::StringRef pass_name, const llvm::PreservedAnalyses &) {
+				finish_pass(pass_name, true);
+			});
+	}
+
+	// 新 PassManager 管道
+	llvm::PassBuilder pb(m_target_machine.get(),
+		llvm::PipelineTuningOptions(),
+		std::nullopt,
+		m_opts.trace_optimizer_passes ? &pic : nullptr);
 
 	pb.registerModuleAnalyses(mam);
 	pb.registerCGSCCAnalyses(cgam);
@@ -269,7 +360,12 @@ VoidResult SimpleDriver::stage_optimize(llvm::Module &module)
 	}();
 
 	auto mpm = pb.buildPerModuleDefaultPipeline(opt_level);
+	log::opt()->warn("Starting LLVM default pipeline O{} for module '{}' (functions={})",
+		m_opts.opt_level,
+		module.getName().str(),
+		std::distance(module.begin(), module.end()));
 	mpm.run(module, mam);
+	log::opt()->warn("Finished LLVM default pipeline for module '{}'", module.getName().str());
 
 	if (m_opts.dump_ir_after_opt) {
 		log::opt()->info("=== IR After Optimization ===");

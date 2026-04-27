@@ -13,6 +13,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <vector>
 
 // 如果 CMake 定义了这个宏，则包含生成的头文件
 #ifdef PYLANG_EMBEDDED_RES
@@ -174,6 +175,30 @@ std::string resolve_runtime_bc(const std::string &cmd_arg, ResourceManager &res_
 	return "";
 }
 
+std::string prefer_no_debug_runtime_bc(const std::string &runtime_bc)
+{
+	if (runtime_bc.empty()) return runtime_bc;
+
+	fs::path path(runtime_bc);
+	if (path.filename() == "runtime.nodebug.bc" || !fs::exists(path)) { return runtime_bc; }
+
+	std::vector<fs::path> candidates;
+	if (path.filename() == "runtime.bc") {
+		candidates.push_back(path.parent_path() / "runtime.nodebug.bc");
+	}
+	candidates.push_back(path.parent_path() / (path.stem().string() + ".nodebug.bc"));
+
+	for (const auto &candidate : candidates) {
+		if (candidate != path && fs::exists(candidate)) { return candidate.string(); }
+	}
+
+#ifdef PYLANG_RUNTIME_NODEBUG_BC_DEFAULT
+	if (fs::exists(PYLANG_RUNTIME_NODEBUG_BC_DEFAULT)) { return PYLANG_RUNTIME_NODEBUG_BC_DEFAULT; }
+#endif
+
+	return runtime_bc;
+}
+
 // -----------------------------------------------------------------------------
 // 主逻辑
 // -----------------------------------------------------------------------------
@@ -200,6 +225,7 @@ int run_compiler(int argc, char **argv)
             
             ("no-separate-link", "Disable separate runtime linking (Force LTO-like merging)", cxxopts::value<bool>()->default_value("false"))
             ("d,dump-passes", "Dump IR before/after optimization phases", cxxopts::value<bool>()->default_value("false"))
+            ("trace-opt-passes", "Trace LLVM optimizer pass begin/end timing", cxxopts::value<bool>()->default_value("false"))
             
             ("v,verbose", "Enable verbose logging (info)")
             ("vv,trace", "Enable trace logging (debug)")
@@ -248,9 +274,11 @@ int run_compiler(int argc, char **argv)
 			}
 		}
 
-		driver_opts.separate_runtime_linking = !result["no-separate-link"].as<bool>();
+		const bool no_separate_link = result["no-separate-link"].as<bool>();
+		driver_opts.separate_runtime_linking = !no_separate_link;
 		driver_opts.dump_ir_before_opt = result["dump-passes"].as<bool>();
 		driver_opts.dump_ir_after_opt = result["dump-passes"].as<bool>();
+		driver_opts.trace_optimizer_passes = result["trace-opt-passes"].as<bool>();
 
 		// [修改点 3] 如果直接指定了 runtime 或是强行重建，则删除本地缓存的 runtime.o
 		// 触发强制降级重编
@@ -277,6 +305,19 @@ int run_compiler(int argc, char **argv)
 		// 2.3 查找并设置 runtime.bc
 		driver_opts.runtime_bc_path =
 			resolve_runtime_bc(result["runtime"].as<std::string>(), res_mgr);
+		if (no_separate_link) {
+			auto preferred = prefer_no_debug_runtime_bc(driver_opts.runtime_bc_path.string());
+			if (preferred != driver_opts.runtime_bc_path) {
+				log::compiler()->warn(
+					"--no-separate-link: using no-debug runtime bitcode: {}", preferred);
+				driver_opts.runtime_bc_path = preferred;
+			} else {
+				log::compiler()->warn(
+					"--no-separate-link: no runtime.nodebug.bc found next to {}, using original "
+					"bitcode",
+					driver_opts.runtime_bc_path.string());
+			}
+		}
 		if (driver_opts.runtime_bc_path.empty() || !fs::exists(driver_opts.runtime_bc_path)) {
 			std::cerr
 				<< "Error: runtime.bc not found. Use --runtime, set PYLANG_RUNTIME_BC, or ensure "
