@@ -95,6 +95,7 @@ class SimpleDriver
 	/// 预编译 Runtime 辅助函数
 	static Result<std::filesystem::path> precompile_runtime_module(
 		const std::filesystem::path &bc_path,
+		const Options &opts,
 		llvm::LLVMContext &ctx,
 		llvm::TargetMachine &tm);
 

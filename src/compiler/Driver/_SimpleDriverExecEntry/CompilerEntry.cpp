@@ -13,6 +13,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <sstream>
 #include <vector>
 
 // 如果 CMake 定义了这个宏，则包含生成的头文件
@@ -41,7 +42,7 @@ struct ResourceManager
 
 	// 释放所有嵌入的资源到磁盘
 	// 返回库文件所在目录
-	void setup_resources(SimpleDriver::Options &opts)
+	bool setup_resources(SimpleDriver::Options &opts)
 	{
 #ifdef PYLANG_EMBEDDED_RES
 		if (!fs::exists(temp_lib_dir)) { fs::create_directories(temp_lib_dir); }
@@ -102,8 +103,9 @@ struct ResourceManager
 #endif
 
 		is_initialized = true;
+		return true;
 #else
-		log::compiler()->warn("Embedded resources not found. Static linking may fail.");
+		return false;
 #endif
 	}
 
@@ -140,6 +142,14 @@ std::string derive_module_name(const std::string &filepath)
 	auto stem = path.stem().string();
 	if (stem.empty()) return "__main__";
 	return stem;
+}
+
+fs::path current_executable_path(char **argv)
+{
+	std::error_code ec;
+	auto self = fs::read_symlink("/proc/self/exe", ec);
+	if (!ec && !self.empty()) { return self; }
+	return fs::absolute(argv[0]);
 }
 
 // -----------------------------------------------------------------------------
@@ -199,6 +209,23 @@ std::string prefer_no_debug_runtime_bc(const std::string &runtime_bc)
 	return runtime_bc;
 }
 
+void append_link_flags(SimpleDriver::Options &opts, const std::string &flags)
+{
+	std::istringstream is(flags);
+	std::string flag;
+	while (is >> flag) { opts.extra_link_flags.push_back(flag); }
+}
+
+void append_default_dynamic_link_flags(SimpleDriver::Options &opts)
+{
+#ifdef PYLANG_DEFAULT_DYNAMIC_LINK_FLAGS
+	append_link_flags(opts, PYLANG_DEFAULT_DYNAMIC_LINK_FLAGS);
+#else
+	append_link_flags(
+		opts, "-lcpptrace -lspdlog -lgmpxx -lgmp -licuuc -licudata -lgc -ldl -pthread -lzstd -lz");
+#endif
+}
+
 // -----------------------------------------------------------------------------
 // 主逻辑
 // -----------------------------------------------------------------------------
@@ -217,6 +244,7 @@ int run_compiler(int argc, char **argv)
             ("asan", "Enable AddressSanitizer and frame pointers", cxxopts::value<bool>()->default_value("false"))
             ("force-rebuild", "Force rebuild of runtime cache (runtime.o)", cxxopts::value<bool>()->default_value("false"))
             ("g,debug-info", "Include debug info", cxxopts::value<bool>()->default_value("true"))
+            ("static", "Link generated executable with embedded static library resources", cxxopts::value<bool>()->default_value("false"))
             
             ("O,opt-level", "Optimization level (0-3)", cxxopts::value<int>()->default_value("2"))
             
@@ -279,20 +307,19 @@ int run_compiler(int argc, char **argv)
 		driver_opts.dump_ir_before_opt = result["dump-passes"].as<bool>();
 		driver_opts.dump_ir_after_opt = result["dump-passes"].as<bool>();
 		driver_opts.trace_optimizer_passes = result["trace-opt-passes"].as<bool>();
+		driver_opts.force_rebuild_runtime_cache = result["force-rebuild"].as<bool>();
+		driver_opts.compiler_executable_path = current_executable_path(argv);
 
-		// [修改点 3] 如果直接指定了 runtime 或是强行重建，则删除本地缓存的 runtime.o
-		// 触发强制降级重编
-		if (result.count("runtime") || result["force-rebuild"].as<bool>()) {
-			std::error_code ec;
-			fs::path cache_path = "/tmp/pylang_runtime_cache.o";
-			if (fs::exists(cache_path, ec)) {
-				fs::remove(cache_path, ec);
-				log::compiler()->info("Cleared old runtime.o cache to force fresh rebuild.");
+		// 2.1 配置用户程序链接参数：默认动态链接；--static 仅在嵌入资源开启时可用。
+		if (result["static"].as<bool>()) {
+			if (!res_mgr.setup_resources(driver_opts)) {
+				std::cerr << "Error: --static requires CMake option "
+							 "PYLANG_EMBED_LIBRARY_RESOURCES=ON.\n";
+				return EXIT_FAILURE;
 			}
+		} else {
+			append_default_dynamic_link_flags(driver_opts);
 		}
-
-		// 2.1 释放静态库并配置链接参数
-		res_mgr.setup_resources(driver_opts);
 
 		// 2.2 确定输出类型
 		if (result["emit-ir"].as<bool>()) {

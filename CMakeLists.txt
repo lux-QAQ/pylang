@@ -9,6 +9,93 @@ project(python++)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_CXX_STANDARD 23)
 
+option(PYLANG_EMBED_LIBRARY_RESOURCES "Embed runtime bitcode and static library resources into pyc" OFF)
+option(PYLANG_REQUIRE_SHARED_DEPENDENCIES
+    "In non-embedded mode, require dependencies used by pyc-generated binaries to be shared libraries"
+    ON)
+
+set(PYLANG_USE_SHARED_DEPENDENCIES OFF)
+if(NOT PYLANG_EMBED_LIBRARY_RESOURCES AND PYLANG_REQUIRE_SHARED_DEPENDENCIES)
+    set(PYLANG_USE_SHARED_DEPENDENCIES ON)
+endif()
+
+if(PYLANG_USE_SHARED_DEPENDENCIES)
+    message(STATUS "Pylang dependency mode: shared libraries required")
+    set(BUILD_SHARED_LIBS ON CACHE BOOL "Build shared libraries" FORCE)
+    set(SPDLOG_BUILD_SHARED ON CACHE BOOL "Build spdlog as a shared library" FORCE)
+    set(CPPTRACE_BUILD_SHARED ON CACHE BOOL "Build cpptrace as a shared library" FORCE)
+    set(CPPTRACE_GET_SYMBOLS_WITH_ADDR2LINE ON CACHE BOOL "Use addr2line instead of nested static libdwarf in shared mode" FORCE)
+    set(CPPTRACE_GET_SYMBOLS_WITH_LIBDWARF OFF CACHE BOOL "Disable nested libdwarf in shared mode" FORCE)
+    set(ZSTD_BUILD_SHARED ON CACHE BOOL "Build zstd shared library" FORCE)
+    set(ZSTD_BUILD_STATIC OFF CACHE BOOL "Do not build zstd static library in dynamic mode" FORCE)
+    set(BUILD_SHARED ON CACHE BOOL "Build libdwarf shared library when libdwarf is pulled by dependencies" FORCE)
+    set(BUILD_NON_SHARED OFF CACHE BOOL "Do not build libdwarf static library in dynamic mode" FORCE)
+else()
+    message(STATUS "Pylang dependency mode: embedded/static resources allowed")
+endif()
+
+if(PYLANG_USE_SHARED_DEPENDENCIES)
+    set(_PYLANG_ZSTD_BUILD_STATIC OFF)
+else()
+    set(_PYLANG_ZSTD_BUILD_STATIC ON)
+endif()
+
+function(pylang_resolve_aliased_target OUT TARGET_NAME)
+    if(TARGET "${TARGET_NAME}")
+        get_target_property(_aliased "${TARGET_NAME}" ALIASED_TARGET)
+        if(_aliased)
+            set("${OUT}" "${_aliased}" PARENT_SCOPE)
+        else()
+            set("${OUT}" "${TARGET_NAME}" PARENT_SCOPE)
+        endif()
+    else()
+        set("${OUT}" "" PARENT_SCOPE)
+    endif()
+endfunction()
+
+function(pylang_require_shared_target TARGET_NAME HINT)
+    if(NOT PYLANG_USE_SHARED_DEPENDENCIES)
+        return()
+    endif()
+    pylang_resolve_aliased_target(_real_target "${TARGET_NAME}")
+    if(NOT _real_target)
+        return()
+    endif()
+    get_target_property(_target_type "${_real_target}" TYPE)
+    if(_target_type STREQUAL "STATIC_LIBRARY")
+        message(FATAL_ERROR
+            "Dependency target '${TARGET_NAME}' was configured as STATIC_LIBRARY, but "
+            "PYLANG_EMBED_LIBRARY_RESOURCES is OFF and generated binaries default to dynamic linking.\n"
+            "Fix: ${HINT}\n"
+            "Alternative: configure with -DPYLANG_EMBED_LIBRARY_RESOURCES=ON and use pyc --static.")
+    endif()
+endfunction()
+
+function(pylang_find_required_shared_library OUT DEP_NAME)
+    if(NOT PYLANG_USE_SHARED_DEPENDENCIES)
+        set("${OUT}" "" PARENT_SCOPE)
+        return()
+    endif()
+
+    set(_old_suffixes "${CMAKE_FIND_LIBRARY_SUFFIXES}")
+    set(CMAKE_FIND_LIBRARY_SUFFIXES "${CMAKE_SHARED_LIBRARY_SUFFIX}")
+    set(_search_var "_pylang_shared_${OUT}")
+    unset(${_search_var} CACHE)
+    unset(${_search_var})
+    find_library(${_search_var} NAMES ${ARGN})
+    set(CMAKE_FIND_LIBRARY_SUFFIXES "${_old_suffixes}")
+
+    if(NOT ${_search_var})
+        message(FATAL_ERROR
+            "Could not find shared library for ${DEP_NAME}. "
+            "Install the system dynamic development package for ${DEP_NAME}, or configure "
+            "with -DPYLANG_EMBED_LIBRARY_RESOURCES=ON for embedded/static mode.")
+    endif()
+
+    set("${OUT}" "${${_search_var}}" CACHE FILEPATH "Shared library for ${DEP_NAME}" FORCE)
+    set("${OUT}" "${${_search_var}}" PARENT_SCOPE)
+endfunction()
+
 # 移除旧的 add_compile_definitions，改用更强力的全局 Flags 注入
 # add_compile_definitions(ALWAYS_SMALL_CLEAR_STACK)
 if(MSVC)
@@ -32,11 +119,18 @@ CPMAddPackage(
     SOURCE_SUBDIR build/cmake
     OPTIONS
     "ZSTD_BUILD_PROGRAMS OFF" # 不编译命令行工具
-    "ZSTD_BUILD_SHARED OFF" # 编译静态库，方便分发
-    "ZSTD_BUILD_STATIC ON"
+    "ZSTD_BUILD_SHARED ${PYLANG_USE_SHARED_DEPENDENCIES}"
+    "ZSTD_BUILD_STATIC ${_PYLANG_ZSTD_BUILD_STATIC}"
     "ZSTD_BUILD_CONTRIB OFF"
 )
-CPMAddPackage("gh:gabime/spdlog@1.8.5")
+
+CPMAddPackage(
+    NAME spdlog
+    GITHUB_REPOSITORY gabime/spdlog
+    GIT_TAG v1.8.5
+    OPTIONS
+    "SPDLOG_BUILD_SHARED ${PYLANG_USE_SHARED_DEPENDENCIES}"
+)
 CPMAddPackage("gh:google/googletest@1.17.0")
 CPMAddPackage("gh:jarro2783/cxxopts@3.3.1")
 CPMAddPackage(
@@ -47,7 +141,13 @@ CPMAddPackage(
 CPMAddPackage("gh:python/cpython@3.9.25")
 CPMAddPackage("gh:antirez/linenoise#2.0")
 CPMAddPackage("gh:aminya/project_options@0.41.0")
-CPMAddPackage("gh:jeremy-rifkin/cpptrace@0.8.3")
+CPMAddPackage(
+    NAME cpptrace
+    GITHUB_REPOSITORY jeremy-rifkin/cpptrace
+    GIT_TAG v0.8.3
+    OPTIONS
+    "CPPTRACE_BUILD_SHARED ${PYLANG_USE_SHARED_DEPENDENCIES}"
+)
 
 # [新增]: 通过 CPM 引入阿里 yalantinglibs (提供编译期反射 ylt/reflection)
 CPMAddPackage(
@@ -75,6 +175,13 @@ CPMAddPackage(
     "build_docs OFF"
     # [删除] 之前建议的 target 补丁代码现在是多余的了，因为全局 Flag 已经覆盖了
 )
+
+if(PYLANG_USE_SHARED_DEPENDENCIES)
+    # BUILD_SHARED_LIBS is needed while configuring dependencies such as bdwgc,
+    # but the in-tree python-cpp/python-mlir libraries have cyclic references
+    # that are only valid for static/object-style targets.
+    set(BUILD_SHARED_LIBS OFF CACHE BOOL "Keep project-internal libraries non-shared" FORCE)
+endif()
 
 # 将 ALWAYS_SMALL_CLEAR_STACK 强制注入到 bdwgc 的编译目标
 # add_compile_definitions 只影响当前项目的 target，不影响 CPM 子项目
@@ -109,6 +216,18 @@ find_package(GMP REQUIRED)
 find_package(ICU REQUIRED COMPONENTS uc data)
 find_package(LLVM REQUIRED CONFIG)
 message(STATUS "Found LLVM ${LLVM_PACKAGE_VERSION}")
+
+pylang_require_shared_target(spdlog::spdlog "Build spdlog shared, or install a shared spdlog package.")
+pylang_require_shared_target(cpptrace::cpptrace "Build cpptrace shared, or install a shared cpptrace package.")
+pylang_require_shared_target(gc "Build Boehm GC shared, or install libgc.so development files.")
+pylang_require_shared_target(zstd::libzstd_shared "Build zstd shared, or install libzstd.so development files.")
+
+pylang_find_required_shared_library(PYLANG_SHARED_GMP gmp gmp)
+pylang_find_required_shared_library(PYLANG_SHARED_GMPXX gmpxx gmpxx)
+pylang_find_required_shared_library(PYLANG_SHARED_ICUUC ICU uc icuuc)
+pylang_find_required_shared_library(PYLANG_SHARED_ICUDATA ICU data icudata)
+pylang_find_required_shared_library(PYLANG_SHARED_ZSTD zstd zstd)
+pylang_find_required_shared_library(PYLANG_SHARED_Z zlib z)
 
 add_library(GTest::GTest ALIAS gtest)
 add_library(GTest::GMock ALIAS gmock)

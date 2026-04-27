@@ -32,7 +32,7 @@ class PylangCodegenTest : public ::testing::Test
 #ifdef PYLANG_RUNTIME_BC_DEFAULT
 		std::string runtime_bc = env_path ? env_path : PYLANG_RUNTIME_BC_DEFAULT;
 #else
-		std::string runtime_bc = env_path ? env_path : "build/debug/runtime.bc";
+		std::string runtime_bc = env_path ? env_path : "build/debug/src/runtime.bc";
 #endif
 
 		if (!std::filesystem::exists(runtime_bc)) {

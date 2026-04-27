@@ -16,14 +16,8 @@ find_path(GMP_INCLUDES
   ${INCLUDE_INSTALL_DIR}
 )
 
-# only look for static libraries
-set(_pythoncpp_ORIG_CMAKE_FIND_LIBRARY_SUFFIXES ${CMAKE_FIND_LIBRARY_SUFFIXES})
-set(CMAKE_FIND_LIBRARY_SUFFIXES .a)
-
 find_library(GMP_LIBRARIES gmp PATHS $ENV{GMPDIR} ${LIB_INSTALL_DIR})
 find_library(GMPXX_LIBRARIES gmpxx PATHS $ENV{GMPDIR} ${LIB_INSTALL_DIR})
-
-set(${CMAKE_FIND_LIBRARY_SUFFIXES} _pythoncpp_ORIG_CMAKE_FIND_LIBRARY_SUFFIXES)
 
 include(FindPackageHandleStandardArgs)
 find_package_handle_standard_args(GMP DEFAULT_MSG

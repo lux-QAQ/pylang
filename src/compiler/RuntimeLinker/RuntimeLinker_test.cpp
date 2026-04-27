@@ -29,10 +29,10 @@ class RuntimeLinkerTest : public ::testing::Test
 		if (env_path && std::filesystem::exists(env_path)) {
 			s_runtime_bc_path = env_path;
 		} else {
-			std::vector<std::string> candidates = { "build/debug/runtime.bc",
-				"../build/debug/runtime.bc",
-				"../../build/debug/runtime.bc",
-				CMAKE_BINARY_DIR "/runtime.bc" };
+			std::vector<std::string> candidates = { "build/debug/src/runtime.bc",
+				"../build/debug/src/runtime.bc",
+				"../../build/debug/src/runtime.bc",
+				CMAKE_BINARY_DIR "/src/runtime.bc" };
 			for (const auto &path : candidates) {
 				if (std::filesystem::exists(path)) {
 					s_runtime_bc_path = path;

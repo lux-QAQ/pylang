@@ -31,8 +31,10 @@ struct SimpleDriverOptions
 	bool dump_ir_after_opt = false;
 	bool trace_optimizer_passes = false;
 	bool verify_module = true;
+	bool force_rebuild_runtime_cache = false;
 
 	std::string linker_cmd = "c++";
+	std::filesystem::path compiler_executable_path;
 	std::vector<std::string> extra_link_flags;
 };
 

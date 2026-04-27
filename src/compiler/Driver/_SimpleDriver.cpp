@@ -24,7 +24,9 @@
 #include <chrono>
 #include <cstdlib>
 #include <format>
+#include <fstream>
 #include <mutex>
+#include <sstream>
 #include <vector>
 
 namespace pylang {
@@ -52,6 +54,49 @@ namespace {
 			return "cgscc_nodes=" + std::to_string((*scc)->size());
 		}
 		return "unit=<unknown>";
+	}
+
+	std::filesystem::path canonical_or_absolute(const std::filesystem::path &path)
+	{
+		std::error_code ec;
+		auto canonical = std::filesystem::weakly_canonical(path, ec);
+		if (!ec) { return canonical; }
+		return std::filesystem::absolute(path, ec);
+	}
+
+	std::string file_stamp(const std::filesystem::path &path)
+	{
+		std::error_code ec;
+		if (path.empty() || !std::filesystem::exists(path, ec) || ec) { return "missing"; }
+		const auto size = std::filesystem::file_size(path, ec);
+		if (ec) { return "size-error"; }
+		const auto time = std::filesystem::last_write_time(path, ec);
+		if (ec) { return "time-error"; }
+		return std::format("{}:{}", size, time.time_since_epoch().count());
+	}
+
+	std::string runtime_cache_metadata(const std::filesystem::path &bc_path,
+		const SimpleDriver::Options &opts,
+		const llvm::TargetMachine &tm)
+	{
+		std::ostringstream os;
+		os << "version=2\n";
+		os << "runtime=" << canonical_or_absolute(bc_path).string() << "\n";
+		os << "runtime_stamp=" << file_stamp(bc_path) << "\n";
+		os << "pyc=" << canonical_or_absolute(opts.compiler_executable_path).string() << "\n";
+		os << "pyc_stamp=" << file_stamp(opts.compiler_executable_path) << "\n";
+		os << "target=" << tm.getTargetTriple().str() << "\n";
+		os << "opt=" << opts.opt_level << "\n";
+		return os.str();
+	}
+
+	bool file_contents_equal(const std::filesystem::path &path, const std::string &expected)
+	{
+		std::ifstream in(path, std::ios::binary);
+		if (!in) { return false; }
+		std::ostringstream existing;
+		existing << in.rdbuf();
+		return existing.str() == expected;
 	}
 
 }// namespace
@@ -128,34 +173,27 @@ SimpleDriver::SimpleDriver(Options opts,
 
 Result<std::filesystem::path> SimpleDriver::precompile_runtime_module(
 	const std::filesystem::path &bc_path,
+	const Options &opts,
 	llvm::LLVMContext &ctx,
 	llvm::TargetMachine &tm)
 {
-	// 简单的缓存策略：如果 /tmp/pylang_runtime.o 存在且较新，直接复用
-	// 实际生产环境应更严谨地处理版本和哈希
 	auto cache_path = std::filesystem::temp_directory_path() / "pylang_runtime_cache.o";
+	auto meta_path = std::filesystem::temp_directory_path() / "pylang_runtime_cache.meta";
+	const auto expected_meta = runtime_cache_metadata(bc_path, opts, tm);
 
-	// [Fix] 检查时间戳：只有当缓存文件存在且修改时间晚于等于源 BC 文件时才复用
-	bool use_cache = false;
 	std::error_code ec;
-
-	if (std::filesystem::exists(cache_path, ec) && std::filesystem::file_size(cache_path, ec) > 0) {
-		if (std::filesystem::exists(bc_path, ec)) {
-			auto bc_time = std::filesystem::last_write_time(bc_path, ec);
-			if (!ec) {
-				auto cache_time = std::filesystem::last_write_time(cache_path, ec);
-				// 只有缓存时间戳 >= 源文件时间戳才有效
-				if (!ec && cache_time >= bc_time) {
-					use_cache = true;
-				} else {
-					log::compiler()->info(
-						"Runtime module updated (cache outdated), recompiling...");
-				}
-			}
-		}
+	const bool cache_exists =
+		std::filesystem::exists(cache_path, ec) && std::filesystem::file_size(cache_path, ec) > 0;
+	if (!opts.force_rebuild_runtime_cache && cache_exists
+		&& file_contents_equal(meta_path, expected_meta)) {
+		return cache_path;
 	}
 
-	if (use_cache) { return cache_path; }
+	if (opts.force_rebuild_runtime_cache) {
+		log::compiler()->info("Force rebuilding runtime object cache.");
+	} else {
+		log::compiler()->info("Runtime object cache missing or stale, recompiling...");
+	}
 
 	PYLANG_TIMER_INFO("precompile_runtime");
 	log::compiler()->info("Pre-compiling runtime to object file: {}", cache_path.string());
@@ -182,6 +220,10 @@ Result<std::filesystem::path> SimpleDriver::precompile_runtime_module(
 
 	emit_pm.run(*mod);
 	dest.flush();
+	dest.close();
+
+	std::ofstream meta(meta_path, std::ios::binary);
+	meta << expected_meta;
 
 	return cache_path;
 }
@@ -200,7 +242,7 @@ Result<SimpleDriver> SimpleDriver::create(Options opts, llvm::LLVMContext &ctx)
 	std::filesystem::path runtime_obj_path;
 	if (opts.separate_runtime_linking && opts.output_kind == OutputKind::Executable) {
 		// 如果开启分离编译，尝试预编译 runtime
-		auto res = precompile_runtime_module(opts.runtime_bc_path, ctx, *tm);
+		auto res = precompile_runtime_module(opts.runtime_bc_path, opts, ctx, *tm);
 		if (res) {
 			runtime_obj_path = *res;
 			log::compiler()->info("Using separated runtime compilation (cached object: {})",

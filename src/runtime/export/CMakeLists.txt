@@ -175,8 +175,8 @@ endforeach()
 # ---------------------------------------------------------------------------
 # llvm-link 合并为 runtime.bc
 # ---------------------------------------------------------------------------
-set(RUNTIME_BC "${CMAKE_BINARY_DIR}/runtime.bc")
-set(RUNTIME_NODEBUG_BC "${CMAKE_BINARY_DIR}/runtime.nodebug.bc")
+set(RUNTIME_BC "${CMAKE_BINARY_DIR}/src/runtime.bc")
+set(RUNTIME_NODEBUG_BC "${CMAKE_BINARY_DIR}/src/runtime.nodebug.bc")
 
 add_custom_command(
   OUTPUT "${RUNTIME_BC}"

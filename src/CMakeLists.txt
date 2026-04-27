@@ -504,10 +504,10 @@ if(LLVM_FOUND)
       gtest_main
     )
     target_compile_definitions(${TARGET_NAME} PRIVATE
-      PYLANG_RUNTIME_BC_DEFAULT="${CMAKE_BINARY_DIR}/runtime.bc"
+      PYLANG_RUNTIME_BC_DEFAULT="${CMAKE_BINARY_DIR}/src/runtime.bc"
     )
-    if(TARGET runtime_bc)
-      add_dependencies(${TARGET_NAME} runtime_bc)
+    if(TARGET runtime_bitcode)
+      add_dependencies(${TARGET_NAME} runtime_bitcode)
     endif()
   endmacro()
 
@@ -556,76 +556,141 @@ endif()
 if(LLVM_FOUND)
 
   # 1. 定定位资源
-  set(RUNTIME_BC_FILE "${CMAKE_BINARY_DIR}/runtime.bc")
+  set(RUNTIME_BC_FILE "${CMAKE_BINARY_DIR}/src/runtime.bc")
   set(EMBEDDED_HEADER "${CMAKE_CURRENT_BINARY_DIR}/generated/EmbeddedResources.hpp")
   set(EMBED_SCRIPT "${CMAKE_SOURCE_DIR}/cmake/EmbedResources.cmake")
 
-  # 寻找静态库 (注意：确保这些库在你的系统上存在 .a 版本)
-  find_library(LIB_GMP_STATIC NAMES libgmp.a gmp)
-  find_library(LIB_GMPXX_STATIC NAMES libgmpxx.a gmpxx)
-  find_library(LIB_ICUUC_STATIC NAMES libicuuc.a icuuc)
-  find_library(LIB_ICUDATA_STATIC NAMES libicudata.a icudata)
-
-  # 获取 spdlog 静态文件路径
-  if(TARGET spdlog::spdlog)
-    set(LIB_SPDLOG "$<TARGET_FILE:spdlog::spdlog>")
-  elseif(TARGET spdlog)
-    set(LIB_SPDLOG "$<TARGET_FILE:spdlog>")
-  else()
-    find_library(LIB_SPDLOG NAMES libspdlog.a spdlog)
-  endif()
-
-  if(TARGET libdwarf::dwarf)
-    set(LIB_DWARF "$<TARGET_FILE:libdwarf::dwarf>")
-  elseif(TARGET dwarf)
-    set(LIB_DWARF "$<TARGET_FILE:dwarf>")
-  else()
-    # 如果找不到 Target，则尝试在系统路径查找
-    find_library(LIB_DWARF_PATH NAMES libdwarf.a dwarf)
-    if(LIB_DWARF_PATH)
-      set(LIB_DWARF "${LIB_DWARF_PATH}")
-    else()
-      set(LIB_DWARF "LIB_DWARF-NOTFOUND")
+  function(pylang_append_shared_file_link_flags OUT_VAR LIB_PATH)
+    if(LIB_PATH)
+      get_filename_component(_lib_dir "${LIB_PATH}" DIRECTORY)
+      set(_flags "${${OUT_VAR}}")
+      list(APPEND _flags "-Wl,-rpath,${_lib_dir}" "${LIB_PATH}")
+      set("${OUT_VAR}" "${_flags}" PARENT_SCOPE)
     endif()
-  endif()
+  endfunction()
 
-  # 增加对 cpptrace::cpptrace 命名空间 Target 的检查
+  set(PYLANG_DYNAMIC_LINK_FLAGS)
   if(TARGET cpptrace::cpptrace)
-    set(LIB_CPTRACE "$<TARGET_FILE:cpptrace::cpptrace>")
-  elseif(TARGET cpptrace)
-    set(LIB_CPTRACE "$<TARGET_FILE:cpptrace>")
+    list(APPEND PYLANG_DYNAMIC_LINK_FLAGS
+      "-Wl,-rpath,$<TARGET_FILE_DIR:cpptrace::cpptrace>"
+      "$<TARGET_FILE:cpptrace::cpptrace>"
+    )
   else()
-    find_library(LIB_CPTRACE NAMES libcpptrace.a cpptrace)
+    list(APPEND PYLANG_DYNAMIC_LINK_FLAGS "-lcpptrace")
   endif()
-
-  # 正确解析 libdwarf 静态库路径
-  if(TARGET libdwarf::dwarf)
-    set(LIB_DWARF "$<TARGET_FILE:libdwarf::dwarf>")
-  elseif(TARGET dwarf)
-    set(LIB_DWARF "$<TARGET_FILE:dwarf>")
+  if(TARGET spdlog::spdlog)
+    list(APPEND PYLANG_DYNAMIC_LINK_FLAGS
+      "-Wl,-rpath,$<TARGET_FILE_DIR:spdlog::spdlog>"
+      "$<TARGET_FILE:spdlog::spdlog>"
+    )
   else()
-    # 如果找不到 Target，则尝试在系统路径查找
-    find_library(LIB_DWARF_PATH NAMES libdwarf.a dwarf)
-    if(LIB_DWARF_PATH)
-      set(LIB_DWARF "${LIB_DWARF_PATH}")
-    else()
-      set(LIB_DWARF "LIB_DWARF-NOTFOUND")
-    endif()
+    list(APPEND PYLANG_DYNAMIC_LINK_FLAGS "-lspdlog")
   endif()
-
-  # 获取 Boehm GC 静态库路径
   if(TARGET gc)
-    set(LIB_GC_STATIC "$<TARGET_FILE:gc>")
-    set(GC_EMBED_ARG "LIB_GC=${LIB_GC_STATIC};")
-    set(GC_DEPEND gc)
-  else()
-    set(GC_EMBED_ARG "")
-    set(GC_DEPEND "")
+    list(APPEND PYLANG_DYNAMIC_LINK_FLAGS
+      "-Wl,-rpath,$<TARGET_FILE_DIR:gc>"
+      "$<TARGET_FILE:gc>"
+    )
   endif()
+  if(TARGET libzstd_shared)
+    list(APPEND PYLANG_DYNAMIC_LINK_FLAGS
+      "-Wl,-rpath,$<TARGET_FILE_DIR:libzstd_shared>"
+      "$<TARGET_FILE:libzstd_shared>"
+    )
+  elseif(TARGET zstd::libzstd_shared)
+    list(APPEND PYLANG_DYNAMIC_LINK_FLAGS
+      "-Wl,-rpath,$<TARGET_FILE_DIR:zstd::libzstd_shared>"
+      "$<TARGET_FILE:zstd::libzstd_shared>"
+    )
+  elseif(PYLANG_SHARED_ZSTD)
+    pylang_append_shared_file_link_flags(PYLANG_DYNAMIC_LINK_FLAGS "${PYLANG_SHARED_ZSTD}")
+  else()
+    list(APPEND PYLANG_DYNAMIC_LINK_FLAGS "-lzstd")
+  endif()
+  if(PYLANG_SHARED_GMPXX)
+    pylang_append_shared_file_link_flags(PYLANG_DYNAMIC_LINK_FLAGS "${PYLANG_SHARED_GMPXX}")
+  else()
+    list(APPEND PYLANG_DYNAMIC_LINK_FLAGS "-lgmpxx")
+  endif()
+  if(PYLANG_SHARED_GMP)
+    pylang_append_shared_file_link_flags(PYLANG_DYNAMIC_LINK_FLAGS "${PYLANG_SHARED_GMP}")
+  else()
+    list(APPEND PYLANG_DYNAMIC_LINK_FLAGS "-lgmp")
+  endif()
+  if(PYLANG_SHARED_ICUUC)
+    pylang_append_shared_file_link_flags(PYLANG_DYNAMIC_LINK_FLAGS "${PYLANG_SHARED_ICUUC}")
+  else()
+    list(APPEND PYLANG_DYNAMIC_LINK_FLAGS "-licuuc")
+  endif()
+  if(PYLANG_SHARED_ICUDATA)
+    pylang_append_shared_file_link_flags(PYLANG_DYNAMIC_LINK_FLAGS "${PYLANG_SHARED_ICUDATA}")
+  else()
+    list(APPEND PYLANG_DYNAMIC_LINK_FLAGS "-licudata")
+  endif()
+  list(APPEND PYLANG_DYNAMIC_LINK_FLAGS
+    "-ldl"
+    "-pthread"
+  )
+  if(PYLANG_SHARED_Z)
+    pylang_append_shared_file_link_flags(PYLANG_DYNAMIC_LINK_FLAGS "${PYLANG_SHARED_Z}")
+  else()
+    list(APPEND PYLANG_DYNAMIC_LINK_FLAGS "-lz")
+  endif()
+  if(NOT TARGET gc)
+    list(APPEND PYLANG_DYNAMIC_LINK_FLAGS "-lgc")
+  endif()
+  list(JOIN PYLANG_DYNAMIC_LINK_FLAGS " " PYLANG_DYNAMIC_LINK_FLAGS_STR)
 
-  # 2. 只有当必要的资源存在时才配置生成逻辑
-  # 注意：这里 DEPENDS 必须包含生成 runtime.bc 的 TARGET 名：runtime_bitcode
-  if(EXISTS "${EMBED_SCRIPT}")
+  if(PYLANG_EMBED_LIBRARY_RESOURCES AND EXISTS "${EMBED_SCRIPT}")
+    # 寻找静态库 (注意：确保这些库在你的系统上存在 .a 版本)
+    find_library(LIB_GMP_STATIC NAMES libgmp.a gmp)
+    find_library(LIB_GMPXX_STATIC NAMES libgmpxx.a gmpxx)
+    find_library(LIB_ICUUC_STATIC NAMES libicuuc.a icuuc)
+    find_library(LIB_ICUDATA_STATIC NAMES libicudata.a icudata)
+
+    # 获取 spdlog 静态文件路径
+    if(TARGET spdlog::spdlog)
+      set(LIB_SPDLOG "$<TARGET_FILE:spdlog::spdlog>")
+    elseif(TARGET spdlog)
+      set(LIB_SPDLOG "$<TARGET_FILE:spdlog>")
+    else()
+      find_library(LIB_SPDLOG NAMES libspdlog.a spdlog)
+    endif()
+
+    # 增加对 cpptrace::cpptrace 命名空间 Target 的检查
+    if(TARGET cpptrace::cpptrace)
+      set(LIB_CPTRACE "$<TARGET_FILE:cpptrace::cpptrace>")
+    elseif(TARGET cpptrace)
+      set(LIB_CPTRACE "$<TARGET_FILE:cpptrace>")
+    else()
+      find_library(LIB_CPTRACE NAMES libcpptrace.a cpptrace)
+    endif()
+
+    # 正确解析 libdwarf 静态库路径
+    if(TARGET libdwarf::dwarf)
+      set(LIB_DWARF "$<TARGET_FILE:libdwarf::dwarf>")
+    elseif(TARGET dwarf)
+      set(LIB_DWARF "$<TARGET_FILE:dwarf>")
+    else()
+      # 如果找不到 Target，则尝试在系统路径查找
+      find_library(LIB_DWARF_PATH NAMES libdwarf.a dwarf)
+      if(LIB_DWARF_PATH)
+        set(LIB_DWARF "${LIB_DWARF_PATH}")
+      else()
+        set(LIB_DWARF "LIB_DWARF-NOTFOUND")
+      endif()
+    endif()
+
+    # 获取 Boehm GC 静态库路径
+    if(TARGET gc)
+      set(LIB_GC_STATIC "$<TARGET_FILE:gc>")
+      set(GC_EMBED_ARG "LIB_GC=${LIB_GC_STATIC};")
+      set(GC_DEPEND gc)
+    else()
+      set(GC_EMBED_ARG "")
+      set(GC_DEPEND "")
+    endif()
+
     add_custom_command(
       OUTPUT ${EMBEDDED_HEADER}
       COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/generated"
@@ -660,15 +725,30 @@ if(LLVM_FOUND)
     add_dependencies(pyc gen_pyc_embedded_header)
     target_link_libraries(pyc PRIVATE pyc_resources)
   endif()
+  if(TARGET runtime_bitcode)
+    add_dependencies(pyc runtime_bitcode)
+  endif()
+  if(TARGET runtime_nodebug_bitcode)
+    add_dependencies(pyc runtime_nodebug_bitcode)
+  endif()
+  if(NOT PYLANG_EMBED_LIBRARY_RESOURCES)
+    if(TARGET gc)
+      add_dependencies(pyc gc)
+    endif()
+    if(TARGET libzstd_shared)
+      add_dependencies(pyc libzstd_shared)
+    endif()
+  endif()
 
   # 如果 runtime_bitcode 是一个 target，显式把它设为 gen_pyc_embedded_header 的依赖（确保会被构建）
-  if(TARGET runtime_bitcode)
+  if(TARGET gen_pyc_embedded_header AND TARGET runtime_bitcode)
     add_dependencies(gen_pyc_embedded_header runtime_bitcode)
   endif()
 
   target_include_directories(pyc PRIVATE ${LLVM_INCLUDE_DIRS})
   target_compile_definitions(pyc PRIVATE PYLANG_RUNTIME_BC_DEFAULT="${RUNTIME_BC_FILE}")
-  target_compile_definitions(pyc PRIVATE PYLANG_RUNTIME_NODEBUG_BC_DEFAULT="${CMAKE_BINARY_DIR}/runtime.nodebug.bc")
+  target_compile_definitions(pyc PRIVATE PYLANG_RUNTIME_NODEBUG_BC_DEFAULT="${CMAKE_BINARY_DIR}/src/runtime.nodebug.bc")
+  target_compile_definitions(pyc PRIVATE PYLANG_DEFAULT_DYNAMIC_LINK_FLAGS="${PYLANG_DYNAMIC_LINK_FLAGS_STR}")
 
   if(PYLANG_HAS_LLD)
     target_compile_definitions(pyc PRIVATE PYLANG_HAS_LLD=1)
