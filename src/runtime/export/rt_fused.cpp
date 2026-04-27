@@ -143,6 +143,22 @@ bool rt_list_getitem_i64_truthy(py::PyObject *list, py::PyObject *index)
 	return py::rt::truthy(rt_unwrap(py::ensure_box(list)->getitem(py::ensure_box(index))));
 }
 
+PYLANG_EXPORT_SUBSCR("list_getitem_i64_not", "obj", "obj,obj")
+py::PyObject *rt_list_getitem_i64_not(py::PyObject *list, py::PyObject *index)
+{
+	bool truth = false;
+	if (py::rt::exact_list_index_hit(list, index, [&truth](py::PyList *py_list, int64_t idx) {
+			const auto index = static_cast<size_t>(idx);
+			truth = py_list->is_bool_storage() ? py_list->unchecked_bool_at(index)
+											   : py::rt::truthy_value(py_list->unchecked_at(index));
+		})) {
+		return truth ? py::py_false() : py::py_true();
+	}
+
+	auto *item = rt_unwrap(py::ensure_box(list)->getitem(py::ensure_box(index)));
+	return py::rt::truthy(item) ? py::py_false() : py::py_true();
+}
+
 PYLANG_EXPORT_SUBSCR("list_setitem_i64", "void", "obj,obj,obj")
 void rt_list_setitem_i64(py::PyObject *list, py::PyObject *index, py::PyObject *value)
 {

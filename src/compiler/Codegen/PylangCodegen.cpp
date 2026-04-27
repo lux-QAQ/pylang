@@ -190,6 +190,46 @@ llvm::Value *PylangCodegen::generate_condition_as_bool(const ast::ASTNode *test)
 		}
 	}
 
+	if (test->node_type() == ast::ASTNodeType::BoolOp) {
+		auto *boolop = static_cast<const ast::BoolOp *>(test);
+		const auto &values = boolop->values();
+		if (values.empty()) { return m_builder.getFalse(); }
+
+		auto *func = m_codegen_ctx.current_function();
+		auto *result_alloca =
+			m_emitter.create_entry_block_alloca(m_builder.getInt1Ty(), "boolop.cond.result");
+		auto *merge_bb = llvm::BasicBlock::Create(m_ctx, "boolop.cond.merge", func);
+
+		for (size_t i = 0; i < values.size(); ++i) {
+			auto *truth = generate_condition_as_bool(values[i].get());
+			if (!truth) { return nullptr; }
+
+			const bool is_last = i + 1 == values.size();
+			if (is_last) {
+				m_builder.CreateStore(truth, result_alloca);
+				m_builder.CreateBr(merge_bb);
+				break;
+			}
+
+			auto *next_bb = llvm::BasicBlock::Create(m_ctx, "boolop.cond.next", func);
+			auto *short_bb = llvm::BasicBlock::Create(m_ctx, "boolop.cond.short", func);
+			if (boolop->op() == ast::BoolOp::OpType::And) {
+				m_builder.CreateCondBr(truth, next_bb, short_bb);
+				m_builder.SetInsertPoint(short_bb);
+				m_builder.CreateStore(m_builder.getFalse(), result_alloca);
+			} else {
+				m_builder.CreateCondBr(truth, short_bb, next_bb);
+				m_builder.SetInsertPoint(short_bb);
+				m_builder.CreateStore(m_builder.getTrue(), result_alloca);
+			}
+			m_builder.CreateBr(merge_bb);
+			m_builder.SetInsertPoint(next_bb);
+		}
+
+		m_builder.SetInsertPoint(merge_bb);
+		return m_builder.CreateLoad(m_builder.getInt1Ty(), result_alloca, "boolop.cond");
+	}
+
 	if (test->node_type() == ast::ASTNodeType::Subscript) {
 		auto *subscript = static_cast<const ast::Subscript *>(test);
 		if (std::holds_alternative<ast::Subscript::Index>(subscript->slice())) {
@@ -659,6 +699,19 @@ ast::Value *PylangCodegen::visit(const ast::BinaryExpr *node)
 
 ast::Value *PylangCodegen::visit(const ast::UnaryExpr *node)
 {
+	if (node->op_type() == ast::UnaryOpType::NOT
+		&& node->operand()->node_type() == ast::ASTNodeType::Subscript) {
+		auto *subscript = static_cast<const ast::Subscript *>(node->operand().get());
+		if (std::holds_alternative<ast::Subscript::Index>(subscript->slice())) {
+			auto *obj = generate(subscript->value().get());
+			if (!obj) { return nullptr; }
+			auto &idx = std::get<ast::Subscript::Index>(subscript->slice());
+			auto *key = generate(idx.value.get());
+			if (!key) { return nullptr; }
+			return make_value(m_emitter.call_list_getitem_i64_not(obj, key));
+		}
+	}
+
 	auto *operand = generate(node->operand().get());
 	if (!operand) { return nullptr; }
 

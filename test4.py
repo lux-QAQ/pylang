@@ -10,7 +10,7 @@ class BadTuple:
         return isinstance(other, BadTuple) and self.items == other.items
 
     def __repr__(self):
-        return f"BadTuple({self.items})"
+        return "BadTuple(" + str(self.items) + ")"
 
     # ❗ 提供“可变性”
     def set(self, index, value):
@@ -40,3 +40,4 @@ print("尝试访问 d[t2]:", d.get(t2))
 
 # 查看 dict 内部状态
 print("dict keys:", list(d.keys()))
+print(BadTuple)

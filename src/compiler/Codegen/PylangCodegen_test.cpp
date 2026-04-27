@@ -1076,6 +1076,100 @@ TEST_F(PylangCodegenTest, StoreSubscript)
 	EXPECT_TRUE(ir_calls_rt(ir, "rt_setitem"));
 }
 
+TEST_F(PylangCodegenTest, IfSubscriptUsesTruthyListFastPath)
+{
+	ast::Module mod("<test>");
+	auto obj = std::make_shared<ast::Name>("a", ast::ContextType::LOAD, loc());
+	auto idx = std::make_shared<ast::Name>("i", ast::ContextType::LOAD, loc());
+	auto sub = std::make_shared<ast::Subscript>(
+		obj, ast::Subscript::Index{ idx }, ast::ContextType::LOAD, loc());
+	auto target = std::make_shared<ast::Name>("x", ast::ContextType::STORE, loc());
+	auto value = std::make_shared<ast::Constant>(int64_t(1), loc());
+	auto assign = std::make_shared<ast::Assign>(
+		std::vector<std::shared_ptr<ast::ASTNode>>{ target }, value, "", loc());
+
+	mod.emplace(std::make_shared<ast::If>(sub,
+		std::vector<std::shared_ptr<ast::ASTNode>>{ assign },
+		std::vector<std::shared_ptr<ast::ASTNode>>{},
+		loc()));
+
+	auto ir = compile_module(mod);
+	if (ir.empty()) { return; }
+	EXPECT_TRUE(ir_calls_rt(ir, "rt_list_getitem_i64_truthy"));
+}
+
+TEST_F(PylangCodegenTest, IfBoolOpConditionUsesFusedBooleanPaths)
+{
+	ast::Module mod("<test>");
+	auto obj = std::make_shared<ast::Name>("a", ast::ContextType::LOAD, loc());
+	auto idx = std::make_shared<ast::Name>("i", ast::ContextType::LOAD, loc());
+	auto sub = std::make_shared<ast::Subscript>(
+		obj, ast::Subscript::Index{ idx }, ast::ContextType::LOAD, loc());
+	auto lhs = std::make_shared<ast::Name>("x", ast::ContextType::LOAD, loc());
+	auto rhs = std::make_shared<ast::Name>("y", ast::ContextType::LOAD, loc());
+	auto cmp = std::make_shared<ast::Compare>(lhs,
+		std::vector<ast::Compare::OpType>{ ast::Compare::OpType::LtE },
+		std::vector<std::shared_ptr<ast::ASTNode>>{ rhs },
+		loc());
+	auto cond = std::make_shared<ast::BoolOp>(
+		ast::BoolOp::OpType::And, std::vector<std::shared_ptr<ast::ASTNode>>{ sub, cmp }, loc());
+	auto target = std::make_shared<ast::Name>("z", ast::ContextType::STORE, loc());
+	auto value = std::make_shared<ast::Constant>(int64_t(1), loc());
+	auto assign = std::make_shared<ast::Assign>(
+		std::vector<std::shared_ptr<ast::ASTNode>>{ target }, value, "", loc());
+
+	mod.emplace(std::make_shared<ast::If>(cond,
+		std::vector<std::shared_ptr<ast::ASTNode>>{ assign },
+		std::vector<std::shared_ptr<ast::ASTNode>>{},
+		loc()));
+
+	auto ir = compile_module(mod);
+	if (ir.empty()) { return; }
+	EXPECT_TRUE(ir_calls_rt(ir, "rt_list_getitem_i64_truthy"));
+	EXPECT_TRUE(ir_calls_rt(ir, "rt_compare_le_bool"));
+	EXPECT_FALSE(ir_calls_rt(ir, "rt_is_true_fast"));
+}
+
+TEST_F(PylangCodegenTest, NotSubscriptUsesFusedListNotFastPath)
+{
+	ast::Module mod("<test>");
+	auto load_obj = std::make_shared<ast::Name>("a", ast::ContextType::LOAD, loc());
+	auto load_idx = std::make_shared<ast::Name>("i", ast::ContextType::LOAD, loc());
+	auto rhs_sub = std::make_shared<ast::Subscript>(
+		load_obj, ast::Subscript::Index{ load_idx }, ast::ContextType::LOAD, loc());
+	auto not_rhs = std::make_shared<ast::UnaryExpr>(ast::UnaryOpType::NOT, rhs_sub, loc());
+
+	auto store_obj = std::make_shared<ast::Name>("a", ast::ContextType::LOAD, loc());
+	auto store_idx = std::make_shared<ast::Name>("i", ast::ContextType::LOAD, loc());
+	auto target = std::make_shared<ast::Subscript>(
+		store_obj, ast::Subscript::Index{ store_idx }, ast::ContextType::STORE, loc());
+
+	mod.emplace(std::make_shared<ast::Assign>(
+		std::vector<std::shared_ptr<ast::ASTNode>>{ target }, not_rhs, "", loc()));
+
+	auto ir = compile_module(mod);
+	if (ir.empty()) { return; }
+	EXPECT_TRUE(ir_calls_rt(ir, "rt_list_getitem_i64_not"));
+	EXPECT_TRUE(ir_calls_rt(ir, "rt_setitem"));
+}
+
+TEST_F(PylangCodegenTest, BoolOpExpressionStillReturnsOperandObject)
+{
+	ast::Module mod("<test>");
+	auto lhs = std::make_shared<ast::Name>("a", ast::ContextType::LOAD, loc());
+	auto rhs = std::make_shared<ast::Name>("b", ast::ContextType::LOAD, loc());
+	auto expr = std::make_shared<ast::BoolOp>(
+		ast::BoolOp::OpType::And, std::vector<std::shared_ptr<ast::ASTNode>>{ lhs, rhs }, loc());
+	auto target = std::make_shared<ast::Name>("x", ast::ContextType::STORE, loc());
+	mod.emplace(std::make_shared<ast::Assign>(
+		std::vector<std::shared_ptr<ast::ASTNode>>{ target }, expr, "", loc()));
+
+	auto ir = compile_module(mod);
+	if (ir.empty()) { return; }
+	EXPECT_TRUE(ir_calls_rt(ir, "rt_is_true_fast"));
+	EXPECT_FALSE(ir_calls_rt(ir, "rt_list_getitem_i64_truthy"));
+}
+
 TEST_F(PylangCodegenTest, SliceLoad)
 {
 	// x = a[1:2]

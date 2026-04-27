@@ -430,6 +430,11 @@ llvm::Value *IREmitter::call_list_getitem_i64_truthy(llvm::Value *list, llvm::Va
 	return emit_runtime_call("list_getitem_i64_truthy", { list, index });
 }
 
+llvm::Value *IREmitter::call_list_getitem_i64_not(llvm::Value *list, llvm::Value *index)
+{
+	return emit_runtime_call("list_getitem_i64_not", { list, index });
+}
+
 void IREmitter::call_list_setitem_i64(llvm::Value *list, llvm::Value *index, llvm::Value *value)
 {
 	emit_runtime_call("list_setitem_i64", { list, index, value });

@@ -22,6 +22,7 @@
 #include "runtime/builtinTypeInit.hpp"
 #include "runtime/modules/Modules.hpp"
 #include "runtime/modules/config.hpp"
+#include "runtime/taggered_pointer/RtValue.hpp"
 #include "runtime/types/builtin.hpp"
 
 #include <gtest/gtest.h>
@@ -32,6 +33,7 @@ void rt_list_insert_0_tuple2(py::PyObject *list, py::PyObject *a, py::PyObject *
 bool rt_list_pop_unpack2(py::PyObject *list, py::PyObject **out_a, py::PyObject **out_b);
 py::PyObject *rt_list_getitem_i64(py::PyObject *list, py::PyObject *index);
 bool rt_list_getitem_i64_truthy(py::PyObject *list, py::PyObject *index);
+py::PyObject *rt_list_getitem_i64_not(py::PyObject *list, py::PyObject *index);
 void rt_list_setitem_i64(py::PyObject *list, py::PyObject *index, py::PyObject *value);
 
 // =============================================================================
@@ -224,6 +226,26 @@ TEST_F(RuntimeAPITest, BoolListMulKeepsPythonSemantics)
 	auto repr = lst->__repr__();
 	ASSERT_TRUE(repr.is_ok());
 	EXPECT_EQ(as<PyString>(repr.unwrap())->value(), "[False, False, True, False, False, False]");
+}
+
+TEST_F(RuntimeAPITest, FusedListGetitemI64NotPreservesTruthSemantics)
+{
+	auto *bool_list = PyList::create_bool_filled(3, false).unwrap();
+	rt_list_setitem_i64(bool_list, RtValue::from_int(1).as_pyobject_raw(), py_true());
+
+	EXPECT_EQ(
+		rt_list_getitem_i64_not(bool_list, RtValue::from_int(0).as_pyobject_raw()), py_true());
+	EXPECT_EQ(
+		rt_list_getitem_i64_not(bool_list, RtValue::from_int(1).as_pyobject_raw()), py_false());
+	EXPECT_EQ(
+		rt_list_getitem_i64_not(bool_list, RtValue::from_int(-1).as_pyobject_raw()), py_true());
+
+	auto *int_list = PyList::create().unwrap();
+	int_list->append(PyInteger::create(0).unwrap());
+	int_list->append(PyInteger::create(1).unwrap());
+	EXPECT_EQ(rt_list_getitem_i64_not(int_list, RtValue::from_int(0).as_pyobject_raw()), py_true());
+	EXPECT_EQ(
+		rt_list_getitem_i64_not(int_list, RtValue::from_int(1).as_pyobject_raw()), py_false());
 }
 
 TEST_F(RuntimeAPITest, BoolListPromotesOnNonBoolWrite)

@@ -147,6 +147,7 @@ class IREmitter
 	/// 融合 list[int_index] 的 get/set，跳过 type dispatch
 	llvm::Value *call_list_getitem_i64(llvm::Value *list, llvm::Value *index);
 	llvm::Value *call_list_getitem_i64_truthy(llvm::Value *list, llvm::Value *index);
+	llvm::Value *call_list_getitem_i64_not(llvm::Value *list, llvm::Value *index);
 	void call_list_setitem_i64(llvm::Value *list, llvm::Value *index, llvm::Value *value);
 
 	/// 融合 dict[key] 的 get/set，跳过 type dispatch
