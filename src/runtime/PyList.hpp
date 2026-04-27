@@ -3,6 +3,8 @@
 #include "PyObject.hpp"
 #include "memory/GCTracingAllocator.hpp"
 
+#include <cstdint>
+
 namespace py {
 
 class PyList
@@ -15,7 +17,9 @@ class PyList
 	friend class ::py::Arena;
 
 	mutable py::GCVector<Value> m_elements;
+	mutable py::GCVector<uint8_t> m_bool_elements;
 	mutable size_t m_front_offset{ 0 };
+	mutable bool m_bool_storage{ false };
 
 	PyList(PyType *);
 
@@ -23,6 +27,7 @@ class PyList
 	static PyResult<PyList *> create(std::vector<Value> elements);
 	static PyResult<PyList *> create(std::span<const Value> elements);
 	static PyResult<PyList *> create();
+	static PyResult<PyList *> create_bool_filled(size_t count, bool value);
 
 	std::string to_string() const override;
 
@@ -42,17 +47,33 @@ class PyList
 	PyResult<PyObject *> __mul__(size_t count) const;
 	PyResult<PyObject *> __eq__(const PyObject *other) const;
 
-	size_t logical_size() const noexcept { return m_elements.size() - m_front_offset; }
+	size_t logical_size() const noexcept
+	{
+		return m_bool_storage ? m_bool_elements.size() : m_elements.size() - m_front_offset;
+	}
 	bool empty() const noexcept { return logical_size() == 0; }
+	bool is_bool_storage() const noexcept { return m_bool_storage; }
 
-	const Value &unchecked_at(size_t index) const { return m_elements[m_front_offset + index]; }
-	Value &unchecked_at(size_t index) { return m_elements[m_front_offset + index]; }
+	const Value &unchecked_at(size_t index) const
+	{
+		promote_bool_storage();
+		return m_elements[m_front_offset + index];
+	}
+	Value &unchecked_at(size_t index)
+	{
+		promote_bool_storage();
+		return m_elements[m_front_offset + index];
+	}
+	Value unchecked_value_at(size_t index) const;
+	bool unchecked_bool_at(size_t index) const { return m_bool_elements[index] != 0; }
 
 	void normalize_storage() const;
+	void promote_bool_storage() const;
 	void push_front_raw(Value value);
 	void append_raw(Value value);
 	Value pop_back_raw();
 	void insert_raw_clamped(int64_t index, Value value);
+	bool set_bool_storage_item(size_t index, Value value);
 
 	const py::GCVector<Value> &elements() const
 	{

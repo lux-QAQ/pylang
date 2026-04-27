@@ -11,6 +11,7 @@ class PyNone : public PyBaseObject
 #endif
 	friend class ::py::Arena;
 	friend PyObject *py_none();
+	friend void initialize_none_singleton();
 
 	bool m_value;
 
@@ -38,6 +39,7 @@ class PyNone : public PyBaseObject
 };
 
 PyObject *py_none();
+void initialize_none_singleton();
 
 
 }// namespace py

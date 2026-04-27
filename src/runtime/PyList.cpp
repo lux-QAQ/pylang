@@ -36,6 +36,17 @@
 
 namespace py {
 
+namespace {
+	int exact_bool_value(Value value)
+	{
+		if (!value.is_heap_object()) { return -1; }
+		auto *obj = value.as_ptr();
+		if (obj == py_true()) { return 1; }
+		if (obj == py_false()) { return 0; }
+		return -1;
+	}
+}// namespace
+
 // static std::unordered_set<PyObject *> visited_set();
 // 是一个**文件作用域的静态变量**。在 AOT 模式下，`runtime.bc`
 // 被链接进最终的可执行文件时，这个全局静态变量的构造函数可能**尚未执行**（初始化顺序跨翻译单元是未定义的）。此时它的内部
@@ -72,6 +83,7 @@ PyList::PyList(std::vector<Value> elements) : PyList()
 
 void PyList::normalize_storage() const
 {
+	promote_bool_storage();
 	if (m_front_offset == 0) { return; }
 	if (m_front_offset >= m_elements.size()) {
 		m_elements.clear();
@@ -83,8 +95,35 @@ void PyList::normalize_storage() const
 	m_front_offset = 0;
 }
 
+void PyList::promote_bool_storage() const
+{
+	if (!m_bool_storage) { return; }
+	m_elements.clear();
+	m_elements.reserve(m_bool_elements.size());
+	for (auto value : m_bool_elements) {
+		m_elements.push_back(Value{ value ? py_true() : py_false() });
+	}
+	m_bool_elements.clear();
+	m_bool_storage = false;
+	m_front_offset = 0;
+}
+
+Value PyList::unchecked_value_at(size_t index) const
+{
+	if (m_bool_storage) { return Value{ m_bool_elements[index] ? py_true() : py_false() }; }
+	return m_elements[m_front_offset + index];
+}
+
 void PyList::push_front_raw(Value value)
 {
+	if (m_bool_storage) {
+		if (const int bool_value = exact_bool_value(value); bool_value >= 0) {
+			m_bool_elements.insert(m_bool_elements.begin(), static_cast<uint8_t>(bool_value));
+			return;
+		}
+		promote_bool_storage();
+	}
+
 	if (m_front_offset > 0) {
 		m_elements[--m_front_offset] = value;
 		return;
@@ -103,11 +142,26 @@ void PyList::push_front_raw(Value value)
 	m_front_offset = slack;
 }
 
-void PyList::append_raw(Value value) { m_elements.push_back(value); }
+void PyList::append_raw(Value value)
+{
+	if (m_bool_storage) {
+		if (const int bool_value = exact_bool_value(value); bool_value >= 0) {
+			m_bool_elements.push_back(static_cast<uint8_t>(bool_value));
+			return;
+		}
+		promote_bool_storage();
+	}
+	m_elements.push_back(value);
+}
 
 Value PyList::pop_back_raw()
 {
 	ASSERT(!empty());
+	if (m_bool_storage) {
+		auto value = Value{ m_bool_elements.back() ? py_true() : py_false() };
+		m_bool_elements.pop_back();
+		return value;
+	}
 	auto value = m_elements.back();
 	m_elements.pop_back();
 	if (m_front_offset >= m_elements.size()) {
@@ -139,6 +193,18 @@ void PyList::insert_raw_clamped(int64_t index, Value value)
 	m_elements.insert(m_elements.begin() + static_cast<ptrdiff_t>(index), value);
 }
 
+bool PyList::set_bool_storage_item(size_t index, Value value)
+{
+	if (!m_bool_storage) { return false; }
+	const int bool_value = exact_bool_value(value);
+	if (bool_value < 0) {
+		promote_bool_storage();
+		return false;
+	}
+	m_bool_elements[index] = static_cast<uint8_t>(bool_value);
+	return true;
+}
+
 PyResult<PyList *> PyList::create(std::vector<Value> elements)
 {
 	auto *result = PYLANG_ALLOC(PyList, std::move(elements));
@@ -160,6 +226,15 @@ PyResult<PyList *> PyList::create()
 {
 	auto *result = PYLANG_ALLOC(PyList, );
 	if (!result) { return Err(memory_error(sizeof(PyList))); }
+	return Ok(result);
+}
+
+PyResult<PyList *> PyList::create_bool_filled(size_t count, bool value)
+{
+	auto *result = PYLANG_ALLOC(PyList, );
+	if (!result) { return Err(memory_error(sizeof(PyList))); }
+	result->m_bool_storage = true;
+	result->m_bool_elements.assign(count, static_cast<uint8_t>(value));
 	return Ok(result);
 }
 
@@ -223,7 +298,7 @@ PyResult<PyObject *> PyList::extend(PyObject *iterable)
 
 	if (!value.unwrap_err()->type()->issubclass(stop_iteration()->type())) { return value; }
 
-	m_elements.insert(m_elements.end(), tmp_list->elements().begin(), tmp_list->elements().end());
+	for (const auto &el : tmp_list->elements()) { append_raw(el); }
 
 	return Ok(py_none());
 }
@@ -257,7 +332,7 @@ PyResult<PyObject *> PyList::pop(PyObject *index)
 			return Ok(idx);
 		}();
 		return idx.and_then([this](size_t idx) {
-			return PyObject::from(unchecked_at(idx)).and_then([this, idx](PyObject *el) {
+			return PyObject::from(unchecked_value_at(idx)).and_then([this, idx](PyObject *el) {
 				if (idx + 1 == logical_size()) {
 					pop_back_raw();
 				} else {
@@ -268,10 +343,11 @@ PyResult<PyObject *> PyList::pop(PyObject *index)
 			});
 		});
 	} else {
-		return PyObject::from(unchecked_at(logical_size() - 1)).and_then([this](PyObject *el) {
-			pop_back_raw();
-			return Ok(el);
-		});
+		return PyObject::from(unchecked_value_at(logical_size() - 1))
+			.and_then([this](PyObject *el) {
+				pop_back_raw();
+				return Ok(el);
+			});
 	}
 }
 
@@ -302,8 +378,7 @@ PyResult<PyObject *> PyList::insert(PyTuple *args, PyDict *kwargs)
 		append_raw(object);
 	} else {
 		ASSERT(index.fits_ulong_p());
-		normalize_storage();
-		m_elements.insert(m_elements.begin() + static_cast<ptrdiff_t>(index.get_ui()), object);
+		insert_raw_clamped(static_cast<int64_t>(index.get_ui()), object);
 	}
 
 	return Ok(py_none());
@@ -374,7 +449,7 @@ PyResult<PyObject *> PyList::__getitem__(int64_t index)
 	}
 	ASSERT(index >= 0);
 	if (static_cast<size_t>(index) >= size) { return Err(index_error("list index out of range")); }
-	return PyObject::from(unchecked_at(static_cast<size_t>(index)));
+	return PyObject::from(unchecked_value_at(static_cast<size_t>(index)));
 }
 
 PyResult<std::monostate> PyList::__setitem__(int64_t index, PyObject *value)
@@ -384,7 +459,8 @@ PyResult<std::monostate> PyList::__setitem__(int64_t index, PyObject *value)
 	if (index < 0 || static_cast<size_t>(index) >= size) {
 		return Err(index_error("list index out of range"));
 	}
-	unchecked_at(static_cast<size_t>(index)) = value;
+	const auto idx = static_cast<size_t>(index);
+	if (!set_bool_storage_item(idx, value)) { unchecked_at(idx) = value; }
 	return Ok(std::monostate{});
 }
 
@@ -625,14 +701,34 @@ PyResult<PyObject *> PyList::__add__(const PyObject *other) const
 PyResult<PyObject *> PyList::__mul__(size_t count) const
 {
 	if (count <= 0) { return PyList::create(); }
-	const auto &elements = this->elements();
-	std::vector<Value> values;
-	values.reserve(count * elements.size());
-	for ([[maybe_unused]] auto _ : std::views::iota(size_t{ 0 }, count)) {
-		values.insert(values.end(), elements.begin(), elements.end());
+	if (m_bool_storage) {
+		PyResult<PyList *> result =
+			PyList::create_bool_filled(m_bool_elements.size() * count, false);
+		if (result.is_err()) { return result; }
+		auto *list = result.unwrap();
+		for (size_t i = 0; i < count; ++i) {
+			std::copy(m_bool_elements.begin(),
+				m_bool_elements.end(),
+				list->m_bool_elements.begin() + static_cast<ptrdiff_t>(i * m_bool_elements.size()));
+		}
+		return Ok(static_cast<PyObject *>(list));
 	}
 
-	return PyList::create(std::move(values));
+	const auto &elements = this->elements();
+	if (elements.size() == 1) {
+		if (const int bool_value = exact_bool_value(elements.front()); bool_value >= 0) {
+			return PyList::create_bool_filled(count, bool_value != 0);
+		}
+	}
+
+	auto result = PyList::create();
+	if (result.is_err()) { return result; }
+	auto *list = result.unwrap();
+	list->m_elements.reserve(count * elements.size());
+	for ([[maybe_unused]] auto _ : std::views::iota(size_t{ 0 }, count)) {
+		list->m_elements.insert(list->m_elements.end(), elements.begin(), elements.end());
+	}
+	return Ok(static_cast<PyObject *>(list));
 }
 
 PyResult<PyObject *> PyList::__eq__(const PyObject *other) const
@@ -903,7 +999,7 @@ PyResult<PyObject *> PyListIterator::__repr__() const { return PyString::create(
 PyResult<PyObject *> PyListIterator::__next__()
 {
 	if (m_current_index < m_pylist.logical_size())
-		return PyObject::from(m_pylist.unchecked_at(m_current_index++));
+		return PyObject::from(m_pylist.unchecked_value_at(m_current_index++));
 	return Err(stop_iteration());
 }
 
@@ -912,7 +1008,7 @@ PyResult<PyObject *> PyListIterator::__next__()
 PyObject *PyListIterator::next_raw()
 {
 	if (m_current_index < m_pylist.logical_size()) {
-		const auto &val = m_pylist.unchecked_at(m_current_index++);
+		const auto val = m_pylist.unchecked_value_at(m_current_index++);
 		return val.as_pyobject_raw();
 	}
 	return nullptr;
@@ -971,7 +1067,7 @@ PyResult<PyObject *> PyListReverseIterator::__next__()
 {
 	if (m_pylist.has_value()) {
 		if (m_current_index < m_pylist->get().logical_size())
-			return PyObject::from(m_pylist->get().unchecked_at(m_current_index--));
+			return PyObject::from(m_pylist->get().unchecked_value_at(m_current_index--));
 		m_pylist = std::nullopt;
 	}
 	return Err(stop_iteration());

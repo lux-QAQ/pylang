@@ -12,6 +12,7 @@ class PyBool : public PyInteger
 	friend class ::py::Arena;
 	friend PyObject *py_true();
 	friend PyObject *py_false();
+	friend void initialize_bool_singletons();
 
 	PyBool(PyType *);
 
@@ -38,5 +39,6 @@ class PyBool : public PyInteger
 
 PyObject *py_true();
 PyObject *py_false();
+void initialize_bool_singletons();
 
 }// namespace py

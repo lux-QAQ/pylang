@@ -323,6 +323,16 @@ PyResult<PyString *> PyString::create_raw(std::string &&value)
 {
 	// [性能优化] 不走 intern 的原始创建，避免 mutex + hashtable 开销
 	// 用于 str(int) 等场景：结果字符串只被临时迭代，不做 dict key
+#ifdef PYLANG_USE_Boehm_GC
+	// libstdc++ 的短字符串通常使用 SSO，不需要析构释放外部 buffer。
+	// 对这类高频数字字符串跳过 finalizer 注册，避免触发 BDWGC finalizer table 增长。
+	if (value.size() <= 15) {
+		PYLANG_DEBUG_LOG_ALLOC(PyString);
+		auto *mem = GC_MALLOC_ATOMIC(sizeof(PyString));
+		if (!mem) { return Err(memory_error(sizeof(PyString))); }
+		return Ok(new (mem) PyString(std::move(value)));
+	}
+#endif
 	auto *result = PYLANG_ALLOC(PyString, std::move(value));
 	if (!result) { return Err(memory_error(sizeof(PyString))); }
 	return Ok(result);

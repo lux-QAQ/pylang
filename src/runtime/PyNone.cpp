@@ -7,6 +7,10 @@
 
 namespace py {
 
+namespace {
+	PyObject *s_py_none = nullptr;
+}// namespace
+
 PyNone::PyNone() : PyBaseObject(types::BuiltinTypes::the().none()) {}
 
 PyNone::PyNone(PyType *type) : PyBaseObject(type) {}
@@ -60,14 +64,18 @@ std::function<std::unique_ptr<TypePrototype>()> PyNone::type_factory()
 // }
 PyObject *py_none()
 {
-	static PyObject *value = nullptr;
-	if (!value) {
-		Arena *saved = Arena::has_current() ? &Arena::current() : nullptr;
-		Arena::set_current(&ArenaManager::program_arena());
-		value = PyNone::create();
-		if (saved) Arena::set_current(saved);
+	if (__builtin_expect(s_py_none != nullptr, 1)) { return s_py_none; }
+	Arena *saved = Arena::has_current() ? &Arena::current() : nullptr;
+	Arena::set_current(&ArenaManager::program_arena());
+	s_py_none = PyNone::create();
+	if (saved) {
+		Arena::set_current(saved);
+	} else {
+		Arena::set_current(nullptr);
 	}
-	return value;
+	return s_py_none;
 }
+
+void initialize_none_singleton() { (void)py_none(); }
 
 }// namespace py

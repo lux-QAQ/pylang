@@ -106,13 +106,19 @@ py::PyObject *rt_list_getitem_i64(py::PyObject *list, py::PyObject *index)
 	py::PyObject *result = nullptr;
 
 	if (py::rt::exact_list_index_hit(list, index, [&result](py::PyList *py_list, int64_t idx) {
-			result = py_list->unchecked_at(static_cast<size_t>(idx)).as_pyobject_raw();
+			const auto index = static_cast<size_t>(idx);
+			result = py_list->is_bool_storage()
+						 ? (py_list->unchecked_bool_at(index) ? py::py_true() : py::py_false())
+						 : py_list->unchecked_at(index).as_pyobject_raw();
 		})) {
 		return result;
 	}
 
 	if (py::rt::exact_list_index(list, index, [&result](py::PyList *py_list, int64_t idx) {
-			result = py_list->unchecked_at(static_cast<size_t>(idx)).as_pyobject_raw();
+			const auto index = static_cast<size_t>(idx);
+			result = py_list->is_bool_storage()
+						 ? (py_list->unchecked_bool_at(index) ? py::py_true() : py::py_false())
+						 : py_list->unchecked_at(index).as_pyobject_raw();
 			return true;
 		})) {
 		return result;
@@ -126,7 +132,10 @@ bool rt_list_getitem_i64_truthy(py::PyObject *list, py::PyObject *index)
 {
 	bool result = false;
 	if (py::rt::exact_list_index_hit(list, index, [&result](py::PyList *py_list, int64_t idx) {
-			result = py::rt::truthy_value(py_list->unchecked_at(static_cast<size_t>(idx)));
+			const auto index = static_cast<size_t>(idx);
+			result = py_list->is_bool_storage()
+						 ? py_list->unchecked_bool_at(index)
+						 : py::rt::truthy_value(py_list->unchecked_at(index));
 		})) {
 		return result;
 	}
@@ -138,6 +147,10 @@ PYLANG_EXPORT_SUBSCR("list_setitem_i64", "void", "obj,obj,obj")
 void rt_list_setitem_i64(py::PyObject *list, py::PyObject *index, py::PyObject *value)
 {
 	if (py::rt::exact_list_index(list, index, [value](py::PyList *py_list, int64_t idx) {
+			if (py_list->is_bool_storage()
+				&& py_list->set_bool_storage_item(static_cast<size_t>(idx), py::Value{ value })) {
+				return true;
+			}
 			rt_unwrap_void(py_list->__setitem__(idx, py::ensure_box(value)));
 			return true;
 		})) {

@@ -29,6 +29,8 @@
 
 #include <spdlog/cfg/env.h>
 
+#include <cstdlib>
+
 #ifdef PYLANG_USE_ARENA
 #include "memory/ArenaManager.hpp"
 #endif
@@ -193,27 +195,26 @@ void rt_init()
 	spdlog::cfg::load_env_levels();
 #ifdef PYLANG_USE_Boehm_GC
 	GC_INIT();
-	// 提高初始堆大小，减少 GC 触发频率
-	// GC_expand_hp(256 * 1024 * 1024 * 7);// 256MB
+
+	if (const char *env = std::getenv("PYLANG_GC_INITIAL_HEAP_MB")) {
+		const auto heap_mb = std::strtoull(env, nullptr, 10);
+		if (heap_mb > 0) { GC_expand_hp(heap_mb * 1024ULL * 1024ULL); }
+	}
 
 	// [修复] 将 divisor 从极端的
 	// 1（引发无限GC的根源）改回默认机制或更大的放宽比例。数值越大约不容易触发GC。
-	GC_set_free_space_divisor(1);
+	auto free_space_divisor = 1ULL;
+	if (const char *env = std::getenv("PYLANG_GC_FREE_SPACE_DIVISOR")) {
+		if (const auto value = std::strtoull(env, nullptr, 10); value > 0) {
+			free_space_divisor = value;
+		}
+	}
+	GC_set_free_space_divisor(free_space_divisor);
+	GC_set_allocd_bytes_per_finalizer(0);
 
 	GC_allow_register_threads();
 	GC_set_warn_proc(pylang_gc_warn_proc);
 	GC_set_finalize_on_demand(0);
-
-	// 预膨胀 Finalizer Table
-	// const int K_DUMMY_ENTRIES = 512 * 1024 * 10;
-	// void **dummy = (void **)GC_MALLOC(sizeof(void *) * K_DUMMY_ENTRIES);
-	// for (int i = 0; i < K_DUMMY_ENTRIES; ++i) {
-	// 	dummy[i] = GC_MALLOC(8);
-	// 	GC_register_finalizer_no_order(dummy[i], [](void *, void *) {}, nullptr, nullptr, nullptr);
-	// }
-	// for (int i = 0; i < K_DUMMY_ENTRIES; ++i) {
-	// 	GC_register_finalizer_no_order(dummy[i], nullptr, nullptr, nullptr, nullptr);
-	// }
 
 	mp_set_memory_functions(pylang_gmp_alloc, pylang_gmp_realloc, pylang_gmp_free);
 #endif
@@ -228,6 +229,8 @@ void rt_init()
 	}
 
 	py::initialize_types();
+	py::initialize_bool_singletons();
+	py::initialize_none_singleton();
 	py::register_all_builtins();
 
 #ifdef PYLANG_USE_Boehm_GC

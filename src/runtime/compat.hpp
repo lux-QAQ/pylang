@@ -20,17 +20,18 @@
 // 支持通过环境变量设置频率：
 // export PYLANG_ALLOC_LOG_FREQ=5000     (设置简略日志打印频率，0为关闭)
 // export PYLANG_ALLOC_TRACE_FREQ=100000 (设置堆栈打印频率，0为关闭)
+// 默认关闭，避免 cpptrace/libdwarf 在性能测试和正常运行中制造大量噪声。
 inline void _pylang_debug_log_alloc(const char *type_name, std::atomic<size_t> &count)
 {
 	// 静态变量保证只会在程序启动第一次触发时读取一次环境变量
 	static size_t log_freq = []() -> size_t {
 		const char *env = std::getenv("PYLANG_ALLOC_LOG_FREQ");
-		return env ? std::strtoull(env, nullptr, 10) : 5000;
+		return env ? std::strtoull(env, nullptr, 10) : 0;
 	}();
 
 	static size_t trace_freq = []() -> size_t {
 		const char *env = std::getenv("PYLANG_ALLOC_TRACE_FREQ");
-		return env ? std::strtoull(env, nullptr, 10) : 100000;
+		return env ? std::strtoull(env, nullptr, 10) : 0;
 	}();
 
 	// 先增加计数（返回的是增加前的值，因此我们+1得到当前值）

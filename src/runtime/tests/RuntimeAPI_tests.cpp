@@ -30,6 +30,9 @@ using namespace py;
 
 void rt_list_insert_0_tuple2(py::PyObject *list, py::PyObject *a, py::PyObject *b);
 bool rt_list_pop_unpack2(py::PyObject *list, py::PyObject **out_a, py::PyObject **out_b);
+py::PyObject *rt_list_getitem_i64(py::PyObject *list, py::PyObject *index);
+bool rt_list_getitem_i64_truthy(py::PyObject *list, py::PyObject *index);
+void rt_list_setitem_i64(py::PyObject *list, py::PyObject *index, py::PyObject *value);
 
 // =============================================================================
 // Fixture: 模拟编译后程序的执行环境
@@ -196,6 +199,53 @@ TEST_F(RuntimeAPITest, FusedListQueueInsertPopUnpackPreservesOrder)
 	PyObject *a = nullptr;
 	PyObject *b = nullptr;
 	EXPECT_FALSE(rt_list_pop_unpack2(queue, &a, &b));
+}
+
+TEST_F(RuntimeAPITest, BoolListMulKeepsPythonSemantics)
+{
+	auto *single = PyList::create().unwrap();
+	single->append(py_false());
+
+	auto multiplied = single->__mul__(6);
+	ASSERT_TRUE(multiplied.is_ok());
+	auto *lst = as<PyList>(multiplied.unwrap());
+	ASSERT_NE(lst, nullptr);
+	ASSERT_TRUE(lst->is_bool_storage());
+	EXPECT_EQ(lst->__len__().unwrap(), 6u);
+
+	EXPECT_EQ(rt_list_getitem_i64(lst, PyInteger::create(0).unwrap()), py_false());
+	EXPECT_FALSE(rt_list_getitem_i64_truthy(lst, PyInteger::create(1).unwrap()));
+
+	rt_list_setitem_i64(lst, PyInteger::create(2).unwrap(), py_true());
+	EXPECT_TRUE(lst->is_bool_storage());
+	EXPECT_EQ(rt_list_getitem_i64(lst, PyInteger::create(2).unwrap()), py_true());
+	EXPECT_TRUE(rt_list_getitem_i64_truthy(lst, PyInteger::create(2).unwrap()));
+
+	auto repr = lst->__repr__();
+	ASSERT_TRUE(repr.is_ok());
+	EXPECT_EQ(as<PyString>(repr.unwrap())->value(), "[False, False, True, False, False, False]");
+}
+
+TEST_F(RuntimeAPITest, BoolListPromotesOnNonBoolWrite)
+{
+	auto *lst = PyList::create_bool_filled(3, false).unwrap();
+	ASSERT_TRUE(lst->is_bool_storage());
+
+	rt_list_setitem_i64(lst, PyInteger::create(1).unwrap(), PyInteger::create(7).unwrap());
+	EXPECT_FALSE(lst->is_bool_storage());
+	EXPECT_EQ(lst->__len__().unwrap(), 3u);
+	EXPECT_EQ(lst->__getitem__(PyInteger::create(0).unwrap()).unwrap(), py_false());
+	EXPECT_EQ(as<PyInteger>(lst->__getitem__(PyInteger::create(1).unwrap()).unwrap())->as_i64(), 7);
+	EXPECT_EQ(lst->__getitem__(PyInteger::create(2).unwrap()).unwrap(), py_false());
+}
+
+TEST_F(RuntimeAPITest, SingletonIdentityIsStable)
+{
+	EXPECT_EQ(py_true(), py_true());
+	EXPECT_EQ(py_false(), py_false());
+	EXPECT_EQ(py_none(), py_none());
+	EXPECT_NE(py_true(), py_false());
+	EXPECT_NE(py_none(), py_false());
 }
 
 TEST_F(RuntimeAPITest, DictOperations)
