@@ -383,5 +383,4 @@ def run_all():
     print("final_checksum", total)
 
 
-if __name__ == "__main__":
-    run_all()
+run_all()

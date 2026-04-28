@@ -31,6 +31,7 @@ class Shape
 	size_t slot_count() const { return m_slot_count; }
 	uint64_t version() const { return m_version; }
 	PyType *owner_type() const { return m_owner_type; }
+	const std::unordered_map<PyString *, size_t> &offsets() const { return m_offsets; }
 
 	Shape *transition(PyString *name);
 	std::optional<size_t> lookup(PyString *name) const;

@@ -110,7 +110,7 @@ py::PyObject *rt_getattr_ic(py::cache::AttrCache *cache, py::PyObject *obj, py::
 			auto *expected_shape = cache->expected_shape.load(std::memory_order_relaxed);
 			auto cached_type_version = cache->type_version.load(std::memory_order_relaxed);
 			if (expected_type == actual_type && expected_shape == actual_shape
-				&& cached_type_version == type_version) {
+				&& cached_type_version == type_version && !b_obj->has_instance_dict()) {
 				auto offset = cache->slot_offset.load(std::memory_order_relaxed);
 				return b_obj->slots()[offset];
 			}
@@ -118,7 +118,9 @@ py::PyObject *rt_getattr_ic(py::cache::AttrCache *cache, py::PyObject *obj, py::
 		cache->kind.store(0, std::memory_order_release);
 	}
 
-	if (!uses_default_getattribute(b_obj)) { return rt_unwrap(b_obj->getattribute(name)); }
+	if (!uses_default_getattribute(b_obj) || b_obj->has_instance_dict()) {
+		return rt_unwrap(b_obj->getattribute(name));
+	}
 
 	return resolve_default_getattr(b_obj, name, cache);
 }
@@ -132,7 +134,7 @@ void rt_setattr_ic(py::cache::AttrCache *cache,
 	auto *b_obj = py::ensure_box(obj);
 	auto *name = static_cast<py::PyString *>(name_obj);
 
-	if (!uses_default_setattribute(b_obj)) {
+	if (!uses_default_setattribute(b_obj) || b_obj->has_instance_dict()) {
 		rt_unwrap_void(b_obj->setattribute(name, py::ensure_box(value)));
 		return;
 	}

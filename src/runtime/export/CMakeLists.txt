@@ -153,6 +153,7 @@ foreach(src ${ALL_SOURCES})
   string(REPLACE ".cpp" "" name "${name}")
 
   set(bc "${BC_DIR}/${name}.bc")
+  set(depfile "${BC_DIR}/${name}.bc.d")
 
   # 直接使用 clang++ -emit-llvm -c 生成 .bc
   add_custom_command(
@@ -160,11 +161,13 @@ foreach(src ${ALL_SOURCES})
     COMMAND ${COMPILER_CMD}
     -std=c++23 ${BC_OPT_LEVEL} -g -c -emit-llvm
     -fno-discard-value-names
+    -MMD -MF "${depfile}" -MT "${bc}"
     ${BC_DEFS}
     ${BC_INC}
     -Wno-everything
     -o "${bc}" "${src}"
     DEPENDS "${src}"
+    DEPFILE "${depfile}"
     COMMENT "clang++ bitcode: ${rel}"
     VERBATIM
   )

@@ -428,6 +428,14 @@ const TypePrototype &PyObject::type_prototype() const { return m_bits_type->unde
 void PyObject::visit_graph(Visitor &visitor)
 {
 	// 1. 访问属性字典
+	if (m_instance_dict) { visitor.visit(*m_instance_dict); }
+	for (auto *slot : m_slots) {
+		auto value = RtValue::from_ptr(slot);
+		if (value.is_heap_object()) {
+			auto *obj = value.as_ptr();
+			if (obj && obj != this) { visitor.visit(*obj); }
+		}
+	}
 
 	// 2. 访问类型对象本身 (这是对象生存的核心)
 	if (m_bits_type) {
@@ -443,10 +451,54 @@ void PyObject::visit_graph(Visitor &visitor)
 				// 指针在内存中的位置 = 对象起始地址 + basicsize + (索引 * 指针大小)
 				PyObject **slot_addr =
 					reinterpret_cast<PyObject **>(raw_ptr + basicsize + (i * sizeof(PyObject *)));
-				if (*slot_addr) { visitor.visit(**slot_addr); }
+				auto value = RtValue::from_ptr(*slot_addr);
+				if (value.is_heap_object()) {
+					auto *obj = value.as_ptr();
+					if (obj && obj != this) { visitor.visit(*obj); }
+				}
 			}
 		}
 	}
+}
+
+bool PyObject::allows_instance_dict() const
+{
+	auto type_allows_dict = [](auto &&self, PyType *t) -> bool {
+		if (!t || !t->underlying_type().is_heaptype) { return false; }
+		if (!t->has_explicit_slots()) { return true; }
+		for (auto *slot : t->__slots__) {
+			if (auto *name = as<PyString>(slot); name && name->value() == "__dict__") {
+				return true;
+			}
+		}
+		for (auto *base : t->underlying_type().__bases__) {
+			if (self(self, base)) { return true; }
+		}
+		return false;
+	};
+	return type_allows_dict(type_allows_dict, type());
+}
+
+PyResult<PyDict *> PyObject::materialize_instance_dict() const
+{
+	if (!allows_instance_dict()) {
+		return Err(
+			attribute_error("'{}' object has no attribute '__dict__'", type_prototype().__name__));
+	}
+	if (m_instance_dict) { return Ok(m_instance_dict); }
+
+	auto dict = PyDict::create();
+	if (dict.is_err()) { return Err(dict.unwrap_err()); }
+	auto *result = dict.unwrap();
+	if (m_shape) {
+		for (const auto &[name, offset] : m_shape->offsets()) {
+			if (offset < m_slots.size() && m_slots[offset]) {
+				result->insert(RtValue::from_ptr(name), RtValue::from_ptr(m_slots[offset]));
+			}
+		}
+	}
+	m_instance_dict = result;
+	return Ok(result);
 }
 
 PyResult<PyMappingWrapper> PyObject::as_mapping()
@@ -1541,9 +1593,14 @@ PyResult<PyObject *> PyObject::__getattribute__(PyObject *attribute) const
 			return descriptor->get(const_cast<PyObject *>(this), type());
 		}
 	}
-	if (m_shape) {
+
+	if (name->value() == "__dict__") { return materialize_instance_dict(); }
+
+	if (m_instance_dict) {
+		if (auto value = m_instance_dict->lookup(name)) { return PyObject::from(*value); }
+	} else if (m_shape) {
 		if (auto offset = m_shape->lookup(as<PyString>(name))) {
-			return PyObject::from(m_slots[*offset]);
+			return PyObject::from(RtValue::from_ptr(m_slots[*offset]));
 		}
 	}
 
@@ -1632,9 +1689,12 @@ PyResult<PyObject *> PyObject::get_method(PyObject *name) const
 			}
 		}
 	}
-	if (m_shape) {
+
+	if (m_instance_dict) {
+		if (auto value = m_instance_dict->lookup(name)) { return PyObject::from(*value); }
+	} else if (m_shape) {
 		if (auto offset = m_shape->lookup(as<PyString>(name))) {
-			return PyObject::from(m_slots[*offset]);
+			return PyObject::from(RtValue::from_ptr(m_slots[*offset]));
 		}
 	}
 
@@ -1712,16 +1772,34 @@ PyResult<std::monostate> PyObject::__setattribute__(PyObject *attribute, PyObjec
 			}
 		}
 	}
+
+	auto *attribute_name = as<PyString>(attribute);
+	if (attribute_name->value() == "__dict__") {
+		auto *dict_value = as<PyDict>(value);
+		if (!dict_value) { return Err(type_error("__dict__ must be set to a dictionary")); }
+		if (!allows_instance_dict()) {
+			return Err(attribute_error(
+				"'{}' object has no attribute '__dict__'", type_prototype().__name__));
+		}
+		m_instance_dict = dict_value;
+		return Ok(std::monostate{});
+	}
+
+	if (m_instance_dict) {
+		m_instance_dict->insert(RtValue::from_ptr(attribute), RtValue::from_ptr(value));
+		return Ok(std::monostate{});
+	}
+
 	if (!m_shape) {
-		m_shape = Shape::root(type())->transition(as<PyString>(attribute));
+		m_shape = Shape::root(type())->transition(attribute_name);
 		m_slots.push_back(value);
 		return Ok(std::monostate{});
 	}
-	if (auto offset = m_shape->lookup(as<PyString>(attribute))) {
+	if (auto offset = m_shape->lookup(attribute_name)) {
 		m_slots[*offset] = value;
 		return Ok(std::monostate{});
 	}
-	m_shape = m_shape->transition(as<PyString>(attribute));
+	m_shape = m_shape->transition(attribute_name);
 	m_slots.push_back(value);
 	return Ok(std::monostate{});
 }

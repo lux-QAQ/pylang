@@ -85,6 +85,7 @@ class PyDict : public PyBaseObject
 	static PyResult<PyObject *> fromkeys(PyObject *iterable, PyObject *value);
 
 	std::optional<Value> operator[](Value key) const;
+	std::optional<Value> lookup(PyObject *key) const;
 
 	PyResult<PyObject *> get(PyObject *, PyObject *) const;
 	PyResult<PyObject *> pop(PyObject *, PyObject *);

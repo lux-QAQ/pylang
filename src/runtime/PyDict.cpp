@@ -206,6 +206,12 @@ std::optional<Value> PyDict::operator[](Value key) const
 	}
 }
 
+std::optional<Value> PyDict::lookup(PyObject *key) const
+{
+	if (auto it = find_dict_key(m_map, key); it != m_map.end()) { return it->second; }
+	return {};
+}
+
 void PyDict::insert(const Value &key, const Value &value)
 {
 	m_map.insert_or_assign(key, value);

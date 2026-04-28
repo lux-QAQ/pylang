@@ -518,6 +518,7 @@ PyResult<std::monostate> PyType::initialize(const std::string &name,
 	if (auto it = dict->map().find(RtValue::from_ptr(PyString::create("__slots__").unwrap()));
 		it != dict->map().end()) {
 		// has slots
+		set_has_explicit_slots();
 		auto slots_ = PyObject::from(it->second);
 		ASSERT(slots_.is_ok());
 		auto *slots = slots_.unwrap();

@@ -426,6 +426,7 @@ class PyObject : public Cell
 	PyType *m_bits_type{ nullptr };
 	Shape *m_shape{ nullptr };
 	py::GCVector<PyObject *> m_slots;
+	mutable PyDict *m_instance_dict{ nullptr };
 
   public:
 	PyObject() = delete;
@@ -552,6 +553,10 @@ class PyObject : public Cell
 	Shape *shape() { return m_shape; }
 	py::GCVector<PyObject *> &slots() { return m_slots; }
 	void set_shape(Shape *shape) { m_shape = shape; }
+	bool has_instance_dict() const { return m_instance_dict != nullptr; }
+	PyDict *instance_dict() const { return m_instance_dict; }
+	bool allows_instance_dict() const;
+	PyResult<PyDict *> materialize_instance_dict() const;
 	PyResult<PyObject *> get_method(PyObject *name) const;
 	PyResult<PyObject *> get_attribute(PyObject *name) const;
 	std::tuple<PyResult<PyObject *>, LookupAttrResult> lookup_attribute(PyObject *name) const;

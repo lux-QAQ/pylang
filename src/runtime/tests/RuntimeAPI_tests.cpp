@@ -270,6 +270,67 @@ TEST_F(RuntimeAPITest, SingletonIdentityIsStable)
 	EXPECT_NE(py_none(), py_false());
 }
 
+TEST_F(RuntimeAPITest, HeapObjectDictMaterializesShapeAttributes)
+{
+	auto *name = PyString::create("RuntimeDictObject").unwrap();
+	auto *bases = PyTuple::create(types::object()).unwrap();
+	auto *ns = PyDict::create().unwrap();
+	PyObject *type_args[] = { name, bases, ns };
+	auto cls = types::type()->call_fast_ptrs(type_args, 3, nullptr);
+	ASSERT_TRUE(cls.is_ok());
+	auto *type = as<PyType>(cls.unwrap());
+	ASSERT_NE(type, nullptr);
+
+	auto obj = type->call_fast_ptrs(nullptr, 0, nullptr);
+	ASSERT_TRUE(obj.is_ok());
+	auto *instance = obj.unwrap();
+	auto *payload_name = PyString::create("payload").unwrap();
+	auto *initial = PyInteger::create(10).unwrap();
+	ASSERT_TRUE(instance->__setattribute__(payload_name, initial).is_ok());
+
+	auto dict_obj = instance->__getattribute__(PyString::create("__dict__").unwrap());
+	ASSERT_TRUE(dict_obj.is_ok());
+	auto *dict = as<PyDict>(dict_obj.unwrap());
+	ASSERT_NE(dict, nullptr);
+
+	auto materialized_payload = dict->__getitem__(payload_name);
+	ASSERT_TRUE(materialized_payload.is_ok());
+	EXPECT_EQ(as<PyInteger>(materialized_payload.unwrap())->as_i64(), 10);
+
+	auto *updated = PyInteger::create(42).unwrap();
+	ASSERT_TRUE(dict->__setitem__(payload_name, updated).is_ok());
+	auto attr = instance->__getattribute__(payload_name);
+	ASSERT_TRUE(attr.is_ok());
+	EXPECT_EQ(as<PyInteger>(attr.unwrap())->as_i64(), 42);
+
+	auto *extra_name = PyString::create("extra").unwrap();
+	auto *extra_value = PyInteger::create(7).unwrap();
+	ASSERT_TRUE(instance->__setattribute__(extra_name, extra_value).is_ok());
+	auto dict_extra = dict->__getitem__(extra_name);
+	ASSERT_TRUE(dict_extra.is_ok());
+	EXPECT_EQ(as<PyInteger>(dict_extra.unwrap())->as_i64(), 7);
+}
+
+TEST_F(RuntimeAPITest, HeapObjectSlotsWithoutDictRejectsDictAccess)
+{
+	auto *name = PyString::create("RuntimeSlottedNoDictObject").unwrap();
+	auto *bases = PyTuple::create(types::object()).unwrap();
+	auto *ns = PyDict::create().unwrap();
+	ns->insert(RtValue::from_ptr(PyString::create("__slots__").unwrap()),
+		RtValue::from_ptr(PyTuple::create().unwrap()));
+	PyObject *type_args[] = { name, bases, ns };
+	auto cls = types::type()->call_fast_ptrs(type_args, 3, nullptr);
+	ASSERT_TRUE(cls.is_ok());
+	auto *type = as<PyType>(cls.unwrap());
+	ASSERT_NE(type, nullptr);
+
+	auto obj = type->call_fast_ptrs(nullptr, 0, nullptr);
+	ASSERT_TRUE(obj.is_ok());
+	auto dict_obj = obj.unwrap()->__getattribute__(PyString::create("__dict__").unwrap());
+	ASSERT_TRUE(dict_obj.is_err());
+	EXPECT_TRUE(dict_obj.unwrap_err()->type()->issubclass(types::attribute_error()));
+}
+
 TEST_F(RuntimeAPITest, DictOperations)
 {
 	// 模拟:

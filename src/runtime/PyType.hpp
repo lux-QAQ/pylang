@@ -38,6 +38,7 @@ class PyType : public PyBaseObject
 	// [性能优化] 缓存 __init__ 方法，跳过每次 Node() 调用时的 lookup_attribute 遍历 (3.8s 热点)
 	mutable PyObject *m_cached_init{ nullptr };
 	mutable uint64_t m_cached_init_version{ 0 };
+	bool m_has_explicit_slots{ false };
 
   public:
 	PyType(PyType *);
@@ -104,6 +105,8 @@ class PyType : public PyBaseObject
 	std::optional<PyResult<PyObject *>> lookup(PyObject *name) const;
 
 	PyDict *dict() { return nullptr; }// TODO: Transition Shape back to PyDict if asked
+	bool has_explicit_slots() const { return m_has_explicit_slots; }
+	void set_has_explicit_slots(bool value = true) { m_has_explicit_slots = value; }
 
 	static PyResult<PyObject *> heap_object_allocation(PyType *);
 
