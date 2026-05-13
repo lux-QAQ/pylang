@@ -13,12 +13,14 @@
 #include "runtime/PyList.hpp"
 #include "runtime/PyModule.hpp"
 #include "runtime/PyNone.hpp"
+#include "runtime/PySet.hpp"
 #include "runtime/PySlice.hpp"
 #include "runtime/PyString.hpp"
 #include "runtime/PyTuple.hpp"
 #include "runtime/RuntimeContext.hpp"
 #include "runtime/StopIteration.hpp"
 #include "runtime/Value.hpp"
+#include "runtime/ValueError.hpp"
 #include "runtime/builtinTypeInit.hpp"
 #include "runtime/modules/Modules.hpp"
 #include "runtime/modules/config.hpp"
@@ -348,6 +350,27 @@ TEST_F(RuntimeAPITest, DictOperations)
 	EXPECT_EQ(as<PyInteger>(result.unwrap())->as_i64(), 42);
 }
 
+TEST_F(RuntimeAPITest, DictKeysUsePythonEqualityForTaggedAndBoxedIntegers)
+{
+	auto *dict = PyDict::create().unwrap();
+	auto *tagged_key = RtValue::from_int(7).as_pyobject_raw();
+	auto *boxed_key = PyInteger::create(7).unwrap();
+	auto *value = PyInteger::create(123).unwrap();
+
+	ASSERT_TRUE(dict->__setitem__(tagged_key, value).is_ok());
+	auto result = dict->__getitem__(boxed_key);
+	ASSERT_TRUE(result.is_ok());
+	EXPECT_EQ(as<PyInteger>(result.unwrap())->as_i64(), 123);
+	EXPECT_EQ(dict->map().size(), 1U);
+
+	auto *updated = PyInteger::create(456).unwrap();
+	ASSERT_TRUE(dict->__setitem__(boxed_key, updated).is_ok());
+	result = dict->__getitem__(tagged_key);
+	ASSERT_TRUE(result.is_ok());
+	EXPECT_EQ(as<PyInteger>(result.unwrap())->as_i64(), 456);
+	EXPECT_EQ(dict->map().size(), 1U);
+}
+
 TEST_F(RuntimeAPITest, DictOperationsWithFloatKey)
 {
 	auto *d = PyDict::create().unwrap();
@@ -359,6 +382,25 @@ TEST_F(RuntimeAPITest, DictOperationsWithFloatKey)
 	auto result = d->getitem(PyFloat::create(1.2).unwrap());
 	ASSERT_TRUE(result.is_ok());
 	EXPECT_EQ(as<PyString>(result.unwrap())->value(), "ok");
+}
+
+TEST_F(RuntimeAPITest, SetMembershipUsesPythonEqualityForTaggedAndBoxedIntegers)
+{
+	auto *set = PySet::create().unwrap();
+	auto *tagged_value = RtValue::from_int(7).as_pyobject_raw();
+	auto *boxed_value = PyInteger::create(7).unwrap();
+
+	ASSERT_TRUE(set->add(tagged_value).is_ok());
+	auto contains = set->__contains__(boxed_value);
+	ASSERT_TRUE(contains.is_ok());
+	EXPECT_TRUE(contains.unwrap());
+	EXPECT_EQ(set->elements().size(), 1U);
+
+	ASSERT_TRUE(set->add(boxed_value).is_ok());
+	contains = set->__contains__(tagged_value);
+	ASSERT_TRUE(contains.is_ok());
+	EXPECT_TRUE(contains.unwrap());
+	EXPECT_EQ(set->elements().size(), 1U);
 }
 
 TEST_F(RuntimeAPITest, TupleUnpacking)
@@ -781,6 +823,18 @@ TEST_F(RuntimeAPITest, ExceptionFromOperation)
 
 	auto result = s->add(i);
 	EXPECT_TRUE(result.is_err());
+}
+
+TEST_F(RuntimeAPITest, BaseExceptionStrUsesMessageWithoutTypePrefix)
+{
+	auto *message = PyString::create("planned benchmark exception").unwrap();
+	auto *args = PyTuple::create(message).unwrap();
+	auto *exc = ValueError::create(args).unwrap();
+
+	auto str_result = exc->str();
+	ASSERT_TRUE(str_result.is_ok());
+	EXPECT_EQ(str_result.unwrap()->value(), "planned benchmark exception");
+	EXPECT_EQ(exc->to_string(), "planned benchmark exception");
 }
 
 TEST_F(RuntimeAPITest, IndexOutOfRange)

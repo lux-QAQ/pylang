@@ -39,6 +39,7 @@ class BaseException : public PyBaseObject
 	static PyResult<PyObject *> __new__(const PyType *type, PyTuple *args, PyDict *kwargs);
 	PyResult<int32_t> __init__(PyTuple *args, PyDict *kwargs);
 	PyResult<PyObject *> __repr__() const;
+	PyResult<PyObject *> __str__();
 
 	std::string to_string() const override;
 

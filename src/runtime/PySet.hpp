@@ -1,12 +1,14 @@
 #pragma once
 
 #include "PyObject.hpp"
+#include "memory/GCTracingAllocator.hpp"
 #include <tsl/ordered_set.h>
 #include <unordered_set>
 
 namespace py {
 
-using SetType = tsl::ordered_set<Value, RtValueHash, RtValueEq>;
+using SetType = tsl::
+	ordered_set<Value, RtValueHash, RtValueEq, py::GCTracingAllocator<Value>, py::GCVector<Value>>;
 
 class PySet : public PyBaseObject
 {

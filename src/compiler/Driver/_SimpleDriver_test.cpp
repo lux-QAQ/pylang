@@ -42,6 +42,10 @@ class SimpleDriverTest : public ::testing::Test
 		opts.opt_level = 0;
 		opts.dump_ir_before_opt = false;
 		opts.dump_ir_after_opt = false;
+		auto add_build_library_dir = [&opts](const std::string &dir) {
+			opts.extra_link_flags.push_back("-L" + dir);
+			opts.extra_link_flags.push_back("-Wl,-rpath," + dir);
+		};
 		const std::string spdlog_lib =
 #ifdef NDEBUG
 			"-lspdlog";
@@ -51,10 +55,6 @@ class SimpleDriverTest : public ::testing::Test
 		opts.extra_link_flags = { "-g",
 			"-fno-omit-frame-pointer",
 			//"-fsanitize=address",
-			"-L" + s_build_dir + "/_deps/spdlog-build",
-			"-L" + s_build_dir + "/_deps/bdwgc-build",
-			"-L" + s_build_dir + "/_deps/cpptrace-build",
-			"-L" + s_build_dir + "/_deps/libdwarf-build/src/lib/libdwarf",
 			spdlog_lib,
 			"-lgmpxx",
 			"-lgc",
@@ -67,6 +67,11 @@ class SimpleDriverTest : public ::testing::Test
 			"-lz"
 
 		};
+		add_build_library_dir(s_build_dir + "/_deps/spdlog-build");
+		add_build_library_dir(s_build_dir + "/_deps/bdwgc-build");
+		add_build_library_dir(s_build_dir + "/_deps/cpptrace-build");
+		add_build_library_dir(s_build_dir + "/_deps/libdwarf-build/src/lib/libdwarf");
+		add_build_library_dir(s_build_dir + "/_deps/zstd-build/lib");
 		if (std::system("ld.lld --version > /dev/null 2>&1") == 0) {
 			opts.linker_cmd = "clang++";// 使用 clang 驱动程序
 			opts.extra_link_flags.push_back("-fuse-ld=lld");

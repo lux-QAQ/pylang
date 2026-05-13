@@ -164,15 +164,12 @@ class RtValue
 
 struct RtValueHash
 {
-	std::size_t operator()(const RtValue &v) const
-	{
-		return std::hash<uintptr_t>{}(*reinterpret_cast<const uintptr_t *>(&v));
-	}
+	std::size_t operator()(const RtValue &v) const;
 };
 
 struct RtValueEq
 {
-	bool operator()(const RtValue &lhs, const RtValue &rhs) const { return lhs == rhs; }
+	bool operator()(const RtValue &lhs, const RtValue &rhs) const;
 };
 
 

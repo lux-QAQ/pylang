@@ -25,6 +25,8 @@
 #include <cstdlib>
 #include <format>
 #include <fstream>
+#include <functional>
+#include <iomanip>
 #include <mutex>
 #include <sstream>
 #include <vector>
@@ -97,6 +99,14 @@ namespace {
 		std::ostringstream existing;
 		existing << in.rdbuf();
 		return existing.str() == expected;
+	}
+
+	std::string cache_key_for_metadata(const std::string &metadata)
+	{
+		std::ostringstream os;
+		os << std::hex << std::setw(16) << std::setfill('0')
+		   << static_cast<unsigned long long>(std::hash<std::string>{}(metadata));
+		return os.str();
 	}
 
 }// namespace
@@ -177,9 +187,12 @@ Result<std::filesystem::path> SimpleDriver::precompile_runtime_module(
 	llvm::LLVMContext &ctx,
 	llvm::TargetMachine &tm)
 {
-	auto cache_path = std::filesystem::temp_directory_path() / "pylang_runtime_cache.o";
-	auto meta_path = std::filesystem::temp_directory_path() / "pylang_runtime_cache.meta";
 	const auto expected_meta = runtime_cache_metadata(bc_path, opts, tm);
+	const auto cache_key = cache_key_for_metadata(expected_meta);
+	auto cache_path =
+		std::filesystem::temp_directory_path() / ("pylang_runtime_cache_" + cache_key + ".o");
+	auto meta_path =
+		std::filesystem::temp_directory_path() / ("pylang_runtime_cache_" + cache_key + ".meta");
 
 	std::error_code ec;
 	const bool cache_exists =
@@ -209,8 +222,15 @@ Result<std::filesystem::path> SimpleDriver::precompile_runtime_module(
 	mod->setDataLayout(tm.createDataLayout());
 	mod->setTargetTriple(tm.getTargetTriple().str());
 
-	// std::error_code ec;
-	llvm::raw_fd_ostream dest(cache_path.string(), ec, llvm::sys::fs::OF_None);
+	auto unique_suffix = std::format("{}.{}",
+		std::chrono::steady_clock::now().time_since_epoch().count(),
+		reinterpret_cast<uintptr_t>(&ctx));
+	auto tmp_cache_path = cache_path;
+	tmp_cache_path += "." + unique_suffix + ".tmp";
+	auto tmp_meta_path = meta_path;
+	tmp_meta_path += "." + unique_suffix + ".tmp";
+
+	llvm::raw_fd_ostream dest(tmp_cache_path.string(), ec, llvm::sys::fs::OF_None);
 	if (ec) { return MAKE_ERROR(ErrorKind::IOError, "Cannot open cache file: {}", ec.message()); }
 
 	llvm::legacy::PassManager emit_pm;
@@ -222,8 +242,21 @@ Result<std::filesystem::path> SimpleDriver::precompile_runtime_module(
 	dest.flush();
 	dest.close();
 
-	std::ofstream meta(meta_path, std::ios::binary);
+	std::filesystem::rename(tmp_cache_path, cache_path, ec);
+	if (ec) {
+		return MAKE_ERROR(
+			ErrorKind::IOError, "Cannot publish runtime cache file: {}", ec.message());
+	}
+
+	std::ofstream meta(tmp_meta_path, std::ios::binary);
 	meta << expected_meta;
+	meta.close();
+
+	std::filesystem::rename(tmp_meta_path, meta_path, ec);
+	if (ec) {
+		return MAKE_ERROR(
+			ErrorKind::IOError, "Cannot publish runtime cache metadata: {}", ec.message());
+	}
 
 	return cache_path;
 }

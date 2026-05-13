@@ -2,6 +2,7 @@
 #include "MemoryError.hpp"
 #include "PyCode.hpp"
 #include "PyFrame.hpp"
+#include "PyString.hpp"
 #include "PyTraceback.hpp"
 #include "PyType.hpp"
 #include "runtime/compat.hpp"
@@ -131,6 +132,8 @@ PyResult<PyObject *> BaseException::__repr__() const
 		return Err(result.unwrap_err());
 	}
 }
+
+PyResult<PyObject *> BaseException::__str__() { return PyString::create(to_string()); }
 
 namespace {
 

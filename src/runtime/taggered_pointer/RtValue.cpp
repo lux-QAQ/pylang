@@ -10,10 +10,41 @@
 
 #include "runtime/types/api.hpp"
 
+#include <functional>
 #include <iostream>
 #include <variant>
 
 namespace py {
+
+std::size_t RtValueHash::operator()(const RtValue &v) const
+{
+	if (v.is_null()) { return 0; }
+	if (v.is_tagged_int()) {
+		const auto h = PyInteger::hash_big_int(BigIntType{ v.as_int() });
+		return static_cast<std::size_t>(h);
+	}
+
+	auto *obj = v.as_ptr();
+	auto h = obj->hash();
+	return h.is_ok() ? static_cast<std::size_t>(h.unwrap())
+					 : std::hash<uintptr_t>{}(reinterpret_cast<uintptr_t>(obj));
+}
+
+bool RtValueEq::operator()(const RtValue &lhs, const RtValue &rhs) const
+{
+	if (lhs == rhs) { return true; }
+	if (lhs.is_null() || rhs.is_null()) { return lhs.is_null() && rhs.is_null(); }
+	if (lhs.is_tagged_int() || rhs.is_tagged_int()) {
+		if (lhs.is_tagged_int() && rhs.is_tagged_int()) { return lhs.as_int() == rhs.as_int(); }
+		auto *l_obj = lhs.box();
+		auto *r_obj = rhs.box();
+		auto eq = l_obj->richcompare(r_obj, RichCompare::Py_EQ);
+		return eq.is_ok() && eq.unwrap() == py_true();
+	}
+
+	auto eq = lhs.as_ptr()->richcompare(rhs.as_ptr(), RichCompare::Py_EQ);
+	return eq.is_ok() && eq.unwrap() == py_true();
+}
 
 PyObject *RtValue::box() const
 {
