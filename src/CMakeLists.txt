@@ -540,11 +540,19 @@ if(LLVM_FOUND)
       compiler/Driver/_SimpleDriver_test.cpp
     )
     setup_compiler_test_target(compiler_integration_tests)
-    # 集成测试设置较长的超时时间，并标记 Label
-    gtest_discover_tests(compiler_integration_tests
-      PROPERTIES
+    # 集成测试会加载 runtime.bc、反复 AOT 编译并链接临时二进制。
+    # gtest_discover_tests 会把每个 TEST_F 注册成独立 CTest 进程，导致
+    # SimpleDriverTest::SetUpTestSuite 的共享 driver/cache 无法跨 case 复用。
+    # 这里故意把整个 suite 作为一个 CTest 测试运行；直接执行该二进制时
+    # 仍然可以使用 --gtest_filter 精确运行单个 case。
+    add_test(
+      NAME compiler_integration_tests
+      COMMAND compiler_integration_tests --gtest_filter=SimpleDriverTest.*
+    )
+    set_tests_properties(compiler_integration_tests PROPERTIES
       LABELS "Integration"
       TIMEOUT 300
+      ENVIRONMENT "PYLANG_ALLOC_LOG_FREQ=0;PYLANG_ALLOC_TRACE_FREQ=0"
     )
   endif()
 
