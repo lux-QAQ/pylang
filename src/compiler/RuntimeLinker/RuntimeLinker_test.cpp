@@ -219,8 +219,12 @@ TEST_F(RuntimeLinkerTest, UnknownFunction)
 TEST_F(RuntimeLinkerTest, DeclareUnknownFunction)
 {
 	llvm::Module user_module("test_user", s_ctx);
+	auto logger = log::linker();
+	const auto old_level = logger->level();
+	logger->set_level(spdlog::level::critical);
 	auto *decl =
 		linker().declare_in(&user_module, "nonexistent_function_xyz AND This error is expected");
+	logger->set_level(old_level);
 	EXPECT_EQ(decl, nullptr);
 }
 

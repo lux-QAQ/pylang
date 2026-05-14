@@ -284,7 +284,7 @@ configure_file(runtime/modules/paths.hpp.in runtime/modules/paths.hpp)
 # [关键修复]: 必须在 add_library/add_subdirectory 之前调用
 # 确保所有引用了 GCTracingAllocator.hpp 的代码都能找到 ylt
 include_directories(
-  SYSTEM PUBLIC # 使用 SYSTEM 可以抑制第三方库的警告
+  SYSTEM # 使用 SYSTEM 可以抑制第三方库的警告
   ${yalantinglibs_SOURCE_DIR}/include
   ${yalantinglibs_SOURCE_DIR}/include/ylt/thirdparty
   ${ordered_map_SOURCE_DIR}/include # 新增：将 tsl/ordered_map 也就是 ordered_map_SOURCE_DIR 加入全局搜索
@@ -292,7 +292,7 @@ include_directories(
 
 # 如果开启了 Boehm GC，也要全局暴露 gc.h
 if(ENABLE_BOEHM_GC)
-  include_directories(SYSTEM PUBLIC ${bdwgc_SOURCE_DIR}/include)
+  include_directories(SYSTEM ${bdwgc_SOURCE_DIR}/include)
   include_directories(SYSTEM ${cpptrace_SOURCE_DIR}/include)
 endif()
 

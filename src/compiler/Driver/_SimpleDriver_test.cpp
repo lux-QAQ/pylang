@@ -62,7 +62,6 @@ class SimpleDriverTest : public ::testing::Test
 			"-licuuc",
 			"-licudata",
 			"-lcpptrace",
-			"-ldwarf",
 			"-lzstd",
 			"-lz"
 
@@ -70,7 +69,6 @@ class SimpleDriverTest : public ::testing::Test
 		add_build_library_dir(s_build_dir + "/_deps/spdlog-build");
 		add_build_library_dir(s_build_dir + "/_deps/bdwgc-build");
 		add_build_library_dir(s_build_dir + "/_deps/cpptrace-build");
-		add_build_library_dir(s_build_dir + "/_deps/libdwarf-build/src/lib/libdwarf");
 		add_build_library_dir(s_build_dir + "/_deps/zstd-build/lib");
 		if (std::system("ld.lld --version > /dev/null 2>&1") == 0) {
 			opts.linker_cmd = "clang++";// 使用 clang 驱动程序

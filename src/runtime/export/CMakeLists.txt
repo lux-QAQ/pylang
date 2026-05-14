@@ -56,6 +56,15 @@ if(_count EQUAL 0)
   return()
 endif()
 
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+  set(_runtime_bitcode_debug_default ON)
+else()
+  set(_runtime_bitcode_debug_default OFF)
+endif()
+option(PYLANG_RUNTIME_BITCODE_DEBUG_INFO
+  "Emit debug metadata and preserve LLVM value names in runtime.bc"
+  ${_runtime_bitcode_debug_default})
+
 # ---------------------------------------------------------------------------
 # Include 路径
 # ---------------------------------------------------------------------------
@@ -138,6 +147,14 @@ else()
   message(STATUS "Bitcode: ${CMAKE_BUILD_TYPE} build — using -O1")
 endif()
 
+set(BC_DEBUG_FLAGS "-g0")
+if(PYLANG_RUNTIME_BITCODE_DEBUG_INFO)
+  set(BC_DEBUG_FLAGS "-g" "-fno-discard-value-names")
+  message(STATUS "Bitcode: emitting debug metadata and preserving value names")
+else()
+  message(STATUS "Bitcode: debug metadata disabled")
+endif()
+
 # 组装编译器调用命令 (集成 ccache)
 set(COMPILER_CMD "")
 if(CCACHE_PROGRAM)
@@ -159,8 +176,7 @@ foreach(src ${ALL_SOURCES})
   add_custom_command(
     OUTPUT "${bc}"
     COMMAND ${COMPILER_CMD}
-    -std=c++23 ${BC_OPT_LEVEL} -g -c -emit-llvm
-    -fno-discard-value-names
+    -std=c++23 ${BC_OPT_LEVEL} ${BC_DEBUG_FLAGS} -c -emit-llvm
     -MMD -MF "${depfile}" -MT "${bc}"
     ${BC_DEFS}
     ${BC_INC}
@@ -192,13 +208,23 @@ add_custom_command(
 add_custom_target(runtime_bitcode ALL DEPENDS "${RUNTIME_BC}")
 
 if(LLVM_OPT_EXEC)
-  add_custom_command(
-    OUTPUT "${RUNTIME_NODEBUG_BC}"
-    COMMAND ${LLVM_OPT_EXEC} --strip-debug -o "${RUNTIME_NODEBUG_BC}" "${RUNTIME_BC}"
-    DEPENDS "${RUNTIME_BC}"
-    COMMENT "Stripping debug metadata → runtime.nodebug.bc"
-    VERBATIM
-  )
+  if(PYLANG_RUNTIME_BITCODE_DEBUG_INFO)
+    add_custom_command(
+      OUTPUT "${RUNTIME_NODEBUG_BC}"
+      COMMAND ${LLVM_OPT_EXEC} --strip-debug -o "${RUNTIME_NODEBUG_BC}" "${RUNTIME_BC}"
+      DEPENDS "${RUNTIME_BC}"
+      COMMENT "Stripping debug metadata → runtime.nodebug.bc"
+      VERBATIM
+    )
+  else()
+    add_custom_command(
+      OUTPUT "${RUNTIME_NODEBUG_BC}"
+      COMMAND ${CMAKE_COMMAND} -E copy_if_different "${RUNTIME_BC}" "${RUNTIME_NODEBUG_BC}"
+      DEPENDS "${RUNTIME_BC}"
+      COMMENT "Copying runtime.bc → runtime.nodebug.bc (debug metadata disabled)"
+      VERBATIM
+    )
+  endif()
 
   add_custom_target(runtime_nodebug_bitcode ALL DEPENDS "${RUNTIME_NODEBUG_BC}")
 endif()
