@@ -246,7 +246,8 @@ void VariablesResolver::load(const std::string &name,
 					found = true;
 					break;
 				} else if (it->get().visibility == Visibility::CELL
-						   || it->get().visibility == Visibility::LOCAL) {
+						   || it->get().visibility == Visibility::LOCAL
+						   || it->get().visibility == Visibility::FREE) {
 					annotate_free_and_cell_variables(name);
 					found = true;
 					break;

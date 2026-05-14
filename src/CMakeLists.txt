@@ -246,7 +246,7 @@ set(UNITTEST_SOURCES
   # executable/bytecode/Bytecode_tests.cpp
   # executable/bytecode/BytecodeProgram_tests.cpp
   # executable/bytecode/codegen/BytecodeGenerator_tests.cpp
-  # executable/bytecode/codegen/VariablesResolver_tests.cpp
+  executable/bytecode/codegen/VariablesResolver_tests.cpp
   lexer/Lexer_tests.cpp
   memory/Arena_tests.cpp
   memory/GarbageCollector_tests.cpp

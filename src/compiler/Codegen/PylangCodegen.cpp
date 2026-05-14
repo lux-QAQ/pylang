@@ -1885,6 +1885,20 @@ llvm::Value *PylangCodegen::compile_function_body(const std::string &func_name,
 	VariablesResolver::Scope *var_scope = nullptr;
 	auto *parent_var_scope = enclosing.var_scope;
 	if (parent_var_scope) {
+		const auto resolver_mangled =
+			m_mangler.function_mangle(parent_var_scope->namespace_, func_name, source_loc);
+		if (auto vis_it = m_codegen_ctx.visibility_map().find(resolver_mangled);
+			vis_it != m_codegen_ctx.visibility_map().end()) {
+			var_scope = vis_it->second.get();
+		}
+	}
+	if (!var_scope) {
+		if (auto vis_it = m_codegen_ctx.visibility_map().find(mangled);
+			vis_it != m_codegen_ctx.visibility_map().end()) {
+			var_scope = vis_it->second.get();
+		}
+	}
+	if (!var_scope && parent_var_scope) {
 		for (auto &child_ref : parent_var_scope->children) {
 			auto &child = child_ref.get();
 			auto last_dot = child.namespace_.rfind('.');
@@ -1896,10 +1910,6 @@ llvm::Value *PylangCodegen::compile_function_body(const std::string &func_name,
 				break;
 			}
 		}
-	}
-	if (!var_scope) {
-		auto vis_it = m_codegen_ctx.visibility_map().find(mangled);
-		if (vis_it != m_codegen_ctx.visibility_map().end()) { var_scope = vis_it->second.get(); }
 	}
 	if (!var_scope) {
 		log::codegen()->warn(

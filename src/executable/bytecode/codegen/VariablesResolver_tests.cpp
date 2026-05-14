@@ -214,6 +214,56 @@ TEST(VariablesResolver, NonLocal)
 		VariablesResolver::Visibility::FREE);
 }
 
+TEST(VariablesResolver, DuplicateNestedFunctionsKeepDistinctClosureScopes)
+{
+	static constexpr std::string_view program =
+		"def outer():\n"
+		"   x = 10\n"
+		"   def host(flag):\n"
+		"      if flag:\n"
+		"         def pick():\n"
+		"            return 1\n"
+		"      else:\n"
+		"         def pick():\n"
+		"            return x\n"
+		"      return pick()\n"
+		"   return host(0)\n";
+
+	auto visibility = generate_resolver(program);
+
+	ASSERT_TRUE(visibility.contains("_bytecode_generator_tests_.outer.0:0"));
+	auto &outer = visibility.at("_bytecode_generator_tests_.outer.0:0");
+	ASSERT_TRUE(outer->symbol_map.get_visible_symbol("x").has_value());
+	ASSERT_EQ(outer->symbol_map.get_visible_symbol("x")->get().visibility,
+		VariablesResolver::Visibility::CELL);
+
+	VariablesResolver::Scope *host = nullptr;
+	for (const auto &[name, scope] : visibility) {
+		if (name.find(".outer.") != std::string::npos && name.find(".host.") != std::string::npos) {
+			host = scope.get();
+			break;
+		}
+	}
+	ASSERT_NE(host, nullptr);
+	ASSERT_TRUE(host->symbol_map.get_visible_symbol("x").has_value());
+	ASSERT_EQ(host->symbol_map.get_visible_symbol("x")->get().visibility,
+		VariablesResolver::Visibility::FREE);
+
+	size_t pick_scope_count = 0;
+	size_t pick_scope_with_x_free = 0;
+	for (const auto &[name, scope] : visibility) {
+		if (name.find(".pick.") == std::string::npos) { continue; }
+		++pick_scope_count;
+		if (auto sym = scope->symbol_map.get_visible_symbol("x");
+			sym.has_value() && sym->get().visibility == VariablesResolver::Visibility::FREE) {
+			++pick_scope_with_x_free;
+		}
+	}
+
+	ASSERT_EQ(pick_scope_count, 2);
+	ASSERT_EQ(pick_scope_with_x_free, 1);
+}
+
 TEST(VariablesResolver, LambdaDefinition)
 {
 	static constexpr std::string_view program = "a = lambda c: a + b + c\n";

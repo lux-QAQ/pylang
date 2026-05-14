@@ -613,6 +613,25 @@ print("nested", level1())
 	run_aot_test(shared_driver(), "nested_closure", code, { "nested 3" });
 }
 
+TEST_F(SimpleDriverTest, Feature_DuplicateNestedFunctionClosure)
+{
+	std::string code = R"(
+def outer():
+    x = 10
+    def host(flag):
+        if flag:
+            def pick():
+                return 1
+        else:
+            def pick():
+                return x
+        return pick()
+    return host(False)
+print("dup_closure", outer())
+)";
+	run_aot_test(shared_driver(), "duplicate_nested_function_closure", code, { "dup_closure 10" });
+}
+
 TEST_F(SimpleDriverTest, Feature_NonlocalClosure)
 {
 	std::string code = R"(
