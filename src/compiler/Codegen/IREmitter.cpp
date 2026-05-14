@@ -3,8 +3,62 @@
 #include "compiler/Support/Log.hpp"
 
 #include <llvm/IR/Constants.h>
+#include <llvm/IR/Intrinsics.h>
+
+#include <cstdint>
+#include <string>
 
 namespace pylang {
+
+namespace {
+
+	constexpr int64_t kTaggedIntMax = (1LL << 62) - 1;
+	constexpr int64_t kTaggedIntMin = -(1LL << 62);
+
+	bool fits_tagged_int(int64_t value) { return value >= kTaggedIntMin && value <= kTaggedIntMax; }
+
+	uint64_t encode_tagged_int_bits(int64_t value)
+	{
+		return (static_cast<uint64_t>(value) << 1U) | 1U;
+	}
+
+	llvm::Value *emit_fits_tagged_int(llvm::IRBuilder<> &builder, llvm::Value *value)
+	{
+		auto *i64_ty = builder.getInt64Ty();
+		auto *min_val = llvm::ConstantInt::get(i64_ty, kTaggedIntMin, true);
+		auto *max_val = llvm::ConstantInt::get(i64_ty, kTaggedIntMax, true);
+		auto *ge_min = builder.CreateICmpSGE(value, min_val, "tag.fit.min");
+		auto *le_max = builder.CreateICmpSLE(value, max_val, "tag.fit.max");
+		return builder.CreateAnd(ge_min, le_max, "tag.fit");
+	}
+
+	llvm::Value *emit_encode_tagged_int(llvm::IRBuilder<> &builder, llvm::Value *value)
+	{
+		auto *shifted =
+			builder.CreateShl(value, llvm::ConstantInt::get(value->getType(), 1), "tag.shl");
+		auto *bits =
+			builder.CreateOr(shifted, llvm::ConstantInt::get(value->getType(), 1), "tag.bits");
+		if (!bits->getType()->isIntegerTy(64)) {
+			bits = builder.CreateTrunc(bits, builder.getInt64Ty(), "tag.bits.i64");
+		}
+		return builder.CreateIntToPtr(bits, builder.getPtrTy(), "tag.ptr");
+	}
+
+	llvm::Value *emit_signed_overflow_intrinsic(llvm::IRBuilder<> &builder,
+		llvm::Module *module,
+		llvm::Intrinsic::ID intrinsic,
+		llvm::Value *lhs,
+		llvm::Value *rhs,
+		llvm::Value **overflow_out)
+	{
+		auto *fn = llvm::Intrinsic::getDeclaration(module, intrinsic, { builder.getInt64Ty() });
+		auto *pair = builder.CreateCall(fn, { lhs, rhs }, "arith.ov");
+		auto *result = builder.CreateExtractValue(pair, 0, "arith.result");
+		*overflow_out = builder.CreateExtractValue(pair, 1, "arith.overflow");
+		return result;
+	}
+
+}// namespace
 
 // =============================================================================
 // 核心：通用调用生成器
@@ -209,17 +263,42 @@ llvm::Value *IREmitter::create_tuple(llvm::ArrayRef<llvm::Value *> elements)
 // =============================================================================
 // Tier 1: 更多对象创建
 // =============================================================================
+llvm::Value *IREmitter::create_tagged_int_constant(int64_t value)
+{
+	auto *bits = llvm::ConstantInt::get(m_builder.getInt64Ty(), encode_tagged_int_bits(value));
+	return llvm::ConstantExpr::getIntToPtr(bits, m_builder.getPtrTy());
+}
+
+llvm::Value *IREmitter::create_cached_big_int_literal(std::string_view decimal_str)
+{
+	std::string key(decimal_str);
+	auto it = m_cached_big_int_objects.find(key);
+	if (it == m_cached_big_int_objects.end()) {
+		auto *gvar = new llvm::GlobalVariable(*m_module,
+			m_builder.getPtrTy(),
+			false,
+			llvm::GlobalValue::InternalLinkage,
+			llvm::ConstantPointerNull::get(m_builder.getPtrTy()),
+			".pyint_obj." + std::to_string(m_cached_big_int_objects.size()));
+		it = m_cached_big_int_objects.emplace(std::move(key), gvar).first;
+	}
+	return m_builder.CreateLoad(m_builder.getPtrTy(), it->second, "pyint.literal");
+}
+
+llvm::Value *IREmitter::create_integer_from_i64_value(llvm::Value *value)
+{
+	return emit_runtime_call("integer_from_i64", { value });
+}
+
 llvm::Value *IREmitter::create_integer(int64_t value)
 {
-	auto *val = m_builder.getInt64(value);
-	return emit_runtime_call("integer_from_i64", { val });
+	if (fits_tagged_int(value)) { return create_tagged_int_constant(value); }
+	return create_cached_big_int_literal(std::to_string(value));
 }
 
 llvm::Value *IREmitter::create_integer_big(std::string_view decimal_str)
 {
-	// decimal_str 是编译期常量，嵌入 .rodata，运行时只调用一次
-	auto *str_ptr = create_global_string(decimal_str);
-	return emit_runtime_call("integer_from_string", { str_ptr });
+	return create_cached_big_int_literal(decimal_str);
 }
 
 llvm::Value *IREmitter::create_float(double value)
@@ -273,6 +352,167 @@ DEFINE_BINARY_OP(or, binary_or)
 DEFINE_BINARY_OP(xor, binary_xor)
 
 #undef DEFINE_BINARY_OP
+
+llvm::Value *IREmitter::emit_tagged_binary_op(TaggedBinaryOp op,
+	llvm::Value *lhs,
+	llvm::Value *rhs,
+	std::string_view slow_symbol)
+{
+	auto *func = m_builder.GetInsertBlock()->getParent();
+	auto *i64_ty = m_builder.getInt64Ty();
+	auto *i128_ty = llvm::IntegerType::get(m_builder.getContext(), 128);
+	auto *ptr_ty = m_builder.getPtrTy();
+
+	auto *lhs_bits = m_builder.CreatePtrToInt(lhs, i64_ty, "lhs.bits");
+	auto *rhs_bits = m_builder.CreatePtrToInt(rhs, i64_ty, "rhs.bits");
+	auto *both_tagged_bits =
+		m_builder.CreateAnd(m_builder.CreateAnd(lhs_bits, rhs_bits), m_builder.getInt64(1));
+	auto *both_tagged =
+		m_builder.CreateICmpEQ(both_tagged_bits, m_builder.getInt64(1), "both.tagged");
+
+	auto *fast_bb = llvm::BasicBlock::Create(m_builder.getContext(), "tag.fast", func);
+	auto *slow_bb = llvm::BasicBlock::Create(m_builder.getContext(), "tag.slow", func);
+	auto *merge_bb = llvm::BasicBlock::Create(m_builder.getContext(), "tag.merge", func);
+
+	m_builder.CreateCondBr(both_tagged, fast_bb, slow_bb);
+
+	std::vector<std::pair<llvm::Value *, llvm::BasicBlock *>> fast_incoming;
+	auto emit_fast_result = [&](llvm::Value *result) {
+		auto *encoded = emit_encode_tagged_int(m_builder, result);
+		auto *from_bb = m_builder.GetInsertBlock();
+		m_builder.CreateBr(merge_bb);
+		fast_incoming.emplace_back(encoded, from_bb);
+	};
+
+	auto branch_if_valid_or_slow = [&](llvm::Value *valid, const llvm::Twine &name) {
+		auto *body_bb = llvm::BasicBlock::Create(m_builder.getContext(), name, func);
+		m_builder.CreateCondBr(valid, body_bb, slow_bb);
+		m_builder.SetInsertPoint(body_bb);
+	};
+
+	m_builder.SetInsertPoint(fast_bb);
+	auto *l = m_builder.CreateAShr(lhs_bits, m_builder.getInt64(1), "lhs.i64");
+	auto *r = m_builder.CreateAShr(rhs_bits, m_builder.getInt64(1), "rhs.i64");
+
+	switch (op) {
+	case TaggedBinaryOp::Add: {
+		llvm::Value *overflow = nullptr;
+		auto *result = emit_signed_overflow_intrinsic(
+			m_builder, m_module, llvm::Intrinsic::sadd_with_overflow, l, r, &overflow);
+		auto *valid = m_builder.CreateAnd(
+			m_builder.CreateNot(overflow), emit_fits_tagged_int(m_builder, result));
+		branch_if_valid_or_slow(valid, "tag.add.ok");
+		emit_fast_result(result);
+		break;
+	}
+	case TaggedBinaryOp::Sub: {
+		llvm::Value *overflow = nullptr;
+		auto *result = emit_signed_overflow_intrinsic(
+			m_builder, m_module, llvm::Intrinsic::ssub_with_overflow, l, r, &overflow);
+		auto *valid = m_builder.CreateAnd(
+			m_builder.CreateNot(overflow), emit_fits_tagged_int(m_builder, result));
+		branch_if_valid_or_slow(valid, "tag.sub.ok");
+		emit_fast_result(result);
+		break;
+	}
+	case TaggedBinaryOp::Mul: {
+		llvm::Value *overflow = nullptr;
+		auto *result = emit_signed_overflow_intrinsic(
+			m_builder, m_module, llvm::Intrinsic::smul_with_overflow, l, r, &overflow);
+		auto *valid = m_builder.CreateAnd(
+			m_builder.CreateNot(overflow), emit_fits_tagged_int(m_builder, result));
+		branch_if_valid_or_slow(valid, "tag.mul.ok");
+		emit_fast_result(result);
+		break;
+	}
+	case TaggedBinaryOp::FloorDiv: {
+		auto *nonzero = m_builder.CreateICmpNE(r, m_builder.getInt64(0), "tag.div.nonzero");
+		branch_if_valid_or_slow(nonzero, "tag.floordiv.ok");
+		auto *q = m_builder.CreateSDiv(l, r, "tag.div.q");
+		auto *rem = m_builder.CreateSRem(l, r, "tag.div.rem");
+		auto *rem_nonzero = m_builder.CreateICmpNE(rem, m_builder.getInt64(0));
+		auto *sign_diff =
+			m_builder.CreateICmpSLT(m_builder.CreateXor(rem, r), m_builder.getInt64(0));
+		auto *adjust = m_builder.CreateAnd(rem_nonzero, sign_diff);
+		auto *adjusted =
+			m_builder.CreateSub(q, m_builder.CreateZExt(adjust, i64_ty), "tag.div.floor");
+		auto *fits = emit_fits_tagged_int(m_builder, adjusted);
+		branch_if_valid_or_slow(fits, "tag.floordiv.fit");
+		emit_fast_result(adjusted);
+		break;
+	}
+	case TaggedBinaryOp::Mod: {
+		auto *nonzero = m_builder.CreateICmpNE(r, m_builder.getInt64(0), "tag.mod.nonzero");
+		branch_if_valid_or_slow(nonzero, "tag.mod.ok");
+		auto *rem = m_builder.CreateSRem(l, r, "tag.mod.rem");
+		auto *rem_nonzero = m_builder.CreateICmpNE(rem, m_builder.getInt64(0));
+		auto *sign_diff =
+			m_builder.CreateICmpSLT(m_builder.CreateXor(rem, r), m_builder.getInt64(0));
+		auto *adjust = m_builder.CreateAnd(rem_nonzero, sign_diff);
+		auto *adjusted =
+			m_builder.CreateSelect(adjust, m_builder.CreateAdd(rem, r), rem, "tag.mod.py");
+		emit_fast_result(adjusted);
+		break;
+	}
+	case TaggedBinaryOp::LShift: {
+		auto *nonnegative = m_builder.CreateICmpSGE(r, m_builder.getInt64(0), "tag.shl.nonneg");
+		auto *small = m_builder.CreateICmpSLT(r, m_builder.getInt64(63), "tag.shl.small");
+		auto *valid_shift = m_builder.CreateAnd(nonnegative, small, "tag.shl.valid");
+		branch_if_valid_or_slow(valid_shift, "tag.shl.ok");
+		auto *l128 = m_builder.CreateSExt(l, i128_ty);
+		auto *r128 = m_builder.CreateZExt(r, i128_ty);
+		auto *result128 = m_builder.CreateShl(l128, r128, "tag.shl.i128");
+		auto *min128 = llvm::ConstantInt::get(i128_ty, kTaggedIntMin, true);
+		auto *max128 = llvm::ConstantInt::get(i128_ty, kTaggedIntMax, true);
+		auto *fits = m_builder.CreateAnd(m_builder.CreateICmpSGE(result128, min128),
+			m_builder.CreateICmpSLE(result128, max128),
+			"tag.shl.fit");
+		branch_if_valid_or_slow(fits, "tag.shl.fit.ok");
+		emit_fast_result(m_builder.CreateTrunc(result128, i64_ty, "tag.shl.result"));
+		break;
+	}
+	case TaggedBinaryOp::RShift: {
+		auto *nonnegative = m_builder.CreateICmpSGE(r, m_builder.getInt64(0), "tag.shr.nonneg");
+		branch_if_valid_or_slow(nonnegative, "tag.shr.ok");
+		auto *large = m_builder.CreateICmpSGE(r, m_builder.getInt64(64), "tag.shr.large");
+		auto *large_bb = llvm::BasicBlock::Create(m_builder.getContext(), "tag.shr.large.ok", func);
+		auto *small_bb = llvm::BasicBlock::Create(m_builder.getContext(), "tag.shr.small.ok", func);
+		m_builder.CreateCondBr(large, large_bb, small_bb);
+
+		m_builder.SetInsertPoint(large_bb);
+		auto *negative_l = m_builder.CreateICmpSLT(l, m_builder.getInt64(0), "tag.shr.l.neg");
+		auto *large_result =
+			m_builder.CreateSelect(negative_l, m_builder.getInt64(-1), m_builder.getInt64(0));
+		emit_fast_result(large_result);
+
+		m_builder.SetInsertPoint(small_bb);
+		auto *shifted = m_builder.CreateAShr(l, r, "tag.shr.result");
+		emit_fast_result(shifted);
+		break;
+	}
+	case TaggedBinaryOp::BitAnd:
+		emit_fast_result(m_builder.CreateAnd(l, r, "tag.and"));
+		break;
+	case TaggedBinaryOp::BitOr:
+		emit_fast_result(m_builder.CreateOr(l, r, "tag.or"));
+		break;
+	case TaggedBinaryOp::BitXor:
+		emit_fast_result(m_builder.CreateXor(l, r, "tag.xor"));
+		break;
+	}
+
+	m_builder.SetInsertPoint(slow_bb);
+	auto *slow_result = emit_runtime_call(slow_symbol, { lhs, rhs });
+	auto *slow_end = m_builder.GetInsertBlock();
+	m_builder.CreateBr(merge_bb);
+
+	m_builder.SetInsertPoint(merge_bb);
+	auto *phi =
+		m_builder.CreatePHI(ptr_ty, static_cast<unsigned>(fast_incoming.size() + 1), "tag.result");
+	for (auto &[value, block] : fast_incoming) { phi->addIncoming(value, block); }
+	phi->addIncoming(slow_result, slow_end);
+	return phi;
+}
 
 // =============================================================================
 // Tier 1: 增量赋值（inplace）运算
@@ -350,6 +590,133 @@ llvm::Value *IREmitter::call_compare_in(llvm::Value *value, llvm::Value *contain
 llvm::Value *IREmitter::call_compare_not_in(llvm::Value *value, llvm::Value *container)
 {
 	return emit_runtime_call("compare_not_in", { value, container });
+}
+
+llvm::Value *IREmitter::emit_tagged_compare_bool(TaggedCompareOp op,
+	llvm::Value *lhs,
+	llvm::Value *rhs,
+	std::string_view slow_symbol)
+{
+	auto *func = m_builder.GetInsertBlock()->getParent();
+	auto *i64_ty = m_builder.getInt64Ty();
+
+	auto *lhs_bits = m_builder.CreatePtrToInt(lhs, i64_ty, "lhs.bits");
+	auto *rhs_bits = m_builder.CreatePtrToInt(rhs, i64_ty, "rhs.bits");
+	auto *both_tagged_bits =
+		m_builder.CreateAnd(m_builder.CreateAnd(lhs_bits, rhs_bits), m_builder.getInt64(1));
+	auto *both_tagged =
+		m_builder.CreateICmpEQ(both_tagged_bits, m_builder.getInt64(1), "both.tagged");
+
+	auto *fast_bb = llvm::BasicBlock::Create(m_builder.getContext(), "tag.cmp.fast", func);
+	auto *slow_bb = llvm::BasicBlock::Create(m_builder.getContext(), "tag.cmp.slow", func);
+	auto *merge_bb = llvm::BasicBlock::Create(m_builder.getContext(), "tag.cmp.merge", func);
+	m_builder.CreateCondBr(both_tagged, fast_bb, slow_bb);
+
+	m_builder.SetInsertPoint(fast_bb);
+	auto *l = m_builder.CreateAShr(lhs_bits, m_builder.getInt64(1), "lhs.i64");
+	auto *r = m_builder.CreateAShr(rhs_bits, m_builder.getInt64(1), "rhs.i64");
+	llvm::Value *fast_result = nullptr;
+	switch (op) {
+	case TaggedCompareOp::Eq:
+		fast_result = m_builder.CreateICmpEQ(l, r, "tag.eq");
+		break;
+	case TaggedCompareOp::Ne:
+		fast_result = m_builder.CreateICmpNE(l, r, "tag.ne");
+		break;
+	case TaggedCompareOp::Lt:
+		fast_result = m_builder.CreateICmpSLT(l, r, "tag.lt");
+		break;
+	case TaggedCompareOp::Le:
+		fast_result = m_builder.CreateICmpSLE(l, r, "tag.le");
+		break;
+	case TaggedCompareOp::Gt:
+		fast_result = m_builder.CreateICmpSGT(l, r, "tag.gt");
+		break;
+	case TaggedCompareOp::Ge:
+		fast_result = m_builder.CreateICmpSGE(l, r, "tag.ge");
+		break;
+	}
+	auto *fast_end = m_builder.GetInsertBlock();
+	m_builder.CreateBr(merge_bb);
+
+	m_builder.SetInsertPoint(slow_bb);
+	auto *slow_result = emit_runtime_call(slow_symbol, { lhs, rhs });
+	auto *slow_end = m_builder.GetInsertBlock();
+	m_builder.CreateBr(merge_bb);
+
+	m_builder.SetInsertPoint(merge_bb);
+	auto *phi = m_builder.CreatePHI(m_builder.getInt1Ty(), 2, "tag.cmp.result");
+	phi->addIncoming(fast_result, fast_end);
+	phi->addIncoming(slow_result, slow_end);
+	return phi;
+}
+
+llvm::Value *IREmitter::emit_tagged_compare_object(TaggedCompareOp op,
+	llvm::Value *lhs,
+	llvm::Value *rhs,
+	std::string_view slow_symbol)
+{
+	auto *func = m_builder.GetInsertBlock()->getParent();
+	auto *i64_ty = m_builder.getInt64Ty();
+	auto *ptr_ty = m_builder.getPtrTy();
+
+	auto *lhs_bits = m_builder.CreatePtrToInt(lhs, i64_ty, "lhs.bits");
+	auto *rhs_bits = m_builder.CreatePtrToInt(rhs, i64_ty, "rhs.bits");
+	auto *both_tagged_bits =
+		m_builder.CreateAnd(m_builder.CreateAnd(lhs_bits, rhs_bits), m_builder.getInt64(1));
+	auto *both_tagged =
+		m_builder.CreateICmpEQ(both_tagged_bits, m_builder.getInt64(1), "both.tagged");
+
+	auto *fast_bb = llvm::BasicBlock::Create(m_builder.getContext(), "tag.cmp.obj.fast", func);
+	auto *slow_bb = llvm::BasicBlock::Create(m_builder.getContext(), "tag.cmp.obj.slow", func);
+	auto *merge_bb = llvm::BasicBlock::Create(m_builder.getContext(), "tag.cmp.obj.merge", func);
+	m_builder.CreateCondBr(both_tagged, fast_bb, slow_bb);
+
+	m_builder.SetInsertPoint(fast_bb);
+	auto *l = m_builder.CreateAShr(lhs_bits, m_builder.getInt64(1), "lhs.i64");
+	auto *r = m_builder.CreateAShr(rhs_bits, m_builder.getInt64(1), "rhs.i64");
+	llvm::Value *fast_bool = nullptr;
+	switch (op) {
+	case TaggedCompareOp::Eq:
+		fast_bool = m_builder.CreateICmpEQ(l, r, "tag.eq");
+		break;
+	case TaggedCompareOp::Ne:
+		fast_bool = m_builder.CreateICmpNE(l, r, "tag.ne");
+		break;
+	case TaggedCompareOp::Lt:
+		fast_bool = m_builder.CreateICmpSLT(l, r, "tag.lt");
+		break;
+	case TaggedCompareOp::Le:
+		fast_bool = m_builder.CreateICmpSLE(l, r, "tag.le");
+		break;
+	case TaggedCompareOp::Gt:
+		fast_bool = m_builder.CreateICmpSGT(l, r, "tag.gt");
+		break;
+	case TaggedCompareOp::Ge:
+		fast_bool = m_builder.CreateICmpSGE(l, r, "tag.ge");
+		break;
+	}
+	auto *fast_result = bool_to_object(fast_bool);
+	auto *fast_end = m_builder.GetInsertBlock();
+	m_builder.CreateBr(merge_bb);
+
+	m_builder.SetInsertPoint(slow_bb);
+	auto *slow_result = emit_runtime_call(slow_symbol, { lhs, rhs });
+	auto *slow_end = m_builder.GetInsertBlock();
+	m_builder.CreateBr(merge_bb);
+
+	m_builder.SetInsertPoint(merge_bb);
+	auto *phi = m_builder.CreatePHI(ptr_ty, 2, "tag.cmp.obj.result");
+	phi->addIncoming(fast_result, fast_end);
+	phi->addIncoming(slow_result, slow_end);
+	return phi;
+}
+
+llvm::Value *IREmitter::bool_to_object(llvm::Value *value)
+{
+	auto *true_obj = get_true();
+	auto *false_obj = get_false();
+	return m_builder.CreateSelect(value, true_obj, false_obj, "bool.obj");
 }
 
 // =============================================================================
@@ -546,6 +913,15 @@ void IREmitter::emit_interned_strings_initialization()
 
 		// 将获取到的 PyObject* 存入该模块私有的全局变量槽位
 		m_builder.CreateStore(py_str, gvar);
+	}
+}
+
+void IREmitter::emit_cached_literals_initialization()
+{
+	for (auto &[decimal, gvar] : m_cached_big_int_objects) {
+		auto *str_ptr = create_global_string(decimal);
+		auto *py_int = emit_runtime_call("integer_from_string", { str_ptr });
+		m_builder.CreateStore(py_int, gvar);
 	}
 }
 

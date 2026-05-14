@@ -33,6 +33,28 @@ namespace pylang {
 class IREmitter
 {
   public:
+	enum class TaggedBinaryOp {
+		Add,
+		Sub,
+		Mul,
+		FloorDiv,
+		Mod,
+		LShift,
+		RShift,
+		BitAnd,
+		BitOr,
+		BitXor,
+	};
+
+	enum class TaggedCompareOp {
+		Eq,
+		Ne,
+		Lt,
+		Le,
+		Gt,
+		Ge,
+	};
+
 	IREmitter(llvm::IRBuilder<> &builder, RuntimeLinker &linker, llvm::Module *module)
 		: m_builder(builder), m_linker(linker), m_module(module)
 	{}
@@ -49,6 +71,9 @@ class IREmitter
 	llvm::Value *create_tuple(llvm::ArrayRef<llvm::Value *> elements);
 
 	// ========== Tier 1: 更多对象创建 ==========
+	llvm::Value *create_tagged_int_constant(int64_t value);
+	llvm::Value *create_cached_big_int_literal(std::string_view decimal_str);
+	llvm::Value *create_integer_from_i64_value(llvm::Value *value);
 	llvm::Value *create_integer(int64_t value);
 	llvm::Value *create_integer_big(std::string_view decimal_str);
 	llvm::Value *create_float(double value);
@@ -75,6 +100,10 @@ class IREmitter
 	llvm::Value *call_binary_and(llvm::Value *lhs, llvm::Value *rhs);
 	llvm::Value *call_binary_or(llvm::Value *lhs, llvm::Value *rhs);
 	llvm::Value *call_binary_xor(llvm::Value *lhs, llvm::Value *rhs);
+	llvm::Value *emit_tagged_binary_op(TaggedBinaryOp op,
+		llvm::Value *lhs,
+		llvm::Value *rhs,
+		std::string_view slow_symbol);
 	// ========== Tier 1: 增量赋值（inplace）运算 ==========
 	llvm::Value *call_inplace_add(llvm::Value *lhs, llvm::Value *rhs);
 	llvm::Value *call_inplace_sub(llvm::Value *lhs, llvm::Value *rhs);
@@ -110,6 +139,15 @@ class IREmitter
 	llvm::Value *call_compare_is_not(llvm::Value *lhs, llvm::Value *rhs);
 	llvm::Value *call_compare_in(llvm::Value *value, llvm::Value *container);
 	llvm::Value *call_compare_not_in(llvm::Value *value, llvm::Value *container);
+	llvm::Value *emit_tagged_compare_bool(TaggedCompareOp op,
+		llvm::Value *lhs,
+		llvm::Value *rhs,
+		std::string_view slow_symbol);
+	llvm::Value *emit_tagged_compare_object(TaggedCompareOp op,
+		llvm::Value *lhs,
+		llvm::Value *rhs,
+		std::string_view slow_symbol);
+	llvm::Value *bool_to_object(llvm::Value *value);
 
 	// ========== Tier 2: 迭代器 ==========
 	llvm::Value *call_get_iter(llvm::Value *obj);
@@ -324,6 +362,7 @@ class IREmitter
 	llvm::Value *get_interned_string_obj(std::string_view name);
 	// 在模块初始化时生成所有缓存对象的初始化代码
 	void emit_interned_strings_initialization();
+	void emit_cached_literals_initialization();
 
   private:
 	/// 创建全局字符串常量（带缓存）
@@ -348,6 +387,9 @@ class IREmitter
 
 	// 缓存：属性名 -> 全局变量 (ptr @.pystr.xxxx)
 	std::unordered_map<std::string, llvm::GlobalVariable *> m_interned_string_objects;
+
+	// 缓存：大整数 literal 十进制字符串 -> 全局变量 (ptr @.pyint_obj.N)
+	std::unordered_map<std::string, llvm::GlobalVariable *> m_cached_big_int_objects;
 };
 
 }// namespace pylang

@@ -258,8 +258,8 @@ TEST_F(IREmitterTest, CreateInteger)
 	finish_test_function(val);
 
 	auto ir = get_ir();
-	EXPECT_TRUE(ir_contains("rt_integer_from_i64"));
-	EXPECT_TRUE(ir_contains("i64 42"));
+	EXPECT_TRUE(ir_contains("inttoptr"));
+	EXPECT_FALSE(ir_contains("rt_integer_from_i64"));
 }
 
 TEST_F(IREmitterTest, CreateIntegerNegative)
@@ -270,7 +270,8 @@ TEST_F(IREmitterTest, CreateIntegerNegative)
 	finish_test_function(val);
 
 	auto ir = get_ir();
-	EXPECT_TRUE(ir_contains("i64 -123"));
+	EXPECT_TRUE(ir_contains("inttoptr"));
+	EXPECT_FALSE(ir_contains("rt_integer_from_i64"));
 }
 
 TEST_F(IREmitterTest, CreateFloat)
@@ -325,6 +326,20 @@ TEST_F(IREmitterTest, BinaryAdd)
 	ASSERT_NE(result, nullptr);
 	finish_test_function(result);
 
+	EXPECT_TRUE(ir_contains("rt_binary_add"));
+}
+
+TEST_F(IREmitterTest, TaggedBinaryAddHasCheckedFastPathAndFallback)
+{
+	auto *lhs = emitter->create_integer(1);
+	auto *rhs = emitter->create_integer(2);
+	auto *result =
+		emitter->emit_tagged_binary_op(IREmitter::TaggedBinaryOp::Add, lhs, rhs, "binary_add");
+
+	ASSERT_NE(result, nullptr);
+	finish_test_function(result);
+
+	EXPECT_TRUE(ir_contains("sadd.with.overflow"));
 	EXPECT_TRUE(ir_contains("rt_binary_add"));
 }
 
@@ -468,6 +483,21 @@ TEST_F(IREmitterTest, CompareEq)
 	finish_test_function(result);
 
 	EXPECT_TRUE(ir_contains("rt_compare_eq"));
+}
+
+TEST_F(IREmitterTest, TaggedCompareObjectHasFastBoolAndRichCompareFallback)
+{
+	auto *lhs = emitter->create_integer(1);
+	auto *rhs = emitter->create_integer(2);
+	auto *result =
+		emitter->emit_tagged_compare_object(IREmitter::TaggedCompareOp::Eq, lhs, rhs, "compare_eq");
+
+	ASSERT_NE(result, nullptr);
+	finish_test_function(result);
+
+	EXPECT_TRUE(ir_contains("rt_compare_eq"));
+	EXPECT_TRUE(ir_contains("rt_true"));
+	EXPECT_TRUE(ir_contains("rt_false"));
 }
 
 TEST_F(IREmitterTest, CompareLt)
@@ -946,7 +976,8 @@ TEST_F(IREmitterTest, CreateIntegerZero)
 
 	finish_test_function(val);
 
-	EXPECT_TRUE(ir_contains("i64 0"));
+	EXPECT_TRUE(ir_contains("inttoptr"));
+	EXPECT_FALSE(ir_contains("rt_integer_from_i64"));
 }
 
 TEST_F(IREmitterTest, CreateFloatZero)

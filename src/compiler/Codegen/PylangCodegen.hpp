@@ -39,17 +39,70 @@
 namespace pylang {
 
 // =============================================================================
+// PyIRValue — Codegen-time Python value model
+//
+// LLVM opaque pointers cannot distinguish a real PyObject* from the runtime's
+// tagged-int carrier.  This wrapper keeps the raw IR value plus lightweight
+// semantic facts so expression codegen can emit inline fast paths while the
+// canonical storage ABI remains PyObject* compatible.
+// =============================================================================
+struct PyIRValue
+{
+	enum class Representation {
+		ObjectCarrier,
+		BoolI1,
+		ExactI64,
+	};
+
+	enum class Semantics {
+		Unknown,
+		ExactBuiltinInt,
+		ExactBool,
+		None,
+		ExactStr,
+		KnownContainer,
+	};
+
+	llvm::Value *raw = nullptr;
+	Representation representation = Representation::ObjectCarrier;
+	Semantics semantics = Semantics::Unknown;
+
+	static PyIRValue object(llvm::Value *value, Semantics semantic = Semantics::Unknown)
+	{
+		return PyIRValue{ value, Representation::ObjectCarrier, semantic };
+	}
+
+	static PyIRValue bool_i1(llvm::Value *value)
+	{
+		return PyIRValue{ value, Representation::BoolI1, Semantics::ExactBool };
+	}
+
+	static PyIRValue exact_i64(llvm::Value *value)
+	{
+		return PyIRValue{ value, Representation::ExactI64, Semantics::ExactBuiltinInt };
+	}
+
+	llvm::Value *as_object(IREmitter &emitter) const;
+	llvm::Value *as_bool(IREmitter &emitter) const;
+};
+
+// =============================================================================
 // LLVMValue — 包装 llvm::Value*，继承 ast::Value 以融入 CodeGenerator 框架
 // =============================================================================
 class LLVMValue : public ast::Value
 {
-	llvm::Value *m_llvm_value;
+	PyIRValue m_value;
 
   public:
-	LLVMValue(llvm::Value *val) : ast::Value(""), m_llvm_value(val) {}
-	LLVMValue(const std::string &name, llvm::Value *val) : ast::Value(name), m_llvm_value(val) {}
+	LLVMValue(llvm::Value *val) : ast::Value(""), m_value(PyIRValue::object(val)) {}
+	LLVMValue(const std::string &name, llvm::Value *val)
+		: ast::Value(name), m_value(PyIRValue::object(val))
+	{}
+	LLVMValue(PyIRValue value) : ast::Value(""), m_value(value) {}
+	LLVMValue(const std::string &name, PyIRValue value) : ast::Value(name), m_value(value) {}
 
-	llvm::Value *llvm_value() const { return m_llvm_value; }
+	const PyIRValue &py_value() const { return m_value; }
+	llvm::Value *llvm_value() const { return m_value.raw; }
 };
 
 // =============================================================================
@@ -113,8 +166,9 @@ class PylangCodegen : public ast::CodeGenerator
 	llvm::Value *emit_not_implemented(const char *feature);
 	//  核心生成方法
 
-	/// 对 AST 节点调用 codegen 并提取 llvm::Value*
+	/// 对 AST 节点调用 codegen 并提取 object-carrier PyObject*
 	llvm::Value *generate(const ast::ASTNode *node);
+	PyIRValue generate_value(const ast::ASTNode *node);
 
 	/// [性能优化] 将条件表达式直接生成为 i1 (bool)
 	/// 对于简单 Compare 节点使用融合的 compare_*_bool 函数
@@ -154,6 +208,7 @@ class PylangCodegen : public ast::CodeGenerator
 
 	/// 创建 LLVMValue 并注册到 m_values（GC 管理生命周期）
 	LLVMValue *make_value(llvm::Value *val, const std::string &name = "");
+	LLVMValue *make_value(PyIRValue val, const std::string &name = "");
 
 	/// 编译函数/lambda 体并返回 make_function 的结果
 	/// @param func_name    函数名（lambda 用 "<lambda>"）

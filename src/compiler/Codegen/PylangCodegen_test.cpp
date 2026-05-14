@@ -138,6 +138,36 @@ TEST_F(PylangCodegenTest, IntegerConstant)
 	EXPECT_TRUE(ir_contains(ir, "hello"));// 字符串字面量本身不受 mangling 影响
 }
 
+TEST_F(PylangCodegenTest, SmallIntegerConstantUsesTaggedCarrier)
+{
+	ast::Module mod("<test>");
+	auto value = std::make_shared<ast::Constant>(int64_t(42), loc());
+	auto target = std::make_shared<ast::Name>("x", ast::ContextType::STORE, loc());
+	mod.emplace(std::make_shared<ast::Assign>(
+		std::vector<std::shared_ptr<ast::ASTNode>>{ target }, value, "", loc()));
+
+	auto ir = compile_module(mod);
+	if (ir.empty()) { return; }
+	EXPECT_TRUE(ir_contains(ir, "inttoptr"));
+	EXPECT_FALSE(ir_calls_rt(ir, "rt_integer_from_i64"));
+	EXPECT_FALSE(ir_calls_rt(ir, "rt_integer_from_string"));
+}
+
+TEST_F(PylangCodegenTest, BigIntegerConstantUsesCachedObject)
+{
+	ast::Module mod("<test>");
+	auto value = std::make_shared<ast::Constant>(mpz_class{ "4611686018427387904" }, loc());
+	auto target = std::make_shared<ast::Name>("x", ast::ContextType::STORE, loc());
+	mod.emplace(std::make_shared<ast::Assign>(
+		std::vector<std::shared_ptr<ast::ASTNode>>{ target }, value, "", loc()));
+
+	auto ir = compile_module(mod);
+	if (ir.empty()) { return; }
+	EXPECT_TRUE(ir_contains(ir, ".pyint_obj."));
+	EXPECT_TRUE(ir_calls_rt(ir, "rt_integer_from_string"));
+	EXPECT_FALSE(ir_calls_rt(ir, "rt_integer_from_i64"));
+}
+
 TEST_F(PylangCodegenTest, StringConstant)
 {
 	// x = "hello"
@@ -205,7 +235,8 @@ TEST_F(PylangCodegenTest, BinaryAdd)
 
 	auto ir = compile_module(mod);
 	EXPECT_TRUE(ir_contains(ir, "rt_binary_add"));
-	EXPECT_TRUE(ir_contains(ir, "rt_integer_from_i64"));
+	EXPECT_TRUE(ir_contains(ir, "sadd.with.overflow"));
+	EXPECT_FALSE(ir_contains(ir, "rt_integer_from_i64"));
 }
 
 // =============================================================================
@@ -418,9 +449,9 @@ TEST_F(PylangCodegenTest, AugAssignAdd)
 
 	auto ir = compile_module(mod);
 	if (ir.empty()) { return; }
-	std::cout << ir;
 	EXPECT_TRUE(ir_calls_rt(ir, "rt_inplace_add"));
-	EXPECT_TRUE(ir_calls_rt(ir, "rt_integer_from_i64"));
+	EXPECT_TRUE(ir_contains(ir, "inttoptr"));
+	EXPECT_FALSE(ir_calls_rt(ir, "rt_integer_from_i64"));
 }
 
 TEST_F(PylangCodegenTest, AugAssignSub)
@@ -593,8 +624,9 @@ TEST_F(PylangCodegenTest, FunctionWithDefaultArg)
 	if (ir.empty()) { return; }
 	// 应创建函数
 	EXPECT_TRUE(ir_calls_rt(ir, "rt_make_function"));
-	// 默认值应被计算: 42 → rt_integer_from_i64
-	EXPECT_TRUE(ir_calls_rt(ir, "rt_integer_from_i64"));
+	// 默认值 42 在 tagged 范围内，应直接作为 carrier 常量进入 defaults tuple
+	EXPECT_TRUE(ir_contains(ir, "inttoptr"));
+	EXPECT_FALSE(ir_calls_rt(ir, "rt_integer_from_i64"));
 	// 默认值应被打包成 tuple: rt_build_tuple
 	EXPECT_TRUE(ir_calls_rt(ir, "rt_build_tuple"));
 }
@@ -898,7 +930,8 @@ TEST_F(PylangCodegenTest, NamedExpr)
 
 	auto ir = compile_module(mod);
 	if (ir.empty()) { return; }
-	EXPECT_TRUE(ir_calls_rt(ir, "rt_integer_from_i64"));
+	EXPECT_TRUE(ir_contains(ir, "inttoptr"));
+	EXPECT_FALSE(ir_calls_rt(ir, "rt_integer_from_i64"));
 	EXPECT_TRUE(ir_calls_rt(ir, "rt_is_true"));
 }
 
@@ -984,7 +1017,7 @@ TEST_F(PylangCodegenTest, TryFinally)
 
 	auto ir = compile_module(mod);
 	// finally 块中包含 cleanup
-	// 正常路径和 unwind 路径都应该因为 store x=2 而包含 rt_integer_from_i64
+	// 正常路径和 unwind 路径都应保留 finally 的控制流。
 	// 且代码中应有 resume 指令（用于 unwind 路径的传播）
 	EXPECT_TRUE(ir_contains(ir, "resume"));
 }

@@ -26,6 +26,28 @@
 
 namespace pylang {
 
+llvm::Value *PyIRValue::as_object(IREmitter &emitter) const
+{
+	switch (representation) {
+	case Representation::ObjectCarrier:
+		return raw;
+	case Representation::BoolI1:
+		return emitter.bool_to_object(raw);
+	case Representation::ExactI64:
+		if (auto *constant = llvm::dyn_cast<llvm::ConstantInt>(raw)) {
+			return emitter.create_integer(constant->getSExtValue());
+		}
+		return emitter.create_integer_from_i64_value(raw);
+	}
+	return raw;
+}
+
+llvm::Value *PyIRValue::as_bool(IREmitter &emitter) const
+{
+	if (representation == Representation::BoolI1) { return raw; }
+	return emitter.call_is_true_fast(as_object(emitter));
+}
+
 // =============================================================================
 // PylangCodegen 构造 / compile 入口
 // =============================================================================
@@ -107,6 +129,7 @@ Result<PylangCodegen::CompileResult> PylangCodegen::compile(ast::Module *module_
 	codegen.m_builder.SetInsertPoint(anchor);
 
 	codegen.m_emitter.emit_interned_strings_initialization();
+	codegen.m_emitter.emit_cached_literals_initialization();
 
 	codegen.m_builder.restoreIP(body_insert_point);
 
@@ -153,9 +176,14 @@ llvm::Value *PylangCodegen::emit_not_implemented(const char *feature)
 }
 llvm::Value *PylangCodegen::generate(const ast::ASTNode *node)
 {
+	return generate_value(node).as_object(m_emitter);
+}
+
+PyIRValue PylangCodegen::generate_value(const ast::ASTNode *node)
+{
 	auto *result = node->codegen(this);
-	if (!result) { return nullptr; }
-	return static_cast<LLVMValue *>(result)->llvm_value();
+	if (!result) { return PyIRValue::object(nullptr); }
+	return static_cast<LLVMValue *>(result)->py_value();
 }
 
 void PylangCodegen::generate_body(const std::vector<std::shared_ptr<ast::ASTNode>> &body)
@@ -244,22 +272,30 @@ llvm::Value *PylangCodegen::generate_condition_as_bool(const ast::ASTNode *test)
 	if (test->node_type() == ast::ASTNodeType::Compare) {
 		auto *cmp = static_cast<const ast::Compare *>(test);
 		if (cmp->ops().size() == 1) {
-			auto *lhs = generate(cmp->lhs().get());
-			auto *rhs = generate(cmp->comparators()[0].get());
+			auto lhs_value = generate_value(cmp->lhs().get());
+			auto rhs_value = generate_value(cmp->comparators()[0].get());
+			auto *lhs = lhs_value.as_object(m_emitter);
+			auto *rhs = rhs_value.as_object(m_emitter);
 			if (lhs && rhs) {
 				switch (cmp->ops()[0]) {
 				case ast::Compare::OpType::Lt:
-					return m_emitter.call_compare_lt_bool(lhs, rhs);
+					return m_emitter.emit_tagged_compare_bool(
+						IREmitter::TaggedCompareOp::Lt, lhs, rhs, "compare_lt_bool");
 				case ast::Compare::OpType::LtE:
-					return m_emitter.call_compare_le_bool(lhs, rhs);
+					return m_emitter.emit_tagged_compare_bool(
+						IREmitter::TaggedCompareOp::Le, lhs, rhs, "compare_le_bool");
 				case ast::Compare::OpType::Gt:
-					return m_emitter.call_compare_gt_bool(lhs, rhs);
+					return m_emitter.emit_tagged_compare_bool(
+						IREmitter::TaggedCompareOp::Gt, lhs, rhs, "compare_gt_bool");
 				case ast::Compare::OpType::GtE:
-					return m_emitter.call_compare_ge_bool(lhs, rhs);
+					return m_emitter.emit_tagged_compare_bool(
+						IREmitter::TaggedCompareOp::Ge, lhs, rhs, "compare_ge_bool");
 				case ast::Compare::OpType::Eq:
-					return m_emitter.call_compare_eq_bool(lhs, rhs);
+					return m_emitter.emit_tagged_compare_bool(
+						IREmitter::TaggedCompareOp::Eq, lhs, rhs, "compare_eq_bool");
 				case ast::Compare::OpType::NotEq:
-					return m_emitter.call_compare_ne_bool(lhs, rhs);
+					return m_emitter.emit_tagged_compare_bool(
+						IREmitter::TaggedCompareOp::Ne, lhs, rhs, "compare_ne_bool");
 				case ast::Compare::OpType::NotIn:
 					return m_emitter.call_compare_not_in_bool(lhs, rhs);
 				case ast::Compare::OpType::In:
@@ -344,6 +380,11 @@ llvm::Function *PylangCodegen::create_main_function(llvm::Function *module_init)
 }
 
 LLVMValue *PylangCodegen::make_value(llvm::Value *val, const std::string &name)
+{
+	return make_value(PyIRValue::object(val), name);
+}
+
+LLVMValue *PylangCodegen::make_value(PyIRValue val, const std::string &name)
 {
 	auto v = std::make_unique<LLVMValue>(name, val);
 	auto *ptr = v.get();
@@ -610,16 +651,20 @@ ast::Value *PylangCodegen::visit(const ast::Constant *node)
 		} else {
 			result = m_emitter.create_integer_big(i->as_big_int().get_str());
 		}
+		return make_value(PyIRValue::object(result, PyIRValue::Semantics::ExactBuiltinInt));
 	} else if (val->type() == py::types::str()) {
 		result = m_emitter.create_string(py::as<py::PyString>(val)->value());
+		return make_value(PyIRValue::object(result, PyIRValue::Semantics::ExactStr));
 	} else if (val->type() == py::types::bytes()) {
 		auto *b = py::as<py::PyBytes>(val);
 		std::string_view data(reinterpret_cast<const char *>(b->value().data()), b->value().size());
 		result = m_emitter.create_bytes(data);
 	} else if (val->type() == py::types::bool_()) {
 		result = py::as<py::PyBool>(val)->value() ? m_emitter.get_true() : m_emitter.get_false();
+		return make_value(PyIRValue::object(result, PyIRValue::Semantics::ExactBool));
 	} else if (val == py::py_none()) {
 		result = m_emitter.get_none();
+		return make_value(PyIRValue::object(result, PyIRValue::Semantics::None));
 	} else if (val == py::py_ellipsis()) {
 		result = m_emitter.get_ellipsis();
 	} else if (val->type() == py::types::tuple()) {
@@ -646,47 +691,59 @@ ast::Value *PylangCodegen::visit(const ast::Name *node)
 
 ast::Value *PylangCodegen::visit(const ast::BinaryExpr *node)
 {
-	auto *lhs = generate(node->lhs().get());
-	auto *rhs = generate(node->rhs().get());
+	auto lhs_value = generate_value(node->lhs().get());
+	auto rhs_value = generate_value(node->rhs().get());
+	auto *lhs = lhs_value.as_object(m_emitter);
+	auto *rhs = rhs_value.as_object(m_emitter);
 	if (!lhs || !rhs) { return nullptr; }
 
 	llvm::Value *result = nullptr;
 	switch (node->op_type()) {
 	case ast::BinaryOpType::PLUS:
-		result = m_emitter.call_binary_add(lhs, rhs);
+		result =
+			m_emitter.emit_tagged_binary_op(IREmitter::TaggedBinaryOp::Add, lhs, rhs, "binary_add");
 		break;
 	case ast::BinaryOpType::MINUS:
-		result = m_emitter.call_binary_sub(lhs, rhs);
+		result =
+			m_emitter.emit_tagged_binary_op(IREmitter::TaggedBinaryOp::Sub, lhs, rhs, "binary_sub");
 		break;
 	case ast::BinaryOpType::MULTIPLY:
-		result = m_emitter.call_binary_mul(lhs, rhs);
+		result =
+			m_emitter.emit_tagged_binary_op(IREmitter::TaggedBinaryOp::Mul, lhs, rhs, "binary_mul");
 		break;
 	case ast::BinaryOpType::SLASH:
 		result = m_emitter.call_binary_truediv(lhs, rhs);
 		break;
 	case ast::BinaryOpType::FLOORDIV:
-		result = m_emitter.call_binary_floordiv(lhs, rhs);
+		result = m_emitter.emit_tagged_binary_op(
+			IREmitter::TaggedBinaryOp::FloorDiv, lhs, rhs, "binary_floordiv");
 		break;
 	case ast::BinaryOpType::MODULO:
-		result = m_emitter.call_binary_mod(lhs, rhs);
+		result =
+			m_emitter.emit_tagged_binary_op(IREmitter::TaggedBinaryOp::Mod, lhs, rhs, "binary_mod");
 		break;
 	case ast::BinaryOpType::EXP:
 		result = m_emitter.call_binary_pow(lhs, rhs);
 		break;
 	case ast::BinaryOpType::LEFTSHIFT:
-		result = m_emitter.call_binary_lshift(lhs, rhs);
+		result = m_emitter.emit_tagged_binary_op(
+			IREmitter::TaggedBinaryOp::LShift, lhs, rhs, "binary_lshift");
 		break;
 	case ast::BinaryOpType::RIGHTSHIFT:
-		result = m_emitter.call_binary_rshift(lhs, rhs);
+		result = m_emitter.emit_tagged_binary_op(
+			IREmitter::TaggedBinaryOp::RShift, lhs, rhs, "binary_rshift");
 		break;
 	case ast::BinaryOpType::AND:
-		result = m_emitter.call_binary_and(lhs, rhs);
+		result = m_emitter.emit_tagged_binary_op(
+			IREmitter::TaggedBinaryOp::BitAnd, lhs, rhs, "binary_and");
 		break;
 	case ast::BinaryOpType::OR:
-		result = m_emitter.call_binary_or(lhs, rhs);
+		result = m_emitter.emit_tagged_binary_op(
+			IREmitter::TaggedBinaryOp::BitOr, lhs, rhs, "binary_or");
 		break;
 	case ast::BinaryOpType::XOR:
-		result = m_emitter.call_binary_xor(lhs, rhs);
+		result = m_emitter.emit_tagged_binary_op(
+			IREmitter::TaggedBinaryOp::BitXor, lhs, rhs, "binary_xor");
 		break;
 	case ast::BinaryOpType::MATMUL:
 		// Phase 3+
@@ -739,7 +796,8 @@ ast::Value *PylangCodegen::visit(const ast::Compare *node)
 	//   → tmp = f(); (a < tmp) and (tmp < c)
 	// 中间值只求值一次！
 
-	auto *lhs = generate(node->lhs().get());
+	auto lhs_value = generate_value(node->lhs().get());
+	auto *lhs = lhs_value.as_object(m_emitter);
 	if (!lhs) { return nullptr; }
 
 	const auto &ops = node->ops();
@@ -749,28 +807,35 @@ ast::Value *PylangCodegen::visit(const ast::Compare *node)
 
 	// 单比较: a < b （最常见情况，无需临时变量）
 	if (ops.size() == 1) {
-		auto *rhs = generate(comparators[0].get());
+		auto rhs_value = generate_value(comparators[0].get());
+		auto *rhs = rhs_value.as_object(m_emitter);
 		if (!rhs) { return nullptr; }
 
 		llvm::Value *result = nullptr;
 		switch (ops[0]) {
 		case ast::Compare::OpType::Eq:
-			result = m_emitter.call_compare_eq(lhs, rhs);
+			result = m_emitter.emit_tagged_compare_object(
+				IREmitter::TaggedCompareOp::Eq, lhs, rhs, "compare_eq");
 			break;
 		case ast::Compare::OpType::NotEq:
-			result = m_emitter.call_compare_ne(lhs, rhs);
+			result = m_emitter.emit_tagged_compare_object(
+				IREmitter::TaggedCompareOp::Ne, lhs, rhs, "compare_ne");
 			break;
 		case ast::Compare::OpType::Lt:
-			result = m_emitter.call_compare_lt(lhs, rhs);
+			result = m_emitter.emit_tagged_compare_object(
+				IREmitter::TaggedCompareOp::Lt, lhs, rhs, "compare_lt");
 			break;
 		case ast::Compare::OpType::LtE:
-			result = m_emitter.call_compare_le(lhs, rhs);
+			result = m_emitter.emit_tagged_compare_object(
+				IREmitter::TaggedCompareOp::Le, lhs, rhs, "compare_le");
 			break;
 		case ast::Compare::OpType::Gt:
-			result = m_emitter.call_compare_gt(lhs, rhs);
+			result = m_emitter.emit_tagged_compare_object(
+				IREmitter::TaggedCompareOp::Gt, lhs, rhs, "compare_gt");
 			break;
 		case ast::Compare::OpType::GtE:
-			result = m_emitter.call_compare_ge(lhs, rhs);
+			result = m_emitter.emit_tagged_compare_object(
+				IREmitter::TaggedCompareOp::Ge, lhs, rhs, "compare_ge");
 			break;
 		case ast::Compare::OpType::Is:
 			result = m_emitter.call_compare_is(lhs, rhs);
