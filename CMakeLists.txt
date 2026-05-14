@@ -13,6 +13,7 @@ option(PYLANG_EMBED_LIBRARY_RESOURCES "Embed runtime bitcode and static library 
 option(PYLANG_REQUIRE_SHARED_DEPENDENCIES
     "In non-embedded mode, require dependencies used by pyc-generated binaries to be shared libraries"
     ON)
+set(PYLANG_LLVM_VERSION "20" CACHE STRING "LLVM/MLIR major version used by pylang")
 
 set(PYLANG_USE_SHARED_DEPENDENCIES OFF)
 if(NOT PYLANG_EMBED_LIBRARY_RESOURCES AND PYLANG_REQUIRE_SHARED_DEPENDENCIES)
@@ -94,6 +95,31 @@ function(pylang_find_required_shared_library OUT DEP_NAME)
 
     set("${OUT}" "${${_search_var}}" CACHE FILEPATH "Shared library for ${DEP_NAME}" FORCE)
     set("${OUT}" "${${_search_var}}" PARENT_SCOPE)
+endfunction()
+
+function(pylang_configure_llvm_package_dirs)
+    if(NOT PYLANG_LLVM_VERSION)
+        return()
+    endif()
+
+    set(_prefix_candidates
+        "/usr/lib/llvm-${PYLANG_LLVM_VERSION}"
+        "/usr/local/opt/llvm@${PYLANG_LLVM_VERSION}"
+        "/opt/homebrew/opt/llvm@${PYLANG_LLVM_VERSION}"
+    )
+
+    foreach(_prefix IN LISTS _prefix_candidates)
+        if((NOT DEFINED LLVM_DIR OR LLVM_DIR STREQUAL "")
+            AND EXISTS "${_prefix}/lib/cmake/llvm/LLVMConfig.cmake")
+            set(LLVM_DIR "${_prefix}/lib/cmake/llvm" CACHE PATH
+                "LLVM CMake package directory" FORCE)
+        endif()
+        if((NOT DEFINED MLIR_DIR OR MLIR_DIR STREQUAL "")
+            AND EXISTS "${_prefix}/lib/cmake/mlir/MLIRConfig.cmake")
+            set(MLIR_DIR "${_prefix}/lib/cmake/mlir" CACHE PATH
+                "MLIR CMake package directory" FORCE)
+        endif()
+    endforeach()
 endfunction()
 
 # 移除旧的 add_compile_definitions，改用更强力的全局 Flags 注入
@@ -214,8 +240,19 @@ if(NOT TARGET zstd::libzstd_shared)
 endif()
 find_package(GMP REQUIRED)
 find_package(ICU REQUIRED COMPONENTS uc data)
+pylang_configure_llvm_package_dirs()
 find_package(LLVM REQUIRED CONFIG)
 message(STATUS "Found LLVM ${LLVM_PACKAGE_VERSION}")
+string(REGEX MATCH "^[0-9]+" _pylang_found_llvm_major "${LLVM_PACKAGE_VERSION}")
+string(REGEX MATCH "^[0-9]+" _pylang_required_llvm_major "${PYLANG_LLVM_VERSION}")
+if(NOT _pylang_found_llvm_major STREQUAL _pylang_required_llvm_major)
+    message(FATAL_ERROR
+        "Found LLVM ${LLVM_PACKAGE_VERSION}, but pylang is configured for LLVM "
+        "${PYLANG_LLVM_VERSION}. Set -DPYLANG_LLVM_VERSION, -DLLVM_DIR, and "
+        "-DMLIR_DIR to matching package directories.")
+endif()
+find_package(MLIR REQUIRED CONFIG)
+message(STATUS "Found MLIR package in: ${MLIR_DIR}")
 
 pylang_require_shared_target(spdlog::spdlog "Build spdlog shared, or install a shared spdlog package.")
 pylang_require_shared_target(cpptrace::cpptrace "Build cpptrace shared, or install a shared cpptrace package.")

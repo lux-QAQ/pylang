@@ -8,6 +8,7 @@
       "binaryDir": "build/debug",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
+        "PYLANG_LLVM_VERSION": "20",
         "CPM_SOURCE_CACHE": ".cache/CPM"
       }
     },
@@ -18,6 +19,7 @@
       "binaryDir": "build/release",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
+        "PYLANG_LLVM_VERSION": "20",
         "CPM_SOURCE_CACHE": ".cache/CPM"
       }
     }

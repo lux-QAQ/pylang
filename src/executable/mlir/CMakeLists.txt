@@ -1,8 +1,12 @@
-find_package(LLVM 20.1 REQUIRED CONFIG)
+if(NOT LLVM_FOUND)
+  find_package(LLVM REQUIRED CONFIG)
+endif()
 message(STATUS "Using LLVMConfig.cmake in: ${LLVM_DIR}")
 
-find_package(MLIR CONFIG REQUIRED
-             HINTS ${LLVM_DIR}/../lib/cmake/mlir)
+if(NOT MLIR_FOUND)
+  find_package(MLIR CONFIG REQUIRED
+               HINTS ${MLIR_DIR})
+endif()
 message(STATUS "Using MLIRConfig.cmake in: ${MLIR_DIR}")
 
 # enable exception handling for now..

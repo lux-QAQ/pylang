@@ -372,8 +372,12 @@ add_subdirectory(runtime/export)
 
 target_link_libraries(python-cpp PUBLIC python-mlir)
 
-# LLVM backend (JIT execution)
-find_package(LLVM CONFIG 20.1)
+# LLVM backend (JIT execution). The root CMakeLists selects the LLVM/MLIR
+# package once so the build cannot mix distro default LLVM with the requested
+# pylang LLVM version.
+if(NOT LLVM_FOUND)
+  find_package(LLVM REQUIRED CONFIG)
+endif()
 # if(ENABLE_LLVM_BACKEND AND NOT LLVM_FOUND)
 #   message(FATAL_ERROR "Could not find LLVM in the local environment")
 # elseif(ENABLE_LLVM_BACKEND AND LLVM_FOUND)

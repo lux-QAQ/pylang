@@ -34,7 +34,7 @@ jobs:
         wget https://apt.llvm.org/llvm.sh
         chmod +x llvm.sh
         sudo ./llvm.sh 20
-        sudo apt install libmlir-20-dev mlir-20-tools
+        sudo apt install -y llvm-20-dev clang-20 lld-20 libmlir-20-dev mlir-20-tools
 
     - name: Fix llvm-link
       run: |
@@ -73,7 +73,10 @@ jobs:
     - name: Configure CMake
       run: |
         export CXXFLAGS="-Wno-deprecated-declarations"
-        cmake --preset ${{env.CMAKE_PRESET}}
+        cmake --preset ${{env.CMAKE_PRESET}} \
+          -DPYLANG_LLVM_VERSION=${{env.LLVM_VERSION}} \
+          -DLLVM_DIR=/usr/lib/llvm-${{env.LLVM_VERSION}}/lib/cmake/llvm \
+          -DMLIR_DIR=/usr/lib/llvm-${{env.LLVM_VERSION}}/lib/cmake/mlir
 
     - name: Build
       run: cmake --build --preset ${{env.CMAKE_PRESET}}
